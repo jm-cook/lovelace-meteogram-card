@@ -1,0 +1,16 @@
+{
+  "name": "ha-meteogram-card",
+  "version": "0.1.0",
+  "description": "Custom Home Assistant card displaying a meteogram chart with wind barbs and rainfall.",
+  "main": "dist/meteogram-card.js",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
+  },
+  "devDependencies": {
+    "lit": "^3.1.2",
+    "rollup": "^4.9.6",
+    "rollup-plugin-copy": "^3.5.0",
+    "rollup-plugin-terser": "^7.0.2"
+  }
+}
