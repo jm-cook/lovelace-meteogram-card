@@ -1251,6 +1251,9 @@ class MeteogramCardEditor extends HTMLElement {
   }
 }
 
+// Register the main card component
+customElements.define("meteogram-card", MeteogramCard);
+
 // Register the editor component
 customElements.define("meteogram-card-editor", MeteogramCardEditor);
 
