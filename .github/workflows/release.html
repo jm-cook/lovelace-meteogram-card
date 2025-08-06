@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Create release package
+        run: |
+          mkdir -p release/dist
+          mkdir -p release/icons
+          cp dist/meteogram-card.js release/dist/
+          cp -r icons/* release/icons/
+          cd release
+          zip -r ../ha-meteogram-card.zip .
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ha-meteogram-card.zip
+          name: Release ${{ github.ref_name }}
+          body: |
+            # Meteogram Card ${{ github.ref_name }}
+            
+            ## Installation
+            - HACS: Add as a custom repository
+            - Manual: Download and extract the zip to your `www` directory
+          draft: false
+          prerelease: false
