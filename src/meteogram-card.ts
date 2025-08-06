@@ -1,6 +1,7 @@
 import { LitElement, html, css, PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+// Define interfaces for better type safety
 interface MeteogramData {
   time: Date[];
   temperature: (number | null)[];
@@ -48,6 +49,12 @@ interface DayRange {
   end: number;
 }
 
+// Define a custom type for inputs that need configValue property
+interface ConfigurableHTMLElement extends HTMLElement {
+  configValue?: string;
+  value?: string | number;
+}
+
 @customElement("meteogram-card")
 export class MeteogramCard extends LitElement {
   @property({ type: String }) title = "";
@@ -69,6 +76,9 @@ export class MeteogramCard extends LitElement {
   private _resizeObserver: ResizeObserver | null = null;
   private _lastWidth = 0;
   private _lastHeight = 0;
+
+  // Keep track of update cycles
+  private _isInitialized = false;
 
   static styles = css`
     :host {
@@ -139,7 +149,7 @@ export class MeteogramCard extends LitElement {
     .wind-band-outline { stroke: #000; fill: none; stroke-width: 1; }
     .top-date-label { font: 16px sans-serif; fill: #333; font-weight: bold; dominant-baseline: hanging; }
     .bottom-hour-label { font: 13px sans-serif; fill: #333; }
-    .rain-label { font: 13px sans-serif; fill: #0058a3; text-anchor: middle; font-weight: bold; }
+    .rain-label { font: 13px sans-serif, #0058a3; text-anchor: middle; font-weight: bold; }
     .day-bg { fill: #e3edfa; }
   `;
 
@@ -166,7 +176,17 @@ export class MeteogramCard extends LitElement {
   // Handle initial setup - now properly setup resize observer
   connectedCallback() {
     super.connectedCallback();
+    this._isInitialized = false;
     this._setupResizeObserver();
+
+    // Handle re-entry into DOM after being removed temporarily
+    setTimeout(() => {
+      if (!this.hasRendered || !this.chartLoaded) {
+        this.loadD3AndDraw();
+      } else {
+        this.drawMeteogram();
+      }
+    }, 10);
   }
 
   // Clean up when component is removed
@@ -212,9 +232,10 @@ export class MeteogramCard extends LitElement {
 
     const entry = entries[0];
 
-    // Only redraw if size actually changed by at least 10% to avoid excessive redraws
+    // Reduce the threshold for horizontal resizing to be more responsive to width changes
+    // but keep vertical threshold higher to avoid unnecessary redraws
     if (
-        Math.abs(entry.contentRect.width - this._lastWidth) > this._lastWidth * 0.1 ||
+        Math.abs(entry.contentRect.width - this._lastWidth) > this._lastWidth * 0.05 || // Reduced from 0.1 to 0.05
         Math.abs(entry.contentRect.height - this._lastHeight) > this._lastHeight * 0.1
     ) {
       this._lastWidth = entry.contentRect.width;
@@ -246,6 +267,20 @@ export class MeteogramCard extends LitElement {
     ) {
       // Delay drawing slightly to ensure DOM is ready
       setTimeout(() => this.drawMeteogram(), 0);
+    }
+
+    // Track component state for better lifecycle management
+    if (!this._isInitialized && this.shadowRoot) {
+      this._isInitialized = true;
+      // Force a redraw when added back to the DOM after being in the editor
+      if (this.chartLoaded) {
+        setTimeout(() => {
+          const chartDiv = this.shadowRoot?.querySelector("#chart");
+          if (chartDiv && chartDiv.innerHTML === "") {
+            this.drawMeteogram();
+          }
+        }, 100);
+      }
     }
   }
 
@@ -300,13 +335,14 @@ export class MeteogramCard extends LitElement {
       return;
     }
 
-    // Throttle redraws
+    // Throttle redraws, but allow immediate redraw if not rendered yet or coming from editor
     const now = Date.now();
-    if (now - this.lastDrawTime < this.REDRAW_THROTTLE_MS && this.hasRendered) {
+    if (now - this.lastDrawTime < this.REDRAW_THROTTLE_MS && this.hasRendered && this._isInitialized) {
       return;
     }
 
     this.renderPending = true;
+    this.lastDrawTime = now;
 
     try {
       await this._drawMeteogram();
@@ -337,15 +373,32 @@ export class MeteogramCard extends LitElement {
       return;
     }
 
+    // Listen for Home Assistant panel mode change events that might affect visibility
+    if (!this._isInitialized) {
+      window.addEventListener('location-changed', () => {
+        setTimeout(() => {
+          if (this.isConnected && this.shadowRoot) {
+            const chartDiv = this.shadowRoot.querySelector("#chart");
+            if (chartDiv && chartDiv.innerHTML === "" && this.chartLoaded) {
+              this.drawMeteogram();
+            }
+          }
+        }, 100);
+      });
+    }
+
     try {
       // Responsive sizing based on parent
       const parent = chartDiv.parentElement;
       const availableWidth = parent ? parent.clientWidth : (chartDiv as HTMLElement).offsetWidth || 350;
       const availableHeight = parent ? parent.clientHeight : (chartDiv as HTMLElement).offsetHeight || 180;
 
+      // Better horizontal stretching - use most of available width up to a reasonable maximum
+      const maxAllowedWidth = Math.min(window.innerWidth * 0.95, 1200); // Increased from 800 to 1200
+      const width = Math.max(Math.min(availableWidth, maxAllowedWidth), 300);
+
       const maxAllowedHeight = Math.min(window.innerHeight * 0.7, 520);
-      const width = Math.max(Math.min(availableWidth, 800), 300);
-      const aspectRatioHeight = width * 0.6;
+      const aspectRatioHeight = width * 0.5; // Slightly reduced aspect ratio (from 0.6 to 0.5) for wider displays
       const height = Math.min(aspectRatioHeight, availableHeight, maxAllowedHeight);
 
       // Store dimensions for resize detection
@@ -355,8 +408,7 @@ export class MeteogramCard extends LitElement {
       // Fetch weather data
       const data = await this.fetchWeatherData();
 
-      // Create SVG with responsive viewBox
-      // Store reference so we can clean it up later
+      // Create SVG with responsive viewBox - adjust viewBox to account for wider displays
       this.svg = (window as any).d3.select(chartDiv)
         .append("svg")
         .attr("width", "100%")
@@ -476,12 +528,19 @@ export class MeteogramCard extends LitElement {
     const margin = {top: 70, right: 70, bottom: bottomHourBand + 10, left: 70};
     const chartWidth = width;
     const chartHeight = height;
-    const dx = chartWidth / (N - 1);
 
-    // X scale
+    // Adjust dx for wider charts - ensure elements don't get too stretched or squished
+    let dx = chartWidth / (N - 1);
+    // If the chart is very wide, adjust spacing so elements don't get too stretched
+    const hourSpacing = Math.min(dx, 45); // Cap the hour spacing at 45px
+
+    // X scale - for wider charts, maintain reasonable hour spacing
     const x = d3.scaleLinear()
       .domain([0, N - 1])
-      .range([0, chartWidth]);
+      .range([0, Math.min(hourSpacing * (N - 1), chartWidth)]);
+
+    // Adjust the actual dx to what's being used by the scale
+    dx = x(1) - x(0);
 
     // Find day boundaries for shaded backgrounds
     const dateLabelY = margin.top - 30;
@@ -668,7 +727,7 @@ export class MeteogramCard extends LitElement {
       .attr("href", (d: string) => this.getWeatherIconUrl(d))
       .attr("opacity", (_: string, i: number) => temperature[i] !== null ? 1 : 0);
 
-    // Rain bars with labels
+    // Rain bars with labels - adjust bar width based on available space
     const barWidth = Math.min(26, dx * 0.8);
 
     chart.selectAll(".rain-bar")
@@ -742,19 +801,38 @@ export class MeteogramCard extends LitElement {
       .attr("y1", 0)
       .attr("y2", windBandHeight);
 
-    // Draw wind barbs at regular intervals
-    const windBarbInterval = width < 400 ? 3 : 2;
+    // Draw wind barbs between grid lines (centered in each 2-hour box)
+    const windBarbInterval = width < 400 ? 4 : 2;
 
-    for (let i = 1; i < N - 1; i += windBarbInterval) {
-      const cx = x(i);
-      const speed = windSpeed[i], dir = windDirection[i];
-      const minBarbLen = width < 400 ? 18 : 23;
-      const maxBarbLen = width < 400 ? 30 : 38;
-      const windLenScale = d3.scaleLinear()
-        .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
-        .range([minBarbLen, maxBarbLen]);
-      const barbLen = windLenScale(speed);
-      this.drawWindBarb(windBand, cx, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
+    // Calculate barb positions to be centered between grid lines
+    for (let i = 0; i < N-1; i += windBarbInterval) {
+      // Skip if not at the proper interval
+      if (i % windBarbInterval !== 0) continue;
+
+      // Only place wind barbs if we have a next point to center between
+      if (i+1 < N) {
+        // Skip the last wind barb if it would create a partial box
+        const isLastBox = i + windBarbInterval >= N-1;
+        const hourDiff = isLastBox ?
+          (time[N-1].getTime() - time[i].getTime()) / (1000 * 60 * 60) : 2;
+
+        // Skip if this is the last box and it's less than 2 hours wide
+        if (isLastBox && hourDiff < 2) continue;
+
+        // Calculate center position between current and next hour
+        const cx = x(i) + (x(i+1) - x(i)) / 2;
+        const speed = windSpeed[i];
+        const dir = windDirection[i];
+
+        const minBarbLen = width < 400 ? 18 : 23;
+        const maxBarbLen = width < 400 ? 30 : 38;
+        const windLenScale = d3.scaleLinear()
+          .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
+          .range([minBarbLen, maxBarbLen]);
+        const barbLen = windLenScale(speed);
+
+        this.drawWindBarb(windBand, cx, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
+      }
     }
 
     // Wind band border
@@ -768,7 +846,7 @@ export class MeteogramCard extends LitElement {
       .attr("stroke-width", 1)
       .attr("fill", "none");
 
-    // Bottom hour labels
+    // Bottom hour labels - adjust frequency based on width
     const hourLabelY = margin.top + chartHeight + windBarbBand + 18;
     svg.selectAll(".bottom-hour-label")
       .data(time)
@@ -782,6 +860,8 @@ export class MeteogramCard extends LitElement {
         const hour = d.getHours();
         if (width < 400) {
           return i % 6 === 0 ? String(hour).padStart(2, "0") : "";
+        } else if (width > 800) {
+          return i % 2 === 0 ? String(hour).padStart(2, "0") : "";
         } else {
           return i % 3 === 0 ? String(hour).padStart(2, "0") : "";
         }
@@ -854,14 +934,23 @@ export class MeteogramCard extends LitElement {
 class MeteogramCardEditor extends HTMLElement {
   private _config: any = {};
   private _initialized = false;
+  private _elements: Map<string, ConfigurableHTMLElement> = new Map();
 
+  // Fix the TS6133 warning about unused parameter
   set hass(_: any) {
-    // Setter kept for compatibility
+    // No need to store hass value, just update values if initialized
+    if (this._initialized) {
+      this._updateValues();
+    }
   }
 
   setConfig(config: any) {
     this._config = config || {};
-    this.render();
+    if (this._initialized) {
+      this._updateValues();
+    } else {
+      this.render();
+    }
   }
 
   get config() {
@@ -875,61 +964,155 @@ class MeteogramCardEditor extends HTMLElement {
   }
 
   private _initialize() {
-    this._initialized = true;
     this.render();
+    this._initialized = true;
+  }
+
+  // Update only the values, not the entire DOM
+  private _updateValues() {
+    if (!this._initialized) return;
+
+    // Update title field
+    const titleField = this._elements.get('title');
+    if (titleField) {
+      titleField.value = this._config.title || '';
+    }
+
+    // Update latitude field
+    const latField = this._elements.get('latitude');
+    if (latField) {
+      latField.value = this._config.latitude !== undefined ? String(this._config.latitude) : '';
+    }
+
+    // Update longitude field
+    const lonField = this._elements.get('longitude');
+    if (lonField) {
+      lonField.value = this._config.longitude !== undefined ? String(this._config.longitude) : '';
+    }
+  }
+
+  private _valueChanged(ev: Event) {
+    const target = ev.target as ConfigurableHTMLElement;
+    if (!this._config || !target || !target.configValue) return;
+
+    let newValue: string | number = target.value || '';
+    if ((target as HTMLInputElement).type === 'number') {
+      const numValue = parseFloat(newValue.toString());
+      if (isNaN(numValue)) return;
+      newValue = numValue;
+    }
+
+    // Update config without re-rendering the entire form
+    this._config = {
+      ...this._config,
+      [target.configValue]: newValue
+    };
+
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: this._config }
+    }));
   }
 
   render() {
-    if (!this._initialized) {
-      return;
-    }
-
-    this.innerHTML = `
+    const content = document.createElement('div');
+    content.innerHTML = `
       <style>
+        ha-card {
+          padding: 16px;
+        }
+        .values {
+          padding-left: 16px;
+          margin: 8px 0;
+        }
+        .row {
+          display: flex;
+          margin-bottom: 12px;
+          align-items: center;
+        }
+        ha-switch {
+          margin-right: 8px;
+        }
+        ha-textfield, ha-select {
+          width: 100%;
+        }
         .side-by-side {
           display: flex;
+          gap: 12px;
         }
         .side-by-side > * {
           flex: 1;
-          padding-right: 4px;
+        }
+        h3 {
+          font-size: 18px;
+          color: var(--primary-text-color);
+          font-weight: 500;
+          margin-bottom: 12px;
+          margin-top: 0;
         }
       </style>
-      <div>
-        <p>Meteogram Card Settings</p>
-        <div>
-          <label>Title: <input name="title" value="${this._config.title || ''}"></label>
-        </div>
-        <div class="side-by-side">
-          <div>
-            <label>Latitude: <input name="latitude" type="number" step="any" value="${this._config.latitude || ''}"></label>
+      <ha-card>
+        <h3>Meteogram Card Settings</h3>
+        
+        <div class="values">
+          <div class="row">
+            <ha-textfield
+              label="Title"
+              id="title-input"
+              .value="${this._config.title || ''}"
+            ></ha-textfield>
           </div>
-          <div>
-            <label>Longitude: <input name="longitude" type="number" step="any" value="${this._config.longitude || ''}"></label>
+          
+          <div class="side-by-side">
+            <ha-textfield
+              label="Latitude"
+              id="latitude-input"
+              type="number"
+              step="any"
+              .value="${this._config.latitude !== undefined ? this._config.latitude : ''}"
+            ></ha-textfield>
+            
+            <ha-textfield
+              label="Longitude"
+              id="longitude-input"
+              type="number"
+              step="any"
+              .value="${this._config.longitude !== undefined ? this._config.longitude : ''}"
+            ></ha-textfield>
           </div>
         </div>
-      </div>
+      </ha-card>
     `;
 
-    const inputs = this.querySelectorAll("input");
-    inputs.forEach(input => {
-      input.addEventListener("change", () => {
-        if (!this._config) return;
+    // Clear previous content
+    this.innerHTML = '';
 
-        if ((input as HTMLInputElement).type === 'number') {
-          this._config = {
-            ...this._config,
-            [(input as HTMLInputElement).name]: parseFloat((input as HTMLInputElement).value)
-          };
-        } else {
-          this._config = {
-            ...this._config,
-            [(input as HTMLInputElement).name]: (input as HTMLInputElement).value
-          };
-        }
+    // Append new content
+    this.appendChild(content);
 
-        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
-      });
-    });
+    // Set up event listeners after DOM is updated
+    setTimeout(() => {
+      // Get and store references to all input elements with proper type casting
+      const titleInput = this.querySelector('#title-input') as ConfigurableHTMLElement;
+      if (titleInput) {
+        titleInput.configValue = 'title';
+        titleInput.addEventListener('input', this._valueChanged.bind(this));
+        this._elements.set('title', titleInput);
+      }
+
+      const latInput = this.querySelector('#latitude-input') as ConfigurableHTMLElement;
+      if (latInput) {
+        latInput.configValue = 'latitude';
+        latInput.addEventListener('input', this._valueChanged.bind(this));
+        this._elements.set('latitude', latInput);
+      }
+
+      const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
+      if (lonInput) {
+        lonInput.configValue = 'longitude';
+        lonInput.addEventListener('input', this._valueChanged.bind(this));
+        this._elements.set('longitude', lonInput);
+      }
+    }, 0);
   }
 }
 
