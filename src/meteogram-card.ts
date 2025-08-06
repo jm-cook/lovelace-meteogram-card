@@ -998,13 +998,12 @@ export class MeteogramCard extends LitElement {
       .replace(/^lightssleet/, 'lightsleet')
       .replace(/^lightssnow/, 'lightsnow');
 
-    // When installed via HACS, icons will be in /hacsfiles/ha-meteogram-card/icons/
-    // When manually installed, they will be in /local/ha-meteogram-card/icons/
-
     // Try to determine if we're loaded from HACS
-    const scriptElement = document.currentScript as HTMLScriptElement;
+    // Look for the current script to determine if we're loaded via HACS
+    const scriptElement = document.querySelector('script[src*="meteogram-card.js"]') as HTMLScriptElement;
     const isHacs = scriptElement && scriptElement.src.includes('/hacsfiles/');
 
+    // Use appropriate base path depending on installation method
     const iconBase = isHacs
       ? '/hacsfiles/ha-meteogram-card/icons/'
       : '/local/ha-meteogram-card/icons/';

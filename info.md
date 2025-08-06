@@ -30,4 +30,3 @@ longitude: -0.1278
 | title | string | | Optional title for the card |
 | latitude | number | HA's default | Latitude for weather data |
 | longitude | number | HA's default | Longitude for weather data |
-
