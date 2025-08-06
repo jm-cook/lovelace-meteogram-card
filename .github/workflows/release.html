@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+  release:
+    types: [published]
 
 jobs:
   build:
@@ -11,7 +13,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
+        with:
+          ref: ${{ github.ref }}
+          
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
@@ -33,17 +37,23 @@ jobs:
           cd release
           zip -r ../ha-meteogram-card.zip .
 
+      - name: Upload Release Asset
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./ha-meteogram-card.zip
+          asset_name: ha-meteogram-card.zip
+          asset_content_type: application/zip
+          
       - name: Create Release
+        if: github.event_name == 'push'
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           files: ha-meteogram-card.zip
           name: Release ${{ github.ref_name }}
-          body: |
-            # Meteogram Card ${{ github.ref_name }}
-            
-            ## Installation
-            - HACS: Add as a custom repository
-            - Manual: Download and extract the zip to your `www` directory
           draft: false
           prerelease: false
