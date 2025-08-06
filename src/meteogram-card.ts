@@ -69,6 +69,33 @@ export class MeteogramCard extends LitElement {
   @state() private lastErrorTime = 0;
   @state() private lastErrorMessage = "";
 
+  private iconCache = new Map<string, string>();
+  private iconBasePath = 'https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/icons/';
+
+  // Add a method to fetch icons
+  private async getIconSVG(iconName: string): Promise<string> {
+    // Return from cache if available
+    if (this.iconCache.has(iconName)) {
+      return this.iconCache.get(iconName)!;
+    }
+
+    try {
+      // Fetch from GitHub
+      const response = await fetch(`${this.iconBasePath}${iconName}.svg`);
+      if (!response.ok) throw new Error(`Failed to load icon: ${iconName}`);
+
+      const svgText = await response.text();
+      // Store in cache
+      this.iconCache.set(iconName, svgText);
+      return svgText;
+    } catch (error) {
+      console.error(`Error loading icon ${iconName}:`, error);
+      return ''; // Return empty SVG on error
+    }
+  }
+
+
+
   // Track if initial render has happened to avoid duplicate meteograms
   private hasRendered = false;
 
@@ -781,19 +808,26 @@ export class MeteogramCard extends LitElement {
 
     // Weather icons along temperature curve
     chart.selectAll(".weather-icon")
-      .data(symbolCode)
-      .enter()
-      .append("image")
-      .attr("class", "weather-icon")
-      .attr("x", (_: string, i: number) => x(i) - 16)
-      .attr("y", (_: string, i: number) => {
-        const temp = temperature[i];
-        return temp !== null ? yTemp(temp) - 32 - 8 : -999;
-      })
-      .attr("width", 32)
-      .attr("height", 32)
-      .attr("href", (d: string) => this.getWeatherIconUrl(d))
-      .attr("opacity", (_: string, i: number) => temperature[i] !== null ? 1 : 0);
+        .data(symbolCode)
+        .enter()
+        .append("g")  // Use a group element instead of image
+        .attr("class", "weather-icon")
+        .attr("transform", (_: string, i: number) => {
+          const temp = temperature[i];
+          const yPos = temp !== null ? yTemp(temp) - 32 - 8 : -999;
+          return `translate(${x(i) - 16}, ${yPos})`;
+        })
+        .attr("opacity", (_: string, i: number) => temperature[i] !== null ? 1 : 0)
+        .each((d: string, i: number, nodes: any) => {
+          // For each icon, fetch the SVG and insert it
+          const node = nodes[i];
+          this.getIconSVG(d).then(svgContent => {
+            if (svgContent) {
+              // Use d3's html method to insert the SVG
+              d3.select(node).html(svgContent);
+            }
+          });
+        });
 
     // Rain bars with labels - adjust bar width based on available space
     const barWidth = Math.min(26, dx * 0.8);
@@ -991,25 +1025,6 @@ export class MeteogramCard extends LitElement {
     }
   }
 
-  // Weather icon URL handling
-  getWeatherIconUrl(symbolCode: string): string {
-    // Handle the typo in the API (extra "s" after "light" in some symbols)
-    const correctedSymbol = symbolCode
-      .replace(/^lightssleet/, 'lightsleet')
-      .replace(/^lightssnow/, 'lightsnow');
-
-    // Try to determine if we're loaded from HACS
-    // Look for the current script to determine if we're loaded via HACS
-    const scriptElement = document.querySelector('script[src*="meteogram-card.js"]') as HTMLScriptElement;
-    const isHacs = scriptElement && scriptElement.src.includes('/hacsfiles/');
-
-    // Use appropriate base path depending on installation method
-    const iconBase = isHacs
-      ? '/hacsfiles/ha-meteogram-card/icons/'
-      : '/local/ha-meteogram-card/icons/';
-
-    return `${iconBase}${correctedSymbol}.svg`;
-  }
 }
 
 // Visual editor for HACS
