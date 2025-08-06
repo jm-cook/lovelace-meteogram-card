@@ -1,18 +1,20 @@
 import typescript from '@rollup/plugin-typescript';
-  import terser from '@rollup/plugin-terser';
-  import resolve from '@rollup/plugin-node-resolve';
+import resolve from '@rollup/plugin-node-resolve';
+import terser from '@rollup/plugin-terser';
 
-  export default {
-    input: 'src/meteogram-card.ts',
-    output: {
-      file: 'dist/meteogram-card.js',
-      format: 'iife',
-      name: 'MeteogramCard',
-      sourcemap: true
-    },
-    plugins: [
-      resolve(),
-      typescript(),
-      terser()
-    ]
-  };
+export default {
+  input: 'src/meteogram-card.ts',
+  output: {
+    dir: 'dist',
+    format: 'es',
+  },
+  plugins: [
+    resolve(),
+    typescript(),
+    terser({
+      format: {
+        comments: false
+      }
+    })
+  ],
+};

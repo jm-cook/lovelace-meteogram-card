@@ -67,7 +67,7 @@ function downloadIcon(symbol) {
   // Use the corrected name for local file, but original name for download
   const localFileName = symbolNameCorrections[symbol] || symbol;
 
-  // The new URL structure for Met.no weather icons
+  // The URL structure for Met.no weather icons
   const url = `https://raw.githubusercontent.com/metno/weathericons/main/weather/svg/${symbol}.svg`;
   const filePath = path.join(iconsDir, `${localFileName}.svg`);
 
