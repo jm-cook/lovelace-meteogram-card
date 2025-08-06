@@ -12,7 +12,6 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "outDir": "./dist",
     "rootDir": "./src",
     "experimentalDecorators": true,
     "skipLibCheck": true,

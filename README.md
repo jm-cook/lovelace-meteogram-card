@@ -2,17 +2,29 @@
 
 A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API.
 
+![Meteogram Card](https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/images/meteogram-card.png)
+
+## Features
+
+- 48-hour weather forecast visualization
+- Temperature curve with weather icons
+- Precipitation display (rain/snow)
+- Cloud coverage visualization
+- Professional-style wind barbs showing wind speed and direction
+- Automatically uses Home Assistant's configured location
+
 ## Installation
 
 ### HACS Installation
 1. In Home Assistant, go to HACS > Frontend
 2. Click the three dots in the top right corner and select "Custom repositories"
-3. Add the URL of this repository and select "Dashboard" as the category
-4. Install "Meteogram Card" from HACS
+3. Add the URL of this repository and select "Lovelace" as the category
+4. Click "Add"
+5. Search for "Meteogram Card" and install it
 
 ### Manual Installation
-1. Download the `meteogram-card.js` file from the `dist` folder in this repository
-2. Copy the `meteogram-card.js` file to your `config/www/` directory
+1. Download the `meteogram-card.js` file from the latest release
+2. Copy the file to your `config/www/` directory
 3. Download the weather icons from the `icons` folder in this repository
 4. Create a folder named `icons` inside your `config/www/ha-meteogram-card/` directory and copy the icons there
 5. Add the following to your Lovelace resources:
