@@ -1,159 +1,119 @@
 const fs = require('fs');
-const path = require('path');
 const https = require('https');
+const path = require('path');
 
-// Create icons directory if it doesn't exist
+// Create the icons directory if it doesn't exist
 const iconsDir = path.join(__dirname, '../icons');
 if (!fs.existsSync(iconsDir)) {
-  fs.mkdirSync(iconsDir, { recursive: true });
+  fs.mkdirSync(iconsDir);
 }
 
-// List of Met.no weather symbols
-// This is the full list from https://api.met.no/weatherapi/weathericon/2.0/legends
-// Note: Some names have extra "s" after "light" - these are typos in the API but must be supported
+// List of weather symbol codes used by Met.no API
 const weatherSymbols = [
   'clearsky_day', 'clearsky_night', 'clearsky_polartwilight',
-  'fair_day', 'fair_night', 'fair_polartwilight',
-  'partlycloudy_day', 'partlycloudy_night', 'partlycloudy_polartwilight',
-  'cloudy',
-  'rainshowers_day', 'rainshowers_night', 'rainshowers_polartwilight',
-  'rainshowersandthunder_day', 'rainshowersandthunder_night', 'rainshowersandthunder_polartwilight',
-  'sleetshowers_day', 'sleetshowers_night', 'sleetshowers_polartwilight',
-  'sleetshowersandthunder_day', 'sleetshowersandthunder_night', 'sleetshowersandthunder_polartwilight',
-  'snowshowers_day', 'snowshowers_night', 'snowshowers_polartwilight',
-  'snowshowersandthunder_day', 'snowshowersandthunder_night', 'snowshowersandthunder_polartwilight',
-  'rain',
-  'rainandthunder',
-  'sleet',
-  'sleetandthunder',
-  'snow',
-  'snowandthunder',
-  'fog',
-  'heavyrain',
-  'heavyrainandthunder',
-  'heavysleet',
-  'heavysleetandthunder',
-  'heavysnow',
-  'heavysnowandthunder',
+  'cloudy', 'fair_day', 'fair_night', 'fair_polartwilight',
+  'fog', 'heavyrain', 'heavyrainandthunder',
+  'heavyrainshowers_day', 'heavyrainshowers_night', 'heavyrainshowers_polartwilight',
+  'heavyrainshowersandthunder_day', 'heavyrainshowersandthunder_night', 'heavyrainshowersandthunder_polartwilight',
+  'heavysleet', 'heavysleetandthunder',
+  'heavysleetshowers_day', 'heavysleetshowers_night', 'heavysleetshowers_polartwilight',
+  'heavysleetshowersandthunder_day', 'heavysleetshowersandthunder_night', 'heavysleetshowersandthunder_polartwilight',
+  'heavysnow', 'heavysnowandthunder',
+  'heavysnowshowers_day', 'heavysnowshowers_night', 'heavysnowshowers_polartwilight',
+  'heavysnowshowersandthunder_day', 'heavysnowshowersandthunder_night', 'heavysnowshowersandthunder_polartwilight',
+  'lightrain', 'lightrainandthunder',
   'lightrainshowers_day', 'lightrainshowers_night', 'lightrainshowers_polartwilight',
   'lightrainshowersandthunder_day', 'lightrainshowersandthunder_night', 'lightrainshowersandthunder_polartwilight',
-  'lightrain',
-  'lightrainandthunder',
+  'lightsleet', 'lightsleetandthunder',
   'lightsleetshowers_day', 'lightsleetshowers_night', 'lightsleetshowers_polartwilight',
   'lightsleetshowersandthunder_day', 'lightsleetshowersandthunder_night', 'lightsleetshowersandthunder_polartwilight',
-  'lightsleet',
-  'lightsleetandthunder',
+  'lightsnow', 'lightsnowandthunder',
   'lightsnowshowers_day', 'lightsnowshowers_night', 'lightsnowshowers_polartwilight',
   'lightsnowshowersandthunder_day', 'lightsnowshowersandthunder_night', 'lightsnowshowersandthunder_polartwilight',
-  'lightsnow',
-  'lightsnowandthunder',
-  // Add the typo versions that are actually used in the API
+  'partlycloudy_day', 'partlycloudy_night', 'partlycloudy_polartwilight',
+  'rain', 'rainandthunder',
+  'rainshowers_day', 'rainshowers_night', 'rainshowers_polartwilight',
+  'rainshowersandthunder_day', 'rainshowersandthunder_night', 'rainshowersandthunder_polartwilight',
+  'sleet', 'sleetandthunder',
+  'sleetshowers_day', 'sleetshowers_night', 'sleetshowers_polartwilight',
+  'sleetshowersandthunder_day', 'sleetshowersandthunder_night', 'sleetshowersandthunder_polartwilight',
+  'snow', 'snowandthunder',
+  'snowshowers_day', 'snowshowers_night', 'snowshowers_polartwilight',
+  'snowshowersandthunder_day', 'snowshowersandthunder_night', 'snowshowersandthunder_polartwilight',
+  'thunder'
+];
+
+// Special cases - typos in the API that need to be handled
+const specialCases = [
   'lightssleetshowersandthunder_day', 'lightssleetshowersandthunder_night', 'lightssleetshowersandthunder_polartwilight',
   'lightssnowshowersandthunder_day', 'lightssnowshowersandthunder_night', 'lightssnowshowersandthunder_polartwilight'
 ];
 
-// Mapping for typos to correct versions (for local file naming)
-const symbolNameCorrections = {
-  'lightssleetshowersandthunder_day': 'lightsleetshowersandthunder_day',
-  'lightssleetshowersandthunder_night': 'lightsleetshowersandthunder_night',
-  'lightssleetshowersandthunder_polartwilight': 'lightsleetshowersandthunder_polartwilight',
-  'lightssnowshowersandthunder_day': 'lightsnowshowersandthunder_day',
-  'lightssnowshowersandthunder_night': 'lightsnowshowersandthunder_night',
-  'lightssnowshowersandthunder_polartwilight': 'lightsnowshowersandthunder_polartwilight'
-};
+// Combined list of all symbols
+const allSymbols = [...weatherSymbols, ...specialCases];
 
-// Updated download function with correct repository structure and handling for typos
-function downloadIcon(symbol) {
-  // Use the corrected name for local file, but original name for download
-  const localFileName = symbolNameCorrections[symbol] || symbol;
+// Base URL for Met.no weather icons
+const baseUrl = 'https://raw.githubusercontent.com/metno/weathericons/main/svg/';
 
-  // The URL structure for Met.no weather icons
-  const url = `https://raw.githubusercontent.com/metno/weathericons/main/weather/svg/${symbol}.svg`;
-  const filePath = path.join(iconsDir, `${localFileName}.svg`);
+// Download all icons
+let completed = 0;
+const total = allSymbols.length;
 
+// Function to download a file
+function downloadFile(url, destPath) {
   return new Promise((resolve, reject) => {
     https.get(url, (response) => {
-      if (response.statusCode !== 200) {
-        // Try fallback to the old path structure if the new one fails
-        const fallbackUrl = `https://raw.githubusercontent.com/metno/weathericons/main/weather-symbols-v2/${symbol}.svg`;
-        console.log(`Failed with new path. Trying fallback: ${fallbackUrl}`);
-
-        https.get(fallbackUrl, (fallbackResponse) => {
-          if (fallbackResponse.statusCode !== 200) {
-            reject(new Error(`Failed to download ${symbol}: HTTP ${fallbackResponse.statusCode}`));
-            return;
-          }
-
-          const file = fs.createWriteStream(filePath);
-          fallbackResponse.pipe(file);
-
-          file.on('finish', () => {
-            file.close();
-            console.log(`Downloaded (fallback): ${symbol}${localFileName !== symbol ? ` (saved as ${localFileName})` : ''}`);
-            resolve();
-          });
-
-          file.on('error', (err) => {
-            fs.unlink(filePath, () => {});
-            reject(err);
-          });
-        }).on('error', (err) => {
-          reject(err);
+      if (response.statusCode === 200) {
+        const file = fs.createWriteStream(destPath);
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve();
         });
-
-        return;
+      } else if (response.statusCode === 404) {
+        console.warn(`File not found: ${url}`);
+        resolve(); // Continue even if file is not found
+      } else {
+        reject(`Failed to download ${url}, status code: ${response.statusCode}`);
       }
-
-      const file = fs.createWriteStream(filePath);
-      response.pipe(file);
-
-      file.on('finish', () => {
-        file.close();
-        console.log(`Downloaded: ${symbol}${localFileName !== symbol ? ` (saved as ${localFileName})` : ''}`);
-        resolve();
-      });
-
-      file.on('error', (err) => {
-        fs.unlink(filePath, () => {});
-        reject(err);
-      });
-
     }).on('error', (err) => {
       reject(err);
     });
   });
 }
 
-// Download all icons
-async function downloadAllIcons() {
-  console.log('Starting download of weather icons...');
-  console.log(`Icons will be saved to: ${iconsDir}`);
-  console.log('Note: Some symbols have typos in the API (extra "s" after "light") but will be saved with corrected names');
+// Process each symbol
+async function processSymbols() {
+  console.log(`Downloading ${total} weather icons...`);
 
-  let successCount = 0;
-  let failureCount = 0;
+  for (const symbol of allSymbols) {
+    // For special cases, use the corrected name for the local file but the typo for the URL
+    let urlSymbol = symbol;
+    let destSymbol = symbol;
 
-  for (const symbol of weatherSymbols) {
+    // Handle special cases
+    if (symbol.includes('lightssleet')) {
+      // For URL use typo version, for destination file use correct name
+      urlSymbol = symbol; // With typo
+      destSymbol = symbol.replace('lightssleet', 'lightsleet'); // Correct name
+    } else if (symbol.includes('lightssnow')) {
+      urlSymbol = symbol; // With typo
+      destSymbol = symbol.replace('lightssnow', 'lightsnow'); // Correct name
+    }
+
+    const url = `${baseUrl}${urlSymbol}.svg`;
+    const destPath = path.join(iconsDir, `${destSymbol}.svg`);
+
     try {
-      await downloadIcon(symbol);
-      successCount++;
+      await downloadFile(url, destPath);
+      completed++;
+      console.log(`[${completed}/${total}] Downloaded: ${destSymbol}.svg`);
     } catch (error) {
-      console.error(`Error downloading ${symbol}: ${error.message}`);
-      failureCount++;
+      console.error(`Error downloading ${symbol}:`, error);
     }
   }
 
-  console.log('\nDownload summary:');
-  console.log(`- Successfully downloaded: ${successCount} icons`);
-  console.log(`- Failed to download: ${failureCount} icons`);
-  console.log(`- Icons location: ${iconsDir}`);
-
-  if (failureCount > 0) {
-    console.log('\nSome icons failed to download. You might need to:');
-    console.log('1. Check your internet connection');
-    console.log('2. Verify the Met.no repository structure has not changed');
-    console.log('3. Manually download missing icons from: https://github.com/metno/weathericons');
-  }
+  console.log(`Download complete! ${completed} icons saved to ${iconsDir}`);
 }
 
-downloadAllIcons();
+processSymbols();

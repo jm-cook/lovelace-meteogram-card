@@ -1,123 +1,51 @@
 # Meteogram Card for Home Assistant
 
-![Meteogram Card](https://raw.githubusercontent.com/yourusername/ha-meteogram-card/main/images/preview.png)
-
-A detailed 48-hour meteogram custom card for Home Assistant displaying:
-- Temperature curve
-- Rain and snow precipitation
-- Cloud cover
-- Wind barbs showing speed and direction
-- Weather condition icons
+A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API.
 
 ## Installation
 
-### HACS (Home Assistant Community Store)
-
-1. Add this repository to HACS as a custom repository:
-   - Repository: `yourusername/ha-meteogram-card`
-   - Category: `Lovelace`
-
-2. Install the "Meteogram Card" from HACS.
-
-3. Download the weather icons:
-   ```bash
-   # Create the icons directory in your HA configuration
-   mkdir -p www/ha-meteogram-card/icons
-   
-   # Option 1: Download using the included script (if node.js is available)
-   cd /path/to/hacs/ha-meteogram-card
-   npm run download-icons
-   cp -r icons /config/www/ha-meteogram-card/
-   
-   # Option 2: Download manually from the repository
-   # Copy all SVG files from the icons directory to /config/www/ha-meteogram-card/icons/
-   ```
-
-4. Add the resource to Lovelace:
-   ```yaml
-   resources:
-     - url: /hacsfiles/meteogram-card/meteogram-card.js
-       type: module
-   ```
+### HACS Installation
+1. In Home Assistant, go to HACS > Frontend
+2. Click the three dots in the top right corner and select "Custom repositories"
+3. Add the URL of this repository and select "Dashboard" as the category
+4. Install "Meteogram Card" from HACS
 
 ### Manual Installation
-
-1. Download the latest release from the repository
-2. Copy `meteogram-card.js` to your `<config>/www/` folder
-3. Download the weather icons:
-   ```bash
-   mkdir -p /config/www/ha-meteogram-card/icons
-   # Copy icons from the repository's icons folder to this directory
-   ```
-4. Add the card as a resource in Lovelace:
+1. Download the `meteogram-card.js` file from the `dist` folder in this repository
+2. Copy the `meteogram-card.js` file to your `config/www/` directory
+3. Download the weather icons from the `icons` folder in this repository
+4. Create a folder named `icons` inside your `config/www/ha-meteogram-card/` directory and copy the icons there
+5. Add the following to your Lovelace resources:
    ```yaml
-   resources:
-     - url: /local/ha-meteogram-card/meteogram-card.js
-       type: module
+   - url: /local/ha-meteogram-card/meteogram-card.js
+     type: module
    ```
 
-## Configuration
+## Usage
 
 Add the card to your dashboard:
 
 ```yaml
 type: custom:meteogram-card
 title: Weather Forecast
+# Optional: specify coordinates, or use Home Assistant's default location
 latitude: 51.5074
 longitude: -0.1278
 ```
 
-### Configuration Options
+## Options
 
 | Name | Type | Default | Description |
-|------|------|---------|-------------|
-| title | string | optional | Card title |
-| latitude | number | required | Latitude for weather forecast |
-| longitude | number | required | Longitude for weather forecast |
+| ---- | ---- | ------- | ----------- |
+| title | string | | Optional title for the card |
+| latitude | number | HA's default | Latitude for weather data |
+| longitude | number | HA's default | Longitude for weather data |
 
-## Weather Data Source
+## Weather Data
 
-This card uses the Met.no Locationforecast API. This is a free, public API that provides detailed weather forecasts for locations worldwide. No API key is required, but please be respectful with the number of requests.
-
-## Troubleshooting
-
-### Icons not displaying
-
-If weather icons are not showing:
-1. Verify the icons are properly copied to `/config/www/ha-meteogram-card/icons/`
-2. Make sure each SVG file is correctly named (e.g., `cloudy.svg`, `rain.svg`)
-3. Check your browser console for errors
-4. Try clearing your browser cache
-
-### Error Loading Weather Data
-
-If you see an error message:
-1. Check that your latitude and longitude values are valid
-2. Verify your Home Assistant has internet access
-3. The Met.no API might be temporarily unavailable or have changed
-4. Check browser console for detailed error messages
-
-## Development
-
-This card is built using:
-- LitElement
-- TypeScript
-- D3.js for data visualization
-- Rollup for bundling
-
-To build locally:
-```bash
-# Install dependencies
-npm install
-
-# Build the project
-npm run build
-
-# Download weather icons
-npm run download-icons
-```
+This card fetches weather data directly from the Met.no API using the provided coordinates. If no coordinates are specified, it will use your Home Assistant's configured location.
 
 ## Credits
 
-- Weather data provided by [The Norwegian Meteorological Institute](https://met.no/)
+- Weather data provided by [MET Norway Weather API](https://api.met.no/)
 - Weather icons from [Met.no Weather Icons](https://github.com/metno/weathericons)

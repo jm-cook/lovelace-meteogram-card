@@ -58,13 +58,16 @@ interface ConfigurableHTMLElement extends HTMLElement {
 @customElement("meteogram-card")
 export class MeteogramCard extends LitElement {
   @property({ type: String }) title = "";
-  @property({ type: Number }) latitude!: number;
-  @property({ type: Number }) longitude!: number;
+  @property({ type: Number }) latitude?: number;
+  @property({ type: Number }) longitude?: number;
   @property({ attribute: false }) hass: any;
 
   @state() private chartLoaded = false;
   @state() private meteogramError = "";
   @state() private renderPending = false;
+  @state() private errorCount = 0;
+  @state() private lastErrorTime = 0;
+  @state() private lastErrorMessage = "";
 
   // Track if initial render has happened to avoid duplicate meteograms
   private hasRendered = false;
@@ -167,9 +170,8 @@ export class MeteogramCard extends LitElement {
 
   static getStubConfig() {
     return {
-      title: "Weather Forecast",
-      latitude: 51.5074,
-      longitude: -0.1278
+      title: "Weather Forecast"
+      // Coordinates will be fetched from HA configuration
     };
   }
 
@@ -263,8 +265,12 @@ export class MeteogramCard extends LitElement {
     if (this.chartLoaded && (
         changedProps.has('latitude') ||
         changedProps.has('longitude') ||
+        changedProps.has('hass') ||
         !this.hasRendered)
     ) {
+      // Get location from HA if not configured
+      this._checkAndUpdateLocation();
+
       // Delay drawing slightly to ensure DOM is ready
       setTimeout(() => this.drawMeteogram(), 0);
     }
@@ -280,6 +286,20 @@ export class MeteogramCard extends LitElement {
             this.drawMeteogram();
           }
         }, 100);
+      }
+    }
+  }
+
+  // Check if we need to get location from HA
+  private _checkAndUpdateLocation() {
+    if (this.hass && (this.latitude === undefined || this.longitude === undefined)) {
+      const hassConfig = this.hass.config || {};
+      const hassLocation = hassConfig.latitude !== undefined && hassConfig.longitude !== undefined;
+
+      if (hassLocation) {
+        this.latitude = hassConfig.latitude;
+        this.longitude = hassConfig.longitude;
+        console.debug(`Using HA location: ${this.latitude}, ${this.longitude}`);
       }
     }
   }
@@ -352,11 +372,19 @@ export class MeteogramCard extends LitElement {
   }
 
   async _drawMeteogram() {
+    // Limit excessive error messages
+    const now = Date.now();
+    if (this.meteogramError && now - this.lastErrorTime < 60000) {
+      // Don't try to redraw for at least 1 minute after an error
+      this.errorCount++;
+      return;
+    }
+
     this.meteogramError = "";
 
     // Ensure D3 is loaded
     if (!(window as any).d3) {
-      this.meteogramError = "D3.js library not loaded.";
+      this.setError("D3.js library not loaded.");
       return;
     }
 
@@ -419,11 +447,37 @@ export class MeteogramCard extends LitElement {
       this.renderMeteogram(this.svg, data, width, height);
       this.hasRendered = true;
 
+      // Reset error tracking on success
+      this.errorCount = 0;
+      this.lastErrorMessage = "";
+
       // Ensure observers are setup again
       this._setupResizeObserver();
     } catch (error) {
-      console.error('Error in _drawMeteogram:', error);
-      this.meteogramError = `Failed to render chart: ${(error as Error).message}`;
+      this.setError(`Failed to render chart: ${(error as Error).message}`);
+    }
+  }
+
+  // Helper method to set errors with rate limiting
+  private setError(message: string) {
+    const now = Date.now();
+
+    // If this is a repeat of the same error, just count it
+    if (message === this.lastErrorMessage) {
+      this.errorCount++;
+
+      // Only update the UI with the error count periodically
+      if (now - this.lastErrorTime > 10000) { // 10 seconds
+        this.meteogramError = `${message} (occurred ${this.errorCount} times)`;
+        this.lastErrorTime = now;
+      }
+    } else {
+      // New error, reset counter
+      this.errorCount = 1;
+      this.meteogramError = message;
+      this.lastErrorMessage = message;
+      this.lastErrorTime = now;
+      console.error('Meteogram error:', message);
     }
   }
 
@@ -431,8 +485,12 @@ export class MeteogramCard extends LitElement {
   private static CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes cache
 
   async fetchWeatherData(): Promise<MeteogramData> {
-    // Create a cache key based on coordinates (rounded to 3 decimal places for stability)
-    const cacheKey = `${this.latitude.toFixed(3)},${this.longitude.toFixed(3)}`;
+    if (this.latitude === undefined || this.longitude === undefined) {
+      throw new Error("Coordinates not configured and couldn't be retrieved from Home Assistant");
+    }
+
+    // Define cache key based on coordinates
+    const cacheKey = `coords_${this.latitude.toFixed(3)},${this.longitude.toFixed(3)}`;
     const now = new Date().getTime();
 
     // Check if we have valid cached data
@@ -446,75 +504,85 @@ export class MeteogramCard extends LitElement {
     console.debug("Fetching fresh weather data");
 
     try {
-      const response = await fetch(
-          `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${this.latitude}&lon=${this.longitude}`,
-          {
-            headers: {
-              'User-Agent': 'ha-meteogram-card/1.0 github.com/jm-cook/ha-meteogram-card'
-            }
-          }
-      );
+      // Fetch data from Met.no API
+      const data = await this.fetchFromMetNoAPI();
 
-      if (!response.ok) {
-        throw new Error(`Weather API returned ${response.status} ${response.statusText}`);
+      // Store in cache
+      MeteogramCard.weatherDataCache.set(cacheKey, {
+        data,
+        timestamp: now
+      });
+
+      return data;
+    } catch (error) {
+      // If error occurs and we have expired cache data, use it as fallback
+      if (cachedData) {
+        console.warn("Data fetch failed, using expired cache data as fallback", error);
+        return cachedData.data;
       }
+      throw error;
+    }
+  }
 
-      const data = await response.json();
-      const ts = data.properties.timeseries.slice(0, 48) as WeatherDataPoint[];
+  // Fetch data from Met.no API
+  private async fetchFromMetNoAPI(): Promise<MeteogramData> {
+    if (this.latitude === undefined || this.longitude === undefined) {
+      throw new Error("Coordinates not provided for Met.no API");
+    }
 
-      if (!ts.length) {
-        throw new Error("No data received from API.");
+    const response = await fetch(
+      `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${this.latitude}&lon=${this.longitude}`,
+      {
+        headers: {
+          'User-Agent': 'ha-meteogram-card/1.0 github.com/jm-cook/ha-meteogram-card'
+        }
       }
+    );
 
-      // Process the data as before
-      const time = ts.map(e => new Date(e.time));
-      const temperature = ts.map(e => e.data.instant.details.air_temperature ?? null);
-      const rain = ts.map(e => e.data.next_1_hours?.details?.precipitation_amount ?? 0);
-      const snow = ts.map(e => e.data.next_1_hours?.details?.precipitation_amount ?? 0);
-      const cloudCover = ts.map(e => e.data.instant.details.cloud_area_fraction ?? 0);
-      const windSpeed = ts.map(e => e.data.instant.details.wind_speed ?? 0);
-      const windDirection = ts.map(e => e.data.instant.details.wind_from_direction ?? 0);
-      const symbolCode = ts.map(e =>
+    if (!response.ok) {
+      throw new Error(`Weather API returned ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const ts = data.properties.timeseries.slice(0, 48) as WeatherDataPoint[];
+
+    if (!ts.length) {
+      throw new Error("No data received from API.");
+    }
+
+    // Process the data as before
+    const time = ts.map(e => new Date(e.time));
+    const temperature = ts.map(e => e.data.instant.details.air_temperature ?? null);
+    const rain = ts.map(e => e.data.next_1_hours?.details?.precipitation_amount ?? 0);
+    const snow = ts.map(e => e.data.next_1_hours?.details?.precipitation_amount ?? 0);
+    const cloudCover = ts.map(e => e.data.instant.details.cloud_area_fraction ?? 0);
+    const windSpeed = ts.map(e => e.data.instant.details.wind_speed ?? 0);
+    const windDirection = ts.map(e => e.data.instant.details.wind_from_direction ?? 0);
+    const symbolCode = ts.map(e =>
           e.data.next_1_hours?.summary?.symbol_code ||
           e.data.next_6_hours?.summary?.symbol_code ||
           ""
       );
 
-      // Limit to last full hour
-      let lastHourIdx = time.length - 1;
-      for (let i = time.length - 1; i >= 0; i--) {
-        if (time[i].getMinutes() === 0 && time[i].getSeconds() === 0) {
-          lastHourIdx = i;
-          break;
-        }
+    // Limit to last full hour
+    let lastHourIdx = time.length - 1;
+    for (let i = time.length - 1; i >= 0; i--) {
+      if (time[i].getMinutes() === 0 && time[i].getSeconds() === 0) {
+        lastHourIdx = i;
+        break;
       }
-
-      const processedData = {
-        time: time.slice(0, lastHourIdx + 1),
-        temperature: temperature.slice(0, lastHourIdx + 1),
-        rain: rain.slice(0, lastHourIdx + 1),
-        snow: snow.slice(0, lastHourIdx + 1),
-        cloudCover: cloudCover.slice(0, lastHourIdx + 1),
-        windSpeed: windSpeed.slice(0, lastHourIdx + 1),
-        windDirection: windDirection.slice(0, lastHourIdx + 1),
-        symbolCode: symbolCode.slice(0, lastHourIdx + 1)
-      };
-
-      // Store in cache
-      MeteogramCard.weatherDataCache.set(cacheKey, {
-        data: processedData,
-        timestamp: now
-      });
-
-      return processedData;
-    } catch (error) {
-      // If error occurs and we have expired cache data, use it as fallback
-      if (cachedData) {
-        console.warn("API request failed, using expired cache data as fallback", error);
-        return cachedData.data;
-      }
-      throw error;
     }
+
+    return {
+      time: time.slice(0, lastHourIdx + 1),
+      temperature: temperature.slice(0, lastHourIdx + 1),
+      rain: rain.slice(0, lastHourIdx + 1),
+      snow: snow.slice(0, lastHourIdx + 1),
+      cloudCover: cloudCover.slice(0, lastHourIdx + 1),
+      windSpeed: windSpeed.slice(0, lastHourIdx + 1),
+      windDirection: windDirection.slice(0, lastHourIdx + 1),
+      symbolCode: symbolCode.slice(0, lastHourIdx + 1)
+    };
   }
 
   renderMeteogram(svg: any, data: MeteogramData, width: number, height: number): void {
@@ -819,19 +887,24 @@ export class MeteogramCard extends LitElement {
         // Skip if this is the last box and it's less than 2 hours wide
         if (isLastBox && hourDiff < 2) continue;
 
-        // Calculate center position between current and next hour
-        const cx = x(i) + (x(i+1) - x(i)) / 2;
-        const speed = windSpeed[i];
-        const dir = windDirection[i];
+        // Calculate center position between even hour and next even hour
+        // If i is the index of an even hour, the barb should be centered between i and i+2
+        const nextEvenHourIdx = i + windBarbInterval;
+        if (nextEvenHourIdx < N) {
+          // Find the center between this even hour and the next even hour
+          const cx = x(i) + (x(nextEvenHourIdx) - x(i)) / 2;
+          const speed = windSpeed[i + windBarbInterval/2]; // Use the middle hour's wind data
+          const dir = windDirection[i + windBarbInterval/2];
 
-        const minBarbLen = width < 400 ? 18 : 23;
-        const maxBarbLen = width < 400 ? 30 : 38;
-        const windLenScale = d3.scaleLinear()
-          .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
-          .range([minBarbLen, maxBarbLen]);
-        const barbLen = windLenScale(speed);
+          const minBarbLen = width < 400 ? 18 : 23;
+          const maxBarbLen = width < 400 ? 30 : 38;
+          const windLenScale = d3.scaleLinear()
+            .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
+            .range([minBarbLen, maxBarbLen]);
+          const barbLen = windLenScale(speed);
 
-        this.drawWindBarb(windBand, cx, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
+          this.drawWindBarb(windBand, cx, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
+        }
       }
     }
 
@@ -925,8 +998,18 @@ export class MeteogramCard extends LitElement {
       .replace(/^lightssleet/, 'lightsleet')
       .replace(/^lightssnow/, 'lightsnow');
 
-    // Use local icons
-    return `/local/ha-meteogram-card/icons/${correctedSymbol}.svg`;
+    // When installed via HACS, icons will be in /hacsfiles/ha-meteogram-card/icons/
+    // When manually installed, they will be in /local/ha-meteogram-card/icons/
+
+    // Try to determine if we're loaded from HACS
+    const scriptElement = document.currentScript as HTMLScriptElement;
+    const isHacs = scriptElement && scriptElement.src.includes('/hacsfiles/');
+
+    const iconBase = isHacs
+      ? '/hacsfiles/ha-meteogram-card/icons/'
+      : '/local/ha-meteogram-card/icons/';
+
+    return `${iconBase}${correctedSymbol}.svg`;
   }
 }
 
@@ -935,10 +1018,10 @@ class MeteogramCardEditor extends HTMLElement {
   private _config: any = {};
   private _initialized = false;
   private _elements: Map<string, ConfigurableHTMLElement> = new Map();
+  private _hass: any;
 
-  // Fix the TS6133 warning about unused parameter
-  set hass(_: any) {
-    // No need to store hass value, just update values if initialized
+  set hass(hass: any) {
+    this._hass = hass;
     if (this._initialized) {
       this._updateValues();
     }
@@ -981,13 +1064,17 @@ class MeteogramCardEditor extends HTMLElement {
     // Update latitude field
     const latField = this._elements.get('latitude');
     if (latField) {
-      latField.value = this._config.latitude !== undefined ? String(this._config.latitude) : '';
+      latField.value = this._config.latitude !== undefined ?
+        String(this._config.latitude) :
+        (this._hass?.config?.latitude !== undefined ? String(this._hass.config.latitude) : '');
     }
 
     // Update longitude field
     const lonField = this._elements.get('longitude');
     if (lonField) {
-      lonField.value = this._config.longitude !== undefined ? String(this._config.longitude) : '';
+      lonField.value = this._config.longitude !== undefined ?
+        String(this._config.longitude) :
+        (this._hass?.config?.longitude !== undefined ? String(this._hass.config.longitude) : '');
     }
   }
 
@@ -995,11 +1082,20 @@ class MeteogramCardEditor extends HTMLElement {
     const target = ev.target as ConfigurableHTMLElement;
     if (!this._config || !target || !target.configValue) return;
 
-    let newValue: string | number = target.value || '';
+    let newValue: string | number | undefined = target.value || '';
+
     if ((target as HTMLInputElement).type === 'number') {
-      const numValue = parseFloat(newValue.toString());
-      if (isNaN(numValue)) return;
-      newValue = numValue;
+      if (newValue === '') {
+        // If field is cleared, set to undefined to use defaults
+        newValue = undefined;
+      } else {
+        const numValue = parseFloat(newValue.toString());
+        if (!isNaN(numValue)) {
+          newValue = numValue;
+        }
+      }
+    } else if (newValue === '') {
+      newValue = undefined;
     }
 
     // Update config without re-rendering the entire form
@@ -1014,6 +1110,10 @@ class MeteogramCardEditor extends HTMLElement {
   }
 
   render() {
+    // Get default coordinates from Home Assistant config if available
+    const defaultLatitude = this._hass?.config?.latitude ?? '';
+    const defaultLongitude = this._hass?.config?.longitude ?? '';
+
     const content = document.createElement('div');
     content.innerHTML = `
       <style>
@@ -1029,10 +1129,7 @@ class MeteogramCardEditor extends HTMLElement {
           margin-bottom: 12px;
           align-items: center;
         }
-        ha-switch {
-          margin-right: 8px;
-        }
-        ha-textfield, ha-select {
+        ha-textfield {
           width: 100%;
         }
         .side-by-side {
@@ -1049,6 +1146,18 @@ class MeteogramCardEditor extends HTMLElement {
           margin-bottom: 12px;
           margin-top: 0;
         }
+        .help-text {
+          color: var(--secondary-text-color);
+          font-size: 0.875rem;
+          margin-top: 4px;
+        }
+        .info-text {
+          color: var(--primary-text-color);
+          opacity: 0.8;
+          font-size: 0.9rem;
+          font-style: italic;
+          margin: 4px 0 16px 0;
+        }
       </style>
       <ha-card>
         <h3>Meteogram Card Settings</h3>
@@ -1062,13 +1171,21 @@ class MeteogramCardEditor extends HTMLElement {
             ></ha-textfield>
           </div>
           
+          <p class="info-text">
+            Location coordinates will be used to fetch weather data directly from Met.no API.
+            ${defaultLatitude ? 'Using Home Assistant\'s location by default.' : ''}
+          </p>
+          
           <div class="side-by-side">
             <ha-textfield
               label="Latitude"
               id="latitude-input"
               type="number"
               step="any"
-              .value="${this._config.latitude !== undefined ? this._config.latitude : ''}"
+              .value="${this._config.latitude !== undefined ? 
+                this._config.latitude : 
+                defaultLatitude}"
+              placeholder="${defaultLatitude ? `Default: ${defaultLatitude}` : ''}"
             ></ha-textfield>
             
             <ha-textfield
@@ -1076,9 +1193,13 @@ class MeteogramCardEditor extends HTMLElement {
               id="longitude-input"
               type="number"
               step="any"
-              .value="${this._config.longitude !== undefined ? this._config.longitude : ''}"
+              .value="${this._config.longitude !== undefined ? 
+                this._config.longitude : 
+                defaultLongitude}"
+              placeholder="${defaultLongitude ? `Default: ${defaultLongitude}` : ''}"
             ></ha-textfield>
           </div>
+          <p class="help-text">Leave empty to use Home Assistant's configured location</p>
         </div>
       </ha-card>
     `;
@@ -1116,6 +1237,7 @@ class MeteogramCardEditor extends HTMLElement {
   }
 }
 
+// Register the editor component
 customElements.define("meteogram-card-editor", MeteogramCardEditor);
 
 // Home Assistant requires this for custom cards

@@ -7,7 +7,12 @@ export default {
   output: {
     dir: 'dist',
     format: 'es',
+    sourcemap: false,
   },
+  external: [
+    'lit',
+    'lit/decorators.js'
+  ],
   plugins: [
     resolve(),
     typescript(),
@@ -16,5 +21,5 @@ export default {
         comments: false
       }
     })
-  ],
+  ]
 };

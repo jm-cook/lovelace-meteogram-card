@@ -1,22 +1,23 @@
 {
   "compilerOptions": {
-    "target": "es2019",
+    "target": "es2017",
     "module": "esnext",
     "moduleResolution": "node",
-    "lib": ["es2020", "dom", "dom.iterable"],
+    "lib": ["es2017", "dom", "dom.iterable"],
+    "declaration": false,
+    "sourceMap": false,
+    "inlineSources": false,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "declaration": false,
+    "outDir": "./dist",
+    "rootDir": "./src",
     "experimentalDecorators": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "esModuleInterop": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": []
 }
