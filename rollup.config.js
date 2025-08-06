@@ -5,7 +5,7 @@ import terser from '@rollup/plugin-terser';
 export default {
   input: 'src/meteogram-card.ts',
   output: {
-    file: 'meteogram-card.js',
+    file: 'dist/meteogram-card.js',
     format: 'es',
     sourcemap: false,
   },
