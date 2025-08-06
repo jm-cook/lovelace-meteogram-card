@@ -30,9 +30,8 @@ jobs:
 
       - name: Create release package
         run: |
-          mkdir -p release/dist
           mkdir -p release/icons
-          cp dist/meteogram-card.js release/dist/
+          cp dist/meteogram-card.js release/
           cp -r icons/* release/icons/
           cd release
           zip -r ../ha-meteogram-card.zip .
