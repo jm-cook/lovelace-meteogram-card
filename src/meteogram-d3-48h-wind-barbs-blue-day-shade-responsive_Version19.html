@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>D3.js Meteogram 48h (Barbs Centered Odd Hour Line, Drops Last Hanging Barb)</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { background: #fff; }
+    .meteogram-container {
+      width: 100%;
+      max-width: 1400px;
+      aspect-ratio: 1400 / 700;
+      min-height: 300px;
+      margin: 0 auto;
+      background: #fff;
+      position: relative;
+    }
+    #meteogram {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #fff;
+    }
+    .temp-line { stroke: orange; stroke-width: 3; fill: none; }
+    .rain-bar { fill: deepskyblue; opacity: 0.8; }
+    .snow-bar { fill: #b3e6ff; opacity: 0.8; }
+    .cloud-area { fill: gray; opacity: 0.32; }
+    .grid line { stroke: #b8c4d9; }
+    .xgrid line { stroke: #b8c4d9; }
+    .wind-band-grid { stroke: #b8c4d9; stroke-width: 1; }
+    .twentyfourh-line, .day-tic { stroke: #1a237e; stroke-width: 3; stroke-dasharray:6,5; opacity: 0.6; }
+    .twentyfourh-line-wind { stroke: #1a237e; stroke-width: 2.5; stroke-dasharray:6,5; opacity: 0.5; }
+    .axis-label { font: 14px sans-serif; }
+    .legend { font: 14px sans-serif; }
+    .wind-barb { stroke: #1976d2; stroke-width:2; fill:none; }
+    .wind-barb-feather { stroke: #1976d2; stroke-width:1.4; }
+    .wind-barb-half { stroke: #1976d2; stroke-width:0.8; }
+    .wind-barb-calm { stroke: #1976d2; fill: none; }
+    .wind-barb-dot { fill: #1976d2; }
+    .wind-band-bg { fill: #fff; }
+    .wind-band-outline { stroke: #000; fill: none; stroke-width: 1; }
+    .top-date-label { font: 16px sans-serif; fill: #333; font-weight: bold; dominant-baseline: hanging; }
+    .bottom-hour-label { font: 13px sans-serif; fill: #333; }
+    .rain-label { font: 13px sans-serif; fill: #0058a3; text-anchor: middle; font-weight: bold; }
+    .day-bg { fill: #e3edfa; }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">Meteogram (D3.js, 48h, Blue Wind Barbs, Shaded Days, Dates Top, Hours Below, Responsive)</h2>
+  <div style="text-align:center; margin-bottom:0.5em;">
+    Location: <input id="lat" type="number" step="any" value="51.5074" style="width:5em">
+    , <input id="lon" type="number" step="any" value="-0.1278" style="width:5em">
+    <button onclick="loadAndDraw()">Update</button>
+    <span id="status" style="margin-left:2em;color:#888"></span>
+  </div>
+  <div class="meteogram-container">
+    <svg id="meteogram" viewBox="0 0 1400 700" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+  <script>
+    function loadAndDraw() {
+      const lat = +document.getElementById('lat').value;
+      const lon = +document.getElementById('lon').value;
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = "Fetching...";
+      fetch(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat}&lon=${lon}`, {
+        headers: { 'User-Agent': 'meteogram-demo/1.0 jm-cook@github' }
+      })
+      .then(res => res.json())
+      .then(data => {
+        statusEl.textContent = "";
+        const ts = data.properties.timeseries.slice(0, 48);
+        if (!ts.length) throw new Error("No data received from API.");
+        const time = ts.map(e => new Date(e.time));
+        const temperature = ts.map(e => e.data.instant.details.air_temperature ?? null);
+        const rain = ts.map(e => e.data.next_1_hours?.details?.precipitation_amount ?? 0);
+        const snow = ts.map(e => e.data.next_1_hours?.details?.precipitation_amount ?? 0);
+        const cloudCover = ts.map(e => e.data.instant.details.cloud_area_fraction ?? 0);
+        const windSpeed = ts.map(e => (e.data.instant.details.wind_speed ?? 0));
+        const windDirection = ts.map(e => e.data.instant.details.wind_from_direction ?? 0);
+
+        // --- Limit to last full hour ---
+        let lastHourIdx = time.length - 1;
+        for (let i = time.length - 1; i >= 0; i--) {
+          if (time[i].getMinutes() === 0 && time[i].getSeconds() === 0) {
+            lastHourIdx = i;
+            break;
+          }
+        }
+        const time_plot = time.slice(0, lastHourIdx + 1);
+        const temperature_plot = temperature.slice(0, lastHourIdx + 1);
+        const rain_plot = rain.slice(0, lastHourIdx + 1);
+        const snow_plot = snow.slice(0, lastHourIdx + 1);
+        const cloudCover_plot = cloudCover.slice(0, lastHourIdx + 1);
+        const windSpeed_plot = windSpeed.slice(0, lastHourIdx + 1);
+        const windDirection_plot = windDirection.slice(0, lastHourIdx + 1);
+
+        drawMeteogram({
+          time: time_plot,
+          temperature: temperature_plot,
+          rain: rain_plot,
+          snow: snow_plot,
+          cloudCover: cloudCover_plot,
+          windSpeed: windSpeed_plot,
+          windDirection: windDirection_plot
+        });
+      })
+      .catch(e => {
+        statusEl.textContent = "Failed to fetch/render data.";
+        d3.select("#meteogram").selectAll("*").remove();
+        console.error(e);
+      });
+    }
+
+    function drawWindBarb(g, x, y, speed, dirDeg, len, scale=0.8) {
+      const featherLong = 12;
+      const featherShort = 6;
+      const featherYOffset = 3;
+      const barbGroup = g.append("g")
+        .attr("transform", `translate(${x},${y}) rotate(${dirDeg}) scale(${scale})`);
+      const y0 = -len/2, y1 = +len/2;
+      if (speed < 2) {
+        barbGroup.append("circle")
+          .attr("class","wind-barb-calm")
+          .attr("cx", 0)
+          .attr("cy", 0)
+          .attr("r", 4);
+        return;
+      }
+      barbGroup.append("line")
+        .attr("class", "wind-barb")
+        .attr("x1", 0).attr("y1", y0)
+        .attr("x2", 0).attr("y2", y1);
+      barbGroup.append("circle")
+        .attr("class", "wind-barb-dot")
+        .attr("cx", 0)
+        .attr("cy", y1)
+        .attr("r", 4);
+      let v = speed, wy = y0, step = 7;
+      let n10 = Math.floor(v/10); v -= n10*10;
+      let n5 = Math.floor(v/5); v -= n5*5;
+      for (let i = 0; i < n10; i++, wy += step) {
+        barbGroup.append("line")
+          .attr("class", "wind-barb-feather")
+          .attr("x1", 0).attr("y1", wy)
+          .attr("x2", featherLong).attr("y2", wy + featherYOffset);
+      }
+      for (let i = 0; i < n5; i++, wy += step) {
+        barbGroup.append("line")
+          .attr("class", "wind-barb-half")
+          .attr("x1", 0).attr("y1", wy)
+          .attr("x2", featherShort).attr("y2", wy + featherYOffset/1.5);
+      }
+    }
+
+    function drawMeteogram({time, temperature, rain, snow, cloudCover, windSpeed, windDirection}) {
+      d3.select("#meteogram").selectAll("*").remove();
+
+      // SVG and chart parameters
+      const windBarbBand = 55;
+      const bottomHourBand = 24;
+      const margin = {top: 70, right: 70, bottom: bottomHourBand + 10, left: 70};
+      const width = 1400 - margin.left - margin.right;
+      const height = 520 - margin.top - margin.bottom;
+      const N = time.length;
+      const dx = width / (N - 1);
+
+      // X scale: use linear scale so first and last points are flush to axis
+      const x = d3.scaleLinear()
+        .domain([0, N - 1])
+        .range([0, width]);
+
+      // --- Date boundaries and shaded backgrounds ---
+      const dateLabelY = margin.top - 30;
+      const dayStarts = [];
+      for (let i = 0; i < N; i++) {
+        if (i === 0 || time[i].getDate() !== time[i-1].getDate()) {
+          dayStarts.push(i);
+        }
+      }
+      // Find where each day ends (for background shading)
+      const dayRanges = [];
+      for (let i = 0; i < dayStarts.length; ++i) {
+        const startIdx = dayStarts[i];
+        const endIdx = (i + 1 < dayStarts.length) ? dayStarts[i+1] : (N);
+        dayRanges.push({start: startIdx, end: endIdx});
+      }
+      // Alternate shaded background for days, covering full plot area
+      d3.select("#meteogram").selectAll(".day-bg")
+        .data(dayRanges)
+        .enter()
+        .append("rect")
+        .attr("class", "day-bg")
+        .attr("x", d => margin.left + x(d.start))
+        .attr("y", margin.top - 42)
+        .attr("width", d => x(Math.max(d.end-1, d.start)) - x(d.start) + dx)
+        .attr("height", height + windBarbBand + 42 + bottomHourBand)
+        .attr("opacity", (d,i) => i % 2 === 0 ? 0.16 : 0);
+
+      // Date labels just above the figure, left-aligned to day boundary
+      d3.select("#meteogram").selectAll(".top-date-label")
+        .data(dayStarts)
+        .enter()
+        .append("text")
+        .attr("class", "top-date-label")
+        .attr("x", function(d) {
+          return margin.left + x(d);
+        })
+        .attr("y", dateLabelY)
+        .attr("text-anchor", "start")
+        .text(function(d) {
+          const dt = time[d];
+          return dt.toLocaleDateString("en-GB", {weekday:"short", day:"2-digit", month:"short", year:"numeric"});
+        });
+
+      // Add a blue tic under each day label, spanning the shaded area
+      d3.select("#meteogram").selectAll(".day-tic")
+        .data(dayStarts)
+        .enter()
+        .append("line")
+        .attr("class", "day-tic")
+        .attr("x1", d => margin.left + x(d))
+        .attr("x2", d => margin.left + x(d))
+        .attr("y1", dateLabelY+22)
+        .attr("y2", dateLabelY+42)
+        .attr("stroke", "#1a237e")
+        .attr("stroke-width", 3)
+        .attr("opacity", 0.6);
+
+      // Chart group
+      const svg = d3.select('#meteogram');
+      const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+      const yTemp = d3.scaleLinear()
+        .domain([Math.floor(d3.min(temperature) - 2), Math.ceil(d3.max(temperature) + 2)])
+        .range([height, 0]);
+      // Precip scale only for bar height, not shown as axis
+      const yPrecip = d3.scaleLinear()
+        .domain([0, d3.max(rain.concat(snow)) + 1])
+        .range([height, height*0.65]);
+
+      // Main plot vertical grid lines (at every hour)
+      svg.append("g")
+        .attr("class", "xgrid")
+        .attr("transform", `translate(${margin.left},${margin.top})`)
+        .selectAll("line")
+        .data(d3.range(N))
+        .enter().append("line")
+        .attr("x1", i => x(i))
+        .attr("x2", i => x(i))
+        .attr("y1", 0)
+        .attr("y2", height)
+        .attr("stroke", "#b8c4d9")
+        .attr("stroke-width", 1);
+
+      // 24h lines
+      const dayChangeIdx = dayStarts.slice(1);
+      svg.append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`)
+        .selectAll(".twentyfourh-line")
+        .data(dayChangeIdx)
+        .enter()
+        .append("line")
+        .attr("class", "twentyfourh-line")
+        .attr("x1", i => x(i))
+        .attr("x2", i => x(i))
+        .attr("y1", 0)
+        .attr("y2", height)
+        .lower();
+
+      // Cloud band
+      const bandTop = height * 0.05, bandHeight = height * 0.20, cloudBandPoints = [];
+      for (let i = 0; i < N; i++)
+        cloudBandPoints.push([x(i), bandTop + bandHeight * (cloudCover[i] / 100)]);
+      for (let i = N - 1; i >= 0; i--)
+        cloudBandPoints.push([x(i), bandTop + bandHeight * (1 - cloudCover[i] / 100)]);
+      chart.append("path")
+        .attr("class", "cloud-area")
+        .attr("d", d3.line().x(d => d[0]).y(d => d[1]).curve(d3.curveLinearClosed)(cloudBandPoints));
+
+      chart.append("g").attr("class", "grid")
+        .call(d3.axisLeft(yTemp).tickSize(-width).tickFormat(""));
+      chart.append("line")
+        .attr("x1", 0).attr("x2", width)
+        .attr("y1", height).attr("y2", height)
+        .attr("stroke", "#333");
+      chart.append("g").call(d3.axisLeft(yTemp));
+      // Remove precipitation scale: do NOT add axisRight for precipitation
+      chart.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
+        .attr("transform", `translate(-50,${height/2}) rotate(-90)`).text("Temperature (°C)");
+      chart.append("text").attr("class","legend").attr("x",0).attr("y",-45).text("Cloud Cover (%)");
+      chart.append("text").attr("class","legend").attr("x",200).attr("y",-45).style("fill","orange").text("Temperature (°C)");
+      chart.append("text").attr("class","legend").attr("x",410).attr("y",-45).style("fill","deepskyblue").text("Rain (mm)");
+      chart.append("text").attr("class","legend").attr("x",560).attr("y",-45).style("fill","#b3e6ff").text("Snow (mm)");
+
+      chart.append("path")
+        .datum(temperature)
+        .attr("class", "temp-line")
+        .attr("d", d3.line().x((d,i) => x(i)).y(d => yTemp(d)));
+
+      // --- WIDER rain bars and rainfall labels above, centered in boxes ---
+      const barWidth = 26;
+      chart.selectAll(".rain-bar")
+        .data(rain.slice(0, N - 1))
+        .enter().append("rect")
+        .attr("class", "rain-bar")
+        .attr("x", (d,i) => x(i) + dx/2 - barWidth/2)
+        .attr("y", (d,i) => yPrecip(d))
+        .attr("width", barWidth)
+        .attr("height", (d,i) => height - yPrecip(d));
+
+      chart.selectAll(".rain-label")
+        .data(rain.slice(0, N - 1))
+        .enter()
+        .append("text")
+        .attr("class", "rain-label")
+        .attr("x", (d,i) => x(i) + dx/2)
+        .attr("y", (d,i) => yPrecip(d) - 4)
+        .text((d) => d > 0 ? d.toFixed(1) : "")
+        .attr("opacity", d => d > 0 ? 1 : 0);
+
+      chart.selectAll(".snow-bar")
+        .data(snow.slice(0, N - 1))
+        .enter().append("rect")
+        .attr("class", "snow-bar")
+        .attr("x", (d,i) => x(i) + dx/2 - barWidth/2)
+        .attr("y", (d,i) => yPrecip(rain[i]+d))
+        .attr("width", barWidth)
+        .attr("height", (d,i) => height - yPrecip(d));
+
+      // --- Wind barbs in a box below x axis (no cell backgrounds, grid lines every 2 hours) ---
+      const windBandYOffset = margin.top + height;
+      const windBand = svg.append('g')
+        .attr('transform', `translate(${margin.left},${windBandYOffset})`);
+      const windBandHeight = windBarbBand - 10;
+      const windBarbY = windBandHeight / 2;
+
+      // Draw background panel (just the white rectangle)
+      windBand.append("rect")
+        .attr("class", "wind-band-bg")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", width)
+        .attr("height", windBandHeight);
+
+      // Draw grid lines every 2 hours (even i)
+      const twoHourIdx = [];
+      for (let i = 0; i < N; i++) {
+        if (time[i].getHours() % 2 === 0) twoHourIdx.push(i);
+      }
+      windBand.selectAll(".wind-band-grid")
+        .data(twoHourIdx)
+        .enter()
+        .append("line")
+        .attr("class", "wind-band-grid")
+        .attr("x1", i => x(i))
+        .attr("x2", i => x(i))
+        .attr("y1", 0)
+        .attr("y2", windBandHeight)
+        .attr("stroke", "#b8c4d9")
+        .attr("stroke-width", 1);
+
+      windBand.selectAll(".twentyfourh-line-wind")
+        .data(dayChangeIdx)
+        .enter()
+        .append("line")
+        .attr("class", "twentyfourh-line-wind")
+        .attr("x1", i => x(i))
+        .attr("x2", i => x(i))
+        .attr("y1", 0)
+        .attr("y2", windBandHeight);
+
+      // Draw wind barbs only on odd i, centered on the odd hour grid line at x(i), but not on the last hour
+      for (let i = 1; i < N - 1; i += 2) {
+        const cx = x(i);
+        const speed = windSpeed[i], dir = windDirection[i];
+        const minBarbLen = 23, maxBarbLen = 38;
+        const windLenScale = d3.scaleLinear()
+          .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
+          .range([minBarbLen, maxBarbLen]);
+        const barbLen = windLenScale(speed);
+        drawWindBarb(windBand, cx, windBarbY, speed, dir, barbLen, 0.8);
+      }
+
+      // Draw the outer border last
+      windBand.append("rect")
+        .attr("class", "wind-band-outline")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", width)
+        .attr("height", windBandHeight)
+        .attr("stroke", "#000")
+        .attr("stroke-width", 1)
+        .attr("fill", "none");
+
+      // --- Bottom hour labels, below the wind band ---
+      const hourLabelY = margin.top + height + windBarbBand + 18;
+      d3.select("#meteogram").selectAll(".bottom-hour-label")
+        .data(time)
+        .enter()
+        .append("text")
+        .attr("class", "bottom-hour-label")
+        .attr("x", (d,i) => margin.left + x(i))
+        .attr("y", hourLabelY)
+        .attr("text-anchor", "middle")
+        .text(function(d, i) {
+          const hour = time[i].getHours();
+          return hour % 3 === 0 ? String(hour).padStart(2, "0") : "";
+        });
+    }
+
+    loadAndDraw();
+    window.addEventListener('resize', loadAndDraw);
+  </script>
+</body>
+</html>
