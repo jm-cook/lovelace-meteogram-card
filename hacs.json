@@ -1,5 +1,6 @@
 {
   "name": "Meteogram Card",
   "render_readme": true,
+  "filename": "dist/meteogram-card.js",
   "content_in_root": false
 }
