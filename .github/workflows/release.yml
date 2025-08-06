@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - "v*"
   release:
     types: [published]
 
@@ -13,13 +16,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          ref: ${{ github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '16'
           cache: 'npm'
 
       - name: Install dependencies
@@ -28,19 +29,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Create release package
-        run: |
-          mkdir -p release/icons
-          cp dist/meteogram-card.js release/
-          cp -r icons/* release/icons/
-          cd release
-          zip -r ../ha-meteogram-card.zip .
-
       - name: Upload to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: ha-meteogram-card.zip
+          files: dist/meteogram-card.js
           tag_name: ${{ github.ref_name }}
           draft: false
           prerelease: false
@@ -49,7 +42,7 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v1
         with:
-          files: ha-meteogram-card.zip
+          files: dist/meteogram-card.js
           name: Release ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           draft: false
