@@ -2,6 +2,5 @@
   "name": "Meteogram Card",
   "render_readme": true,
   "filename": "ha-meteogram-card.zip",
-  "zip_release": true,
-  "content_in_root": false
+  "zip_release": true
 }
