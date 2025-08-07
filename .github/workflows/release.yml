@@ -43,7 +43,7 @@ jobs:
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/meteogram-card.js
+          files: meteogram-card.js
           tag_name: ${{ github.ref_name }}
           draft: false
 
@@ -51,7 +51,7 @@ jobs:
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/meteogram-card.js
+          files: meteogram-card.js
           name: Release ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           draft: false
