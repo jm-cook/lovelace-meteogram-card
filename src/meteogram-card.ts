@@ -1267,6 +1267,9 @@ const runWhenLitLoaded = () => {
                 .attr("d", line);
 
             // Weather icons along temperature curve - increase size to 2x
+            // On smaller screens, only show every second icon for better visibility
+            const iconInterval = width < 600 ? 2 : 1; // Display every second icon on small screens
+
             chart.selectAll(".weather-icon")
                 .data(symbolCode)
                 .enter()
@@ -1279,8 +1282,12 @@ const runWhenLitLoaded = () => {
                 })
                 .attr("width", 40) // Increased from 20 to 40
                 .attr("height", 40) // Increased from 20 to 40
-                .attr("opacity", (_: string, i: number) => temperature[i] !== null ? 1 : 0)
+                .attr("opacity", (_: string, i: number) =>
+                    (temperature[i] !== null && (width >= 600 || i % iconInterval === 0)) ? 1 : 0)
                 .each((d: string, i: number, nodes: any) => {
+                    // Skip icons on mobile based on iconInterval
+                    if (width < 600 && i % iconInterval !== 0) return;
+
                     const node = nodes[i];
                     if (!d) return; // Skip if no symbol code
 
@@ -1390,23 +1397,21 @@ const runWhenLitLoaded = () => {
                 if (i % windBarbInterval !== 0) continue;
 
                 // Only place wind barbs if we have a next point to center between
-                if (i + 1 < N) {
+                if (i + windBarbInterval < N) {
                     // Skip the last wind barb if it would create a partial box
                     const isLastBox = i + windBarbInterval >= N - 1;
                     const hourDiff = isLastBox ?
-                        (time[N - 1].getTime() - time[i].getTime()) / (1000 * 60 * 60) : 2;
+                        (time[N - 1].getTime() - time[i].getTime()) / (1000 * 60 * 60) : windBarbInterval;
 
-                    // Skip if this is the last box and it's less than 2 hours wide
-                    if (isLastBox && hourDiff < 2) continue;
+                    // Skip if this is the last box and it's less than windBarbInterval hours wide
+                    if (isLastBox && hourDiff < windBarbInterval) continue;
 
-                    // Find the center between this even hour and the next even hour
-                    // Add 1 to the index to shift the wind barbs one hour to the right
-                    const adjustedIndex = i + 1;
-                    const adjustedNextIndex = Math.min(adjustedIndex + windBarbInterval - 1, N - 1);
-                    const cx = (x(adjustedIndex) + x(adjustedNextIndex)) / 2;
+                    // Find the exact center between this hour and the next hour at windBarbInterval distance
+                    // Do not add 1 to the index anymore to avoid the half-hour shift
+                    const cx = (x(i) + x(Math.min(i + windBarbInterval, N - 1))) / 2;
 
                     // Use the data from the center of the interval
-                    const dataIdx = Math.min(Math.floor((adjustedIndex + adjustedNextIndex) / 2), N - 1);
+                    const dataIdx = Math.min(i + Math.floor(windBarbInterval / 2), N - 1);
                     const speed = windSpeed[dataIdx];
                     const dir = windDirection[dataIdx];
 
