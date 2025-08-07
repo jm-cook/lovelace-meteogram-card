@@ -1389,41 +1389,41 @@ const runWhenLitLoaded = () => {
                 .attr("y2", windBandHeight);
 
             // Draw wind barbs between grid lines (centered in each 2-hour box)
-            const windBarbInterval = width < 400 ? 4 : 2;
+            // Remove the unused windBarbInterval variable
+            // const windBarbInterval = width < 400 ? 4 : 2;
 
-            // Calculate barb positions to be centered between grid lines
-            for (let i = 0; i < N - 1; i += windBarbInterval) {
-                // Skip if not at the proper interval
-                if (i % windBarbInterval !== 0) continue;
+            // Find the even hours for grid lines first
+            const evenHourIdx: number[] = [];
+            for (let i = 0; i < N; i++) {
+                if (time[i].getHours() % 2 === 0) evenHourIdx.push(i);
+            }
 
-                // Only place wind barbs if we have a next point to center between
-                if (i + windBarbInterval < N) {
-                    // Skip the last wind barb if it would create a partial box
-                    const isLastBox = i + windBarbInterval >= N - 1;
-                    const hourDiff = isLastBox ?
-                        (time[N - 1].getTime() - time[i].getTime()) / (1000 * 60 * 60) : windBarbInterval;
+            // Now place wind barbs exactly in the middle between even hours
+            for (let i = 0; i < evenHourIdx.length - 1; i++) {
+                const startIdx = evenHourIdx[i];
+                const endIdx = evenHourIdx[i + 1];
 
-                    // Skip if this is the last box and it's less than windBarbInterval hours wide
-                    if (isLastBox && hourDiff < windBarbInterval) continue;
+                // Skip if the interval doesn't match our desired spacing for small screens
+                if (width < 400 && i % 2 !== 0) continue;
 
-                    // Find the exact center between this hour and the next hour at windBarbInterval distance
-                    // Do not add 1 to the index anymore to avoid the half-hour shift
-                    const cx = (x(i) + x(Math.min(i + windBarbInterval, N - 1))) / 2;
+                // Calculate the exact center between the grid lines
+                const centerX = (x(startIdx) + x(endIdx)) / 2;
 
-                    // Use the data from the center of the interval
-                    const dataIdx = Math.min(i + Math.floor(windBarbInterval / 2), N - 1);
-                    const speed = windSpeed[dataIdx];
-                    const dir = windDirection[dataIdx];
+                // Use average data for the interval
+                const dataIdx = Math.floor((startIdx + endIdx) / 2);
+                const speed = windSpeed[dataIdx];
+                const dir = windDirection[dataIdx];
 
-                    const minBarbLen = width < 400 ? 18 : 23;
-                    const maxBarbLen = width < 400 ? 30 : 38;
-                    const windLenScale = d3.scaleLinear()
-                        .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
-                        .range([minBarbLen, maxBarbLen]);
-                    const barbLen = windLenScale(speed);
+                // Scale barb length based on screen size
+                const minBarbLen = width < 400 ? 18 : 23;
+                const maxBarbLen = width < 400 ? 30 : 38;
+                const windLenScale = d3.scaleLinear()
+                    .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
+                    .range([minBarbLen, maxBarbLen]);
+                const barbLen = windLenScale(speed);
 
-                    this.drawWindBarb(windBand, cx, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
-                }
+                // Draw the wind barb
+                this.drawWindBarb(windBand, centerX, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
             }
 
             // Wind band border
