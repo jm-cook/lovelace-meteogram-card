@@ -1,9 +1,5 @@
 name: Release
-
 on:
-  push:
-    tags:
-      - "v*"
   release:
     types: [published]
 
@@ -38,20 +34,10 @@ jobs:
 
       - name: Build
         run: npm run build
-
+        
       - name: Upload to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
           files: meteogram-card.js
           tag_name: ${{ github.ref_name }}
-          draft: false
-
-      - name: Create Release
-        if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: meteogram-card.js
-          name: Release ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          draft: false
