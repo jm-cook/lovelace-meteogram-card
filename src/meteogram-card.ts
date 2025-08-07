@@ -52,6 +52,7 @@ const runWhenLitLoaded = () => {
 
 // Define interfaces for better type safety
     interface MeteogramData {
+        pressure: number[];
         time: Date[];
         temperature: (number | null)[];
         rain: number[];
@@ -204,6 +205,13 @@ const runWhenLitLoaded = () => {
             .temp-line {
                 stroke: orange;
                 stroke-width: 3;
+                fill: none;
+            }
+            
+            .pressure-line {
+                stroke: #1976d2;
+                stroke-width: 2.5;
+                stroke-dasharray: 3, 3;
                 fill: none;
             }
 
@@ -821,7 +829,8 @@ const runWhenLitLoaded = () => {
                     cloudCover: [],
                     windSpeed: [],
                     windDirection: [],
-                    symbolCode: []
+                    symbolCode: [],
+                    pressure: [] // Initialize the pressure array
                 };
 
                 filtered.forEach((item: any) => {
@@ -834,6 +843,8 @@ const runWhenLitLoaded = () => {
                     result.cloudCover.push(instant.cloud_area_fraction);
                     result.windSpeed.push(instant.wind_speed);
                     result.windDirection.push(instant.wind_from_direction);
+                    // Extract pressure data (air_pressure_at_sea_level is in hPa)
+                    result.pressure.push(instant.air_pressure_at_sea_level);
 
                     if (next1h) {
                         // Some APIs include separate rain and snow amount
@@ -995,7 +1006,7 @@ const runWhenLitLoaded = () => {
 
         renderMeteogram(svg: any, data: MeteogramData, width: number, height: number): void {
             const d3 = window.d3;
-            const {time, temperature, rain, snow, cloudCover, windSpeed, windDirection, symbolCode} = data;
+            const {time, temperature, rain, snow, cloudCover, windSpeed, windDirection, symbolCode, pressure} = data;
             const N = time.length;
 
             // SVG and chart parameters
@@ -1087,6 +1098,16 @@ const runWhenLitLoaded = () => {
                 .domain([0, Math.max(2, d3.max([...rain, ...snow]) + 1)])
                 .range([chartHeight, chartHeight * 0.65]);
 
+            // Pressure Y scale - we'll use the right side of the chart
+            const pressureRange = d3.extent(pressure);
+            const pressurePadding = (pressureRange[1] - pressureRange[0]) * 0.1;
+            const yPressure = d3.scaleLinear()
+                .domain([
+                    Math.floor((pressureRange[0] - pressurePadding) / 5) * 5,
+                    Math.ceil((pressureRange[1] + pressurePadding) / 5) * 5
+                ])
+                .range([chartHeight, 0]);
+
             // Add vertical gridlines
             svg.append("g")
                 .attr("class", "xgrid")
@@ -1146,12 +1167,25 @@ const runWhenLitLoaded = () => {
 
             chart.append("g").call(d3.axisLeft(yTemp));
 
+            // Pressure axis (right side)
+            chart.append("g")
+                .attr("class", "pressure-axis")
+                .attr("transform", `translate(${chartWidth}, 0)`)
+                .call(d3.axisRight(yPressure)
+                    .tickFormat((d: any) => `${d}`));
+
             // Axis labels and legend
             chart.append("text")
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
                 .attr("transform", `translate(-50,${chartHeight / 2}) rotate(-90)`)
                 .text("Temperature (°C)");
+
+            chart.append("text")
+                .attr("class", "axis-label")
+                .attr("text-anchor", "middle")
+                .attr("transform", `translate(${chartWidth + 50},${chartHeight / 2}) rotate(90)`)
+                .text("Pressure (hPa)");
 
             chart.append("text")
                 .attr("class", "legend")
@@ -1166,13 +1200,19 @@ const runWhenLitLoaded = () => {
 
             chart.append("text")
                 .attr("class", "legend")
-                .attr("x", 410).attr("y", -45)
+                .attr("x", 340).attr("y", -45)
+                .style("fill", "#1976d2")
+                .text("Pressure (hPa)");
+
+            chart.append("text")
+                .attr("class", "legend")
+                .attr("x", 480).attr("y", -45)
                 .style("fill", "deepskyblue")
                 .text("Rain (mm)");
 
             chart.append("text")
                 .attr("class", "legend")
-                .attr("x", 560).attr("y", -45)
+                .attr("x", 630).attr("y", -45)
                 .style("fill", "#b3e6ff")
                 .text("Snow (mm)");
 
@@ -1186,6 +1226,17 @@ const runWhenLitLoaded = () => {
                 .datum(temperature)
                 .attr("class", "temp-line")
                 .attr("d", line);
+
+            // Pressure line
+            const pressureLine = d3.line()
+                .defined((d: number) => !isNaN(d))
+                .x((_: number, i: number) => x(i))
+                .y((d: number) => yPressure(d));
+
+            chart.append("path")
+                .datum(pressure)
+                .attr("class", "pressure-line")
+                .attr("d", pressureLine);
 
             // Weather icons along temperature curve - increase size to 2x
             // On smaller screens, only show every second icon for better visibility
