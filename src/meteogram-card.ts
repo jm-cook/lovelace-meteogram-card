@@ -4,6 +4,10 @@ import {PropertyValues} from "lit";
 // Import our local types
 import {MeteogramCardConfig} from "./types";
 
+// Version info - update this when releasing new versions
+import { version } from "../package.json";
+const CARD_NAME = "Meteogram Card";
+
 // Declare litModulesPromise to avoid TypeScript error
 // This will be defined in the banner added by rollup
 declare const litModulesPromise: Promise<any>;
@@ -12,7 +16,7 @@ declare const litModulesPromise: Promise<any>;
 declare global {
     interface Window {
         litElementModules: any;
-        customCards?: Array<{type: string, name: string, description: string}>;
+        customCards?: Array<{ type: string, name: string, description: string }>;
         d3: any; // Add d3 to the Window interface
     }
 
@@ -21,14 +25,28 @@ declare global {
         // Simple interface that avoids referencing non-existent types
         interface Selection {
             node(): Element | null;
+
             selectAll(selector: string): any;
+
             remove(): void;
         }
     }
 }
 
+// Print version info - based on mushroom cards implementation
+const printVersionInfo = () => {
+    // Use the blue color from wind barbs and add weather emojis
+    console.info(
+        `%c☀️ ${CARD_NAME} ${version} ⚡️🌦️`,
+        "color: #1976d2; font-weight: bold; background: white"
+    );
+};
+
 // This wrapper ensures modules are loaded before code execution
 const runWhenLitLoaded = () => {
+    // Print version info on startup
+    printVersionInfo();
+
     // Get Lit modules from the global variable set in the banner
     const {LitElement, css, customElement, property, state} = (window as any).litElementModules;
 
@@ -65,17 +83,11 @@ const runWhenLitLoaded = () => {
 
         @state() private chartLoaded = false;
         @state() private meteogramError = "";
-        @state() private renderPending = false;
         @state() private errorCount = 0;
         @state() private lastErrorTime = 0;
 
         private iconCache = new Map<string, string>();
         private iconBasePath = 'https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/icons/';
-
-        // Add this as a static initialization block inside MeteogramCard class
-        static {
-            console.log("MeteogramCard class defined");
-        }
 
         // Add a method to fetch icons
         private async getIconSVG(iconName: string): Promise<string> {
@@ -87,7 +99,6 @@ const runWhenLitLoaded = () => {
             try {
                 // Add a console log to debug the URL
                 const iconUrl = `${this.iconBasePath}${iconName}.svg`;
-                console.log(`Fetching icon from: ${iconUrl}`);
 
                 // Fetch from GitHub
                 const response = await fetch(iconUrl);
@@ -349,11 +360,9 @@ const runWhenLitLoaded = () => {
                 // Handle re-entry into DOM after being removed temporarily
                 if (this.isConnected) {
                     if (!this.hasRendered || !this.chartLoaded) {
-                        console.debug('Initial load - loading D3 and drawing');
                         this.loadD3AndDraw();
                     } else {
-                        console.debug('Already rendered - redrawing');
-                        this.drawMeteogram();
+                        this._drawMeteogram(); // Changed from drawMeteogram to _drawMeteogram
                     }
                 }
             });
@@ -451,7 +460,6 @@ const runWhenLitLoaded = () => {
                                 mutation.target.classList.contains('content') ||
                                 mutation.target.hasAttribute('active'))) {
                             needsVisibilityCheck = true;
-                            console.debug('Tab-related mutation detected:', mutation.target.tagName);
                             break;
                         }
 
@@ -470,11 +478,9 @@ const runWhenLitLoaded = () => {
                         // Small delay to let DOM settle after changes
                         setTimeout(() => {
                             const nowVisible = this._isElementVisible();
-                            console.debug(`Mutation observer: element visible: ${nowVisible}, hasRendered: ${this.hasRendered}`);
 
                             if (nowVisible && this.chartLoaded) {
                                 // Always force redraw after tab switch
-                                console.debug('Mutation observer: tab switch detected, forcing redraw');
                                 this.hasRendered = false;
                                 this._handleVisibilityChange();
                             }
@@ -490,7 +496,6 @@ const runWhenLitLoaded = () => {
                             childList: true,
                             subtree: true
                         });
-                        console.debug('Added mutation observer to tabs element:', tabs.tagName);
                     }
                 });
 
@@ -549,24 +554,21 @@ const runWhenLitLoaded = () => {
         // Central handler for visibility changes
         private _handleVisibilityChange() {
             if (this._isElementVisible()) {
-                console.debug('Element became visible, checking if redraw needed');
-
                 const chartDiv = this.shadowRoot?.querySelector("#chart");
                 // Check if we need to redraw - only if chart is empty or not rendered
                 const needsRedraw = !this.hasRendered ||
-                                   !this.svg ||
-                                   !chartDiv ||
-                                   chartDiv.innerHTML === "" ||
-                                   chartDiv.clientWidth === 0 ||
-                                   !chartDiv.querySelector("svg"); // No SVG means we need to redraw
+                    !this.svg ||
+                    !chartDiv ||
+                    chartDiv.innerHTML === "" ||
+                    chartDiv.clientWidth === 0 ||
+                    !chartDiv.querySelector("svg"); // No SVG means we need to redraw
 
                 if (needsRedraw && this.chartLoaded) {
-                    console.debug('Redrawing meteogram due to visibility change');
                     // Force a new rendering cycle to ensure chart is properly displayed
                     this.hasRendered = false;
                     this.cleanupChart(); // Ensure previous chart is cleaned up
                     this.requestUpdate();
-                    this.updateComplete.then(() => this.drawMeteogram());
+                    this.updateComplete.then(() => this._drawMeteogram()); // Changed from drawMeteogram to _drawMeteogram
                 }
             }
         }
@@ -602,7 +604,7 @@ const runWhenLitLoaded = () => {
             ) {
                 this._lastWidth = entry.contentRect.width;
                 this._lastHeight = entry.contentRect.height;
-                this.drawMeteogram();
+                this._drawMeteogram(); // Changed from drawMeteogram to _drawMeteogram
             }
         }
 
@@ -637,14 +639,13 @@ const runWhenLitLoaded = () => {
                 // Check if we really need to redraw
                 const chartDiv = this.shadowRoot?.querySelector("#chart");
                 const needsRedraw = !chartDiv ||
-                                   chartDiv.innerHTML === "" ||
-                                   !chartDiv.querySelector("svg");
+                    chartDiv.innerHTML === "" ||
+                    !chartDiv.querySelector("svg");
 
                 // Only redraw if needed
                 if (needsRedraw) {
-                    console.debug("Updated: chart needs redraw");
                     // Delay drawing slightly to ensure DOM is ready
-                    setTimeout(() => this.drawMeteogram(), 10);
+                    setTimeout(() => this._drawMeteogram(), 10); // Changed from drawMeteogram to _drawMeteogram
                 }
             }
 
@@ -657,7 +658,7 @@ const runWhenLitLoaded = () => {
                     setTimeout(() => {
                         const chartDiv = this.shadowRoot?.querySelector("#chart");
                         if (chartDiv && chartDiv.innerHTML === "") {
-                            this.drawMeteogram();
+                            this._drawMeteogram();
                         }
                     }, 50);
                 }
@@ -704,13 +705,10 @@ const runWhenLitLoaded = () => {
 
         async loadD3AndDraw(): Promise<void> {
             if (window.d3) {
-                console.log("D3.js already loaded, proceeding with chart rendering");
                 this.chartLoaded = true;
-                this.drawMeteogram();
+                this._drawMeteogram(); // Changed from drawMeteogram to _drawMeteogram
             } else {
                 try {
-                    console.log("D3.js not loaded, attempting to load it now...");
-
                     // Create a more robust loading mechanism with retries
                     let retries = 0;
                     const maxRetries = 3;
@@ -730,7 +728,6 @@ const runWhenLitLoaded = () => {
 
                                 script.onload = () => {
                                     clearTimeout(timeoutId);
-                                    console.log("D3.js successfully loaded");
                                     resolve();
                                 };
 
@@ -771,38 +768,11 @@ const runWhenLitLoaded = () => {
                     }
 
                     this.chartLoaded = true;
-                    console.log("Starting chart rendering...");
-                    this.drawMeteogram();
+                    this._drawMeteogram(); // Changed from drawMeteogram to _drawMeteogram
                 } catch (error: unknown) {
                     this.meteogramError = `Failed to load D3.js: ${error}`;
                     console.error(error);
                 }
-            }
-        }
-
-        private lastDrawTime = 0;
-        private readonly REDRAW_THROTTLE_MS = 300000; // 5 minutes
-
-        // Ensure we don't have multiple draws in progress
-        async drawMeteogram() {
-            // Prevent multiple simultaneous renders
-            if (this.renderPending) {
-                return;
-            }
-
-            // Throttle redraws, but allow immediate redraw if not rendered yet or coming from editor
-            const now = Date.now();
-            if (now - this.lastDrawTime < this.REDRAW_THROTTLE_MS && this.hasRendered && this._isInitialized) {
-                return;
-            }
-
-            this.renderPending = true;
-            this.lastDrawTime = now;
-
-            try {
-                await this._drawMeteogram();
-            } finally {
-                this.renderPending = false;
             }
         }
 
@@ -816,7 +786,6 @@ const runWhenLitLoaded = () => {
                 // Get 2.5 day forecast to cover 48 hours plus a buffer
                 const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${this.latitude}&lon=${this.longitude}`;
 
-                console.debug(`Fetching weather data from: ${forecastUrl}`);
                 const response = await fetch(forecastUrl, {
                     headers: {
                         'User-Agent': 'Home Assistant Weather Card - Contact: your-email@example.com'
@@ -828,7 +797,6 @@ const runWhenLitLoaded = () => {
                 }
 
                 const data = await response.json();
-                console.debug('Weather data received:', data);
 
                 if (!data || !data.properties || !data.properties.timeseries || data.properties.timeseries.length === 0) {
                     throw new Error('Invalid data format received from API');
@@ -887,7 +855,6 @@ const runWhenLitLoaded = () => {
                     }
                 });
 
-                console.debug('Processed weather data:', result);
                 return result;
             } catch (error: unknown) {
                 console.error('Error fetching weather data:', error);
@@ -909,7 +876,7 @@ const runWhenLitLoaded = () => {
             // Wait for the render cycle to complete before accessing the DOM
             await this.updateComplete;
 
-            // Use the _logDomState method instead of just declaring it
+            // Use the _logDomState method to log diagnostic info
             this._logDomState();
 
             // Enhanced D3 availability check
@@ -1467,33 +1434,38 @@ const runWhenLitLoaded = () => {
 
         // Add explicit render method to ensure chart container is created properly
         render() {
-            const { html } = window.litElementModules;
+            const {html} = window.litElementModules;
             return html`
                 <ha-card>
-                    ${this.title ? html`<div class="card-header">${this.title}</div>` : ""}
+                    ${this.title ? html`
+                        <div class="card-header">${this.title}</div>` : ""}
                     <div class="card-content">
                         ${this.meteogramError
-                            ? html`<div class="error">${this.meteogramError}</div>`
-                            : html`<div id="chart"></div>`}
+                                ? html`
+                                    <div class="error">${this.meteogramError}</div>`
+                                : html`
+                                    <div id="chart"></div>`}
                     </div>
                 </ha-card>
             `;
         }
 
-        // Add logging method to help debug DOM structure
+        // Add logging method to help debug DOM structure - only used when errors occur
         private _logDomState() {
-            console.debug('DOM state check:');
-            console.debug('- shadowRoot exists:', !!this.shadowRoot);
-            if (this.shadowRoot) {
-                const chartDiv = this.shadowRoot.querySelector('#chart');
-                console.debug('- chart div exists:', !!chartDiv);
-                if (chartDiv) {
-                    console.debug('- chart div size:', (chartDiv as HTMLElement).offsetWidth, 'x', (chartDiv as HTMLElement).offsetHeight);
+            if (this.errorCount > 0) {
+                console.debug('DOM state check:');
+                console.debug('- shadowRoot exists:', !!this.shadowRoot);
+                if (this.shadowRoot) {
+                    const chartDiv = this.shadowRoot.querySelector('#chart');
+                    console.debug('- chart div exists:', !!chartDiv);
+                    if (chartDiv) {
+                        console.debug('- chart div size:', (chartDiv as HTMLElement).offsetWidth, 'x', (chartDiv as HTMLElement).offsetHeight);
+                    }
                 }
+                console.debug('- Is connected:', this.isConnected);
+                console.debug('- Has rendered:', this.hasRendered);
+                console.debug('- Chart loaded:', this.chartLoaded);
             }
-            console.debug('- Is connected:', this.isConnected);
-            console.debug('- Has rendered:', this.hasRendered);
-            console.debug('- Chart loaded:', this.chartLoaded);
         }
 
         // Helper method to set errors with rate limiting
@@ -1517,7 +1489,6 @@ const runWhenLitLoaded = () => {
                 console.error("Meteogram error:", message);
             }
         }
-
     }
 
 // Tell TypeScript that the class is being used
@@ -1531,11 +1502,6 @@ const runWhenLitLoaded = () => {
         private _initialized = false;
         private _elements: Map<string, ConfigurableHTMLElement> = new Map();
         private _hass: any;
-
-        // Add this as a static initialization block inside MeteogramCardEditor class
-        static {
-            console.log("MeteogramCardEditor class defined");
-        }
 
         set hass(hass: any) {
             this._hass = hass;
@@ -1754,17 +1720,16 @@ const runWhenLitLoaded = () => {
 // Export the editor class to satisfy TypeScript
 // This line tells TypeScript that the class is being used even though it's only used via the customElements registry
 // @ts-ignore: Used by customElement decorator but TypeScript doesn't recognize it
-window.customElements.get('meteogram-card-editor') || customElements.define('meteogram-card-editor', MeteogramCardEditor);
+    window.customElements.get('meteogram-card-editor') || customElements.define('meteogram-card-editor', MeteogramCardEditor);
 
 // Home Assistant requires this for custom cards
     (window as any).customCards = (window as any).customCards || [];
     (window as any).customCards.push({
         type: "meteogram-card",
-        name: "Meteogram Card",
-        description: "A custom card showing a 48-hour meteogram with wind barbs."
+        name: CARD_NAME,
+        description: "A custom card showing a 48-hour meteogram with wind barbs.",
+        version: version
     });
-
-    console.log("Meteogram Card registered in customCards", (window as any).customCards);
 };
 
 // Wait for Lit modules to be loaded before running the code
