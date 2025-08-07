@@ -15,6 +15,16 @@ declare global {
         customCards?: Array<{type: string, name: string, description: string}>;
         d3: any; // Add d3 to the Window interface
     }
+
+    // Fix the d3 namespace declaration to remove the BaseType reference
+    namespace d3 {
+        // Simple interface that avoids referencing non-existent types
+        interface Selection {
+            node(): Element | null;
+            selectAll(selector: string): any;
+            remove(): void;
+        }
+    }
 }
 
 // This wrapper ensures modules are loaded before code execution
@@ -32,36 +42,6 @@ const runWhenLitLoaded = () => {
         windSpeed: number[];
         windDirection: number[];
         symbolCode: string[];
-    }
-
-    interface WeatherDataPoint {
-        time: string;
-        data: {
-            instant: {
-                details: {
-                    air_temperature?: number;
-                    cloud_area_fraction?: number;
-                    wind_speed?: number;
-                    wind_from_direction?: number;
-                }
-            };
-            next_1_hours?: {
-                details?: {
-                    precipitation_amount?: number;
-                };
-                summary?: {
-                    symbol_code?: string;
-                };
-            };
-            next_6_hours?: {
-                details?: {
-                    precipitation_amount?: number;
-                };
-                summary?: {
-                    symbol_code?: string;
-                };
-            };
-        };
     }
 
 // For day boundary shading
@@ -88,7 +68,6 @@ const runWhenLitLoaded = () => {
         @state() private renderPending = false;
         @state() private errorCount = 0;
         @state() private lastErrorTime = 0;
-        @state() private lastErrorMessage = "";
 
         private iconCache = new Map<string, string>();
         private iconBasePath = 'https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/icons/';
@@ -129,7 +108,7 @@ const runWhenLitLoaded = () => {
                 // Store in cache
                 this.iconCache.set(iconName, svgText);
                 return svgText;
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error(`Error loading icon ${iconName}:`, error);
                 return ''; // Return empty SVG on error
             }
@@ -573,16 +552,19 @@ const runWhenLitLoaded = () => {
                 console.debug('Element became visible, checking if redraw needed');
 
                 const chartDiv = this.shadowRoot?.querySelector("#chart");
+                // Check if we need to redraw - only if chart is empty or not rendered
                 const needsRedraw = !this.hasRendered ||
-                    !this.svg ||
-                    !chartDiv ||
-                    chartDiv.innerHTML === "" ||
-                    chartDiv.clientWidth === 0;
+                                   !this.svg ||
+                                   !chartDiv ||
+                                   chartDiv.innerHTML === "" ||
+                                   chartDiv.clientWidth === 0 ||
+                                   !chartDiv.querySelector("svg"); // No SVG means we need to redraw
 
                 if (needsRedraw && this.chartLoaded) {
                     console.debug('Redrawing meteogram due to visibility change');
                     // Force a new rendering cycle to ensure chart is properly displayed
                     this.hasRendered = false;
+                    this.cleanupChart(); // Ensure previous chart is cleaned up
                     this.requestUpdate();
                     this.updateComplete.then(() => this.drawMeteogram());
                 }
@@ -652,8 +634,18 @@ const runWhenLitLoaded = () => {
                 // Get location from HA if not configured
                 this._checkAndUpdateLocation();
 
-                // Delay drawing slightly to ensure DOM is ready
-                setTimeout(() => this.drawMeteogram(), 10);
+                // Check if we really need to redraw
+                const chartDiv = this.shadowRoot?.querySelector("#chart");
+                const needsRedraw = !chartDiv ||
+                                   chartDiv.innerHTML === "" ||
+                                   !chartDiv.querySelector("svg");
+
+                // Only redraw if needed
+                if (needsRedraw) {
+                    console.debug("Updated: chart needs redraw");
+                    // Delay drawing slightly to ensure DOM is ready
+                    setTimeout(() => this.drawMeteogram(), 10);
+                }
             }
 
             // Track component state for better lifecycle management
@@ -692,6 +684,11 @@ const runWhenLitLoaded = () => {
                 try {
                     // Remove all child elements from the SVG
                     this.svg.selectAll("*").remove();
+                    // Explicitly remove the SVG element itself
+                    const svgElement = this.svg.node();
+                    if (svgElement && svgElement.parentNode) {
+                        svgElement.parentNode.removeChild(svgElement);
+                    }
                 } catch (e) {
                     console.debug("Error cleaning up chart:", e);
                 }
@@ -700,6 +697,7 @@ const runWhenLitLoaded = () => {
 
             const chartDiv = this.shadowRoot?.querySelector("#chart");
             if (chartDiv) {
+                // More aggressive cleanup to prevent duplicate charts
                 chartDiv.innerHTML = "";
             }
         }
@@ -759,7 +757,7 @@ const runWhenLitLoaded = () => {
                             }
 
                             break; // Success, exit the retry loop
-                        } catch (error) {
+                        } catch (error: unknown) {
                             retries++;
                             console.warn(`D3.js load attempt ${retries} failed: ${error}`);
 
@@ -775,7 +773,7 @@ const runWhenLitLoaded = () => {
                     this.chartLoaded = true;
                     console.log("Starting chart rendering...");
                     this.drawMeteogram();
-                } catch (error) {
+                } catch (error: unknown) {
                     this.meteogramError = `Failed to load D3.js: ${error}`;
                     console.error(error);
                 }
@@ -808,6 +806,95 @@ const runWhenLitLoaded = () => {
             }
         }
 
+        // Add back the fetchWeatherData method
+        async fetchWeatherData(): Promise<MeteogramData> {
+            if (!this.latitude || !this.longitude) {
+                throw new Error("Latitude and longitude are required. Check your location settings.");
+            }
+
+            try {
+                // Get 2.5 day forecast to cover 48 hours plus a buffer
+                const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${this.latitude}&lon=${this.longitude}`;
+
+                console.debug(`Fetching weather data from: ${forecastUrl}`);
+                const response = await fetch(forecastUrl, {
+                    headers: {
+                        'User-Agent': 'Home Assistant Weather Card - Contact: your-email@example.com'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Weather API returned ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.debug('Weather data received:', data);
+
+                if (!data || !data.properties || !data.properties.timeseries || data.properties.timeseries.length === 0) {
+                    throw new Error('Invalid data format received from API');
+                }
+
+                // Process forecast data
+                const timeseries = data.properties.timeseries;
+                const now = new Date();
+                const timePlus48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+                // Filter timeseries to get data for the next 48 hours, keep hourly resolution
+                const filtered = timeseries.filter((item: any) => {
+                    const time = new Date(item.time);
+                    return time >= now && time <= timePlus48h && time.getMinutes() === 0;
+                });
+
+                const result: MeteogramData = {
+                    time: [],
+                    temperature: [],
+                    rain: [],
+                    snow: [],
+                    cloudCover: [],
+                    windSpeed: [],
+                    windDirection: [],
+                    symbolCode: []
+                };
+
+                filtered.forEach((item: any) => {
+                    const time = new Date(item.time);
+                    const instant = item.data.instant.details;
+                    const next1h = item.data.next_1_hours?.details;
+
+                    result.time.push(time);
+                    result.temperature.push(instant.air_temperature);
+                    result.cloudCover.push(instant.cloud_area_fraction);
+                    result.windSpeed.push(instant.wind_speed);
+                    result.windDirection.push(instant.wind_from_direction);
+
+                    if (next1h) {
+                        // Some APIs include separate rain and snow amount
+                        const rainAmount = next1h.precipitation_amount || 0;
+                        result.rain.push(rainAmount);
+                        result.snow.push(0); // Default to 0 if snow isn't separated out
+
+                        // Get weather symbol code for icons
+                        if (item.data.next_1_hours?.summary?.symbol_code) {
+                            result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
+                        } else {
+                            result.symbolCode.push('');
+                        }
+                    } else {
+                        // Fill in empty data if we don't have hourly precipitation data
+                        result.rain.push(0);
+                        result.snow.push(0);
+                        result.symbolCode.push('');
+                    }
+                });
+
+                console.debug('Processed weather data:', result);
+                return result;
+            } catch (error: unknown) {
+                console.error('Error fetching weather data:', error);
+                throw new Error(`Failed to get weather data: ${(error as Error).message}`);
+            }
+        }
+
         async _drawMeteogram() {
             // Limit excessive error messages
             const now = Date.now();
@@ -822,7 +909,7 @@ const runWhenLitLoaded = () => {
             // Wait for the render cycle to complete before accessing the DOM
             await this.updateComplete;
 
-            // DEBUG: Log DOM state
+            // Use the _logDomState method instead of just declaring it
             this._logDomState();
 
             // Enhanced D3 availability check
@@ -838,7 +925,7 @@ const runWhenLitLoaded = () => {
                 }
             }
 
-            // Clean up any existing chart
+            // Clean up any existing chart before proceeding
             this.cleanupChart();
 
             // Ensure we have a clean update cycle before accessing the DOM again
@@ -847,32 +934,17 @@ const runWhenLitLoaded = () => {
             // Get chart container after cleanup and another update cycle
             const chartDiv = this.shadowRoot?.querySelector("#chart");
 
-            // DEBUG: Log if we found the chart div
-            console.debug('Chart div after cleanup:', !!chartDiv);
-
             if (!chartDiv) {
                 console.error("Chart container not found in DOM");
-
-                // Force a re-render of the component to create the chart container
                 if (this.isConnected) {
-                    console.debug('Forcing re-render to create chart container');
                     this.requestUpdate();
-
-                    // Try again after the update has completed
                     await this.updateComplete;
                     await new Promise(resolve => setTimeout(resolve, 50));
-
-                    // Check again for the chart container
                     const retryChartDiv = this.shadowRoot?.querySelector("#chart");
-
-                    // DEBUG: Log if we found the chart div on retry
-                    console.debug('Chart div after retry:', !!retryChartDiv);
 
                     if (!retryChartDiv) {
                         console.error("Chart container still not found after retry");
-                        // Last resort attempt - create the chart div manually
                         if (this.shadowRoot) {
-                            console.debug('Creating chart div manually as last resort');
                             const cardContent = this.shadowRoot.querySelector('.card-content');
                             if (cardContent && this.isConnected) {
                                 cardContent.innerHTML = '<div id="chart"></div>';
@@ -885,8 +957,6 @@ const runWhenLitLoaded = () => {
                         }
                         return;
                     }
-
-                    // Continue with the retry chart div
                     this._renderChart(retryChartDiv);
                 }
                 return;
@@ -899,6 +969,12 @@ const runWhenLitLoaded = () => {
         // Separate chart rendering logic for better organization
         private _renderChart(chartDiv: Element) {
             try {
+                // Check if chart div already has content - don't draw multiple charts
+                if (chartDiv.children.length > 0) {
+                    console.debug("Chart div already has content, cleaning up first");
+                    chartDiv.innerHTML = "";
+                }
+
                 // Responsive sizing based on parent
                 const parent = chartDiv.parentElement;
                 const availableWidth = parent ? parent.clientWidth : (chartDiv as HTMLElement).offsetWidth || 350;
@@ -917,7 +993,13 @@ const runWhenLitLoaded = () => {
                 this._lastHeight = availableHeight;
 
                 // Fetch weather data and render
-                this.fetchWeatherData().then(data => {
+                this.fetchWeatherData().then((data: MeteogramData) => {
+                    // Ensure the chart div is still empty before creating a new SVG
+                    if (chartDiv.querySelector("svg")) {
+                        console.debug("SVG already exists, removing before creating new one");
+                        chartDiv.innerHTML = "";
+                    }
+
                     // Create SVG with responsive viewBox
                     this.svg = window.d3.select(chartDiv)
                         .append("svg")
@@ -931,145 +1013,17 @@ const runWhenLitLoaded = () => {
 
                     // Reset error tracking on success
                     this.errorCount = 0;
-                    this.lastErrorMessage = "";
 
                     // Ensure observers are setup again
                     this._setupResizeObserver();
                     this._setupVisibilityObserver();
                     this._setupMutationObserver();
-                }).catch(error => {
+                }).catch((error: Error) => {
                     this.setError(`Failed to fetch weather data: ${error.message}`);
                 });
-            } catch (error) {
+            } catch (error: unknown) {
                 this.setError(`Failed to render chart: ${(error as Error).message}`);
             }
-        }
-
-        // Helper method to set errors with rate limiting
-        private setError(message: string) {
-            const now = Date.now();
-
-            // If this is a repeat of the same error, just count it
-            if (message === this.lastErrorMessage) {
-                this.errorCount++;
-
-                // Only update the UI with the error count periodically
-                if (now - this.lastErrorTime > 10000) { // 10 seconds
-                    this.meteogramError = `${message} (occurred ${this.errorCount} times)`;
-                    this.lastErrorTime = now;
-                }
-            } else {
-                // New error, reset counter
-                this.errorCount = 1;
-                this.meteogramError = message;
-                this.lastErrorMessage = message;
-                this.lastErrorTime = now;
-                console.error('Meteogram error:', message);
-            }
-        }
-
-        private static weatherDataCache: Map<string, { data: MeteogramData, timestamp: number }> = new Map();
-        private static CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes cache
-
-        async fetchWeatherData(): Promise<MeteogramData> {
-            if (this.latitude === undefined || this.longitude === undefined) {
-                throw new Error("Coordinates not configured and couldn't be retrieved from Home Assistant");
-            }
-
-            // Define cache key based on coordinates
-            const cacheKey = `coords_${this.latitude.toFixed(3)},${this.longitude.toFixed(3)}`;
-            const now = new Date().getTime();
-
-            // Check if we have valid cached data
-            const cachedData = MeteogramCard.weatherDataCache.get(cacheKey);
-            if (cachedData && (now - cachedData.timestamp < MeteogramCard.CACHE_DURATION_MS)) {
-                console.debug("Using cached weather data");
-                return cachedData.data;
-            }
-
-            // No cache or expired, fetch new data
-            console.debug("Fetching fresh weather data");
-
-            try {
-                // Fetch data from Met.no API
-                const data = await this.fetchFromMetNoAPI();
-
-                // Store in cache
-                MeteogramCard.weatherDataCache.set(cacheKey, {
-                    data,
-                    timestamp: now
-                });
-
-                return data;
-            } catch (error) {
-                // If error occurs and we have expired cache data, use it as fallback
-                if (cachedData) {
-                    console.warn("Data fetch failed, using expired cache data as fallback", error);
-                    return cachedData.data;
-                }
-                throw error;
-            }
-        }
-
-        // Fetch data from Met.no API
-        private async fetchFromMetNoAPI(): Promise<MeteogramData> {
-            if (this.latitude === undefined || this.longitude === undefined) {
-                throw new Error("Coordinates not provided for Met.no API");
-            }
-
-            const response = await fetch(
-                `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${this.latitude}&lon=${this.longitude}`,
-                {
-                    headers: {
-                        'User-Agent': 'ha-meteogram-card/1.0 github.com/jm-cook/ha-meteogram-card'
-                    }
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(`Weather API returned ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            const ts = data.properties.timeseries.slice(0, 48) as WeatherDataPoint[];
-
-            if (!ts.length) {
-                throw new Error("No data received from API.");
-            }
-
-            // Process the data as before
-            const time = ts.map(e => new Date(e.time));
-            const temperature = ts.map(e => e.data.instant.details.air_temperature ?? null);
-            const rain = ts.map(e => e.data.next_1_hours?.details?.precipitation_amount ?? 0);
-            const snow = ts.map(e => e.data.next_1_hours?.details?.precipitation_amount ?? 0);
-            const cloudCover = ts.map(e => e.data.instant.details.cloud_area_fraction ?? 0);
-            const windSpeed = ts.map(e => e.data.instant.details.wind_speed ?? 0);
-            const windDirection = ts.map(e => e.data.instant.details.wind_from_direction ?? 0);
-            const symbolCode = ts.map(e =>
-                e.data.next_1_hours?.summary?.symbol_code ||
-                e.data.next_6_hours?.summary?.symbol_code ||
-                ""
-            );
-
-            // Limit to last full hour
-            let lastHourIdx = time.length - 1;
-            for (let i = time.length - 1; i >= 0; i--) {
-                if (time[i].getMinutes() === 0 && time[i].getSeconds() === 0) {
-                    lastHourIdx = i;
-                    break;
-                }
-            }
-
-            return {
-                time: time.slice(0, lastHourIdx + 1),
-                temperature: temperature.slice(0, lastHourIdx + 1),
-                rain: rain.slice(0, lastHourIdx + 1),
-                snow: snow.slice(0, lastHourIdx + 1),
-                cloudCover: cloudCover.slice(0, lastHourIdx + 1),
-                windSpeed: windSpeed.slice(0, lastHourIdx + 1),
-                windDirection: windDirection.slice(0, lastHourIdx + 1),
-                symbolCode: symbolCode.slice(0, lastHourIdx + 1)
-            };
         }
 
         renderMeteogram(svg: any, data: MeteogramData, width: number, height: number): void {
@@ -1309,7 +1263,7 @@ const runWhenLitLoaded = () => {
                         } else {
                             console.warn(`Failed to load icon: ${correctedSymbol}`);
                         }
-                    }).catch(err => {
+                    }).catch((err: Error) => {
                         console.error(`Error loading icon ${correctedSymbol}:`, err);
                     });
                 });
@@ -1540,6 +1494,28 @@ const runWhenLitLoaded = () => {
             console.debug('- Is connected:', this.isConnected);
             console.debug('- Has rendered:', this.hasRendered);
             console.debug('- Chart loaded:', this.chartLoaded);
+        }
+
+        // Helper method to set errors with rate limiting
+        setError(message: string) {
+            const now = Date.now();
+
+            // If this is a repeat of the same error, just count it
+            if (message === this.meteogramError) {
+                this.errorCount++;
+
+                // Only update the UI with the error count periodically
+                if (now - this.lastErrorTime > 10000) { // 10 seconds
+                    this.meteogramError = `${message} (occurred ${this.errorCount} times)`;
+                    this.lastErrorTime = now;
+                }
+            } else {
+                // New error, reset counter
+                this.errorCount = 1;
+                this.meteogramError = message;
+                this.lastErrorTime = now;
+                console.error("Meteogram error:", message);
+            }
         }
 
     }
