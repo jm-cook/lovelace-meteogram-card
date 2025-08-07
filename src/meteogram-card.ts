@@ -1,5 +1,17 @@
-import { LitElement, html, css, PropertyValues } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+// Use only the imports that are actually needed for type checking
+import { PropertyValues } from "lit";
+
+// Import our local types
+import { MeteogramCardConfig } from "./types";
+
+// Declare litModulesPromise to avoid TypeScript error
+// This will be defined in the banner added by rollup
+declare const litModulesPromise: Promise<any>;
+
+// This wrapper ensures modules are loaded before code execution
+const runWhenLitLoaded = () => {
+  // Get Lit modules from the global variable set in the banner
+  const { LitElement, html, css, customElement, property, state } = (window as any).litElementModules;
 
 // Define interfaces for better type safety
 interface MeteogramData {
@@ -56,11 +68,11 @@ interface ConfigurableHTMLElement extends HTMLElement {
 }
 
 @customElement("meteogram-card")
-export class MeteogramCard extends LitElement {
+class MeteogramCard extends LitElement {
   @property({ type: String }) title = "";
   @property({ type: Number }) latitude?: number;
   @property({ type: Number }) longitude?: number;
-  @property({ attribute: false }) hass: any;
+  @property({ attribute: false }) hass!: any; // Changed from HomeAssistant to any
 
   @state() private chartLoaded = false;
   @state() private meteogramError = "";
@@ -72,6 +84,11 @@ export class MeteogramCard extends LitElement {
   private iconCache = new Map<string, string>();
   private iconBasePath = 'https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/icons/';
 
+  // Add this as a static initialization block inside MeteogramCard class
+  static {
+    console.log("MeteogramCard class defined");
+  }
+
   // Add a method to fetch icons
   private async getIconSVG(iconName: string): Promise<string> {
     // Return from cache if available
@@ -80,11 +97,26 @@ export class MeteogramCard extends LitElement {
     }
 
     try {
+      // Add a console log to debug the URL
+      const iconUrl = `${this.iconBasePath}${iconName}.svg`;
+      console.log(`Fetching icon from: ${iconUrl}`);
+
       // Fetch from GitHub
-      const response = await fetch(`${this.iconBasePath}${iconName}.svg`);
-      if (!response.ok) throw new Error(`Failed to load icon: ${iconName}`);
+      const response = await fetch(iconUrl);
+
+      if (!response.ok) {
+        console.warn(`Failed to load icon: ${iconName}, status: ${response.status}`);
+        return '';
+      }
 
       const svgText = await response.text();
+
+      // Basic validation that we got SVG content
+      if (!svgText.includes('<svg') || svgText.length < 20) {
+        console.warn(`Invalid SVG content for ${iconName}`);
+        return '';
+      }
+
       // Store in cache
       this.iconCache.set(iconName, svgText);
       return svgText;
@@ -184,22 +216,28 @@ export class MeteogramCard extends LitElement {
   `;
 
   // Required for Home Assistant
-  setConfig(config: any) {
+  public setConfig(config: MeteogramCardConfig): void {
     if (config.title) this.title = config.title;
     if (config.latitude !== undefined) this.latitude = config.latitude;
     if (config.longitude !== undefined) this.longitude = config.longitude;
   }
 
   // Required for HA visual editor support
-  static getConfigElement() {
+  public static getConfigElement() {
     return document.createElement("meteogram-card-editor");
   }
 
-  static getStubConfig() {
+  // Define card configuration type
+  public static getStubConfig(): object {
     return {
       title: "Weather Forecast"
       // Coordinates will be fetched from HA configuration
     };
+  }
+
+  // According to the boilerplate, add getCardSize for panel mode
+  public getCardSize(): number {
+    return 3; // Returns a height in units of 50 pixels
   }
 
   // Handle initial setup - now properly setup resize observer
@@ -352,21 +390,76 @@ export class MeteogramCard extends LitElement {
   async loadD3AndDraw(): Promise<void> {
     if (!(window as any).d3) {
       try {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js';
-          script.async = true;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error("Failed to load D3.js"));
-          document.head.appendChild(script);
-        });
+        console.log("D3.js not loaded, attempting to load it now...");
+
+        // Create a more robust loading mechanism with retries
+        let retries = 0;
+        const maxRetries = 3;
+
+        while (!(window as any).d3 && retries < maxRetries) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = 'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js';
+              script.async = true;
+              script.id = 'd3-script';
+
+              // Set a timeout to detect failed loads
+              const timeoutId = setTimeout(() => {
+                reject(new Error("D3.js load timeout"));
+              }, 10000); // 10 second timeout
+
+              script.onload = () => {
+                clearTimeout(timeoutId);
+                console.log("D3.js successfully loaded");
+                resolve();
+              };
+
+              script.onerror = () => {
+                clearTimeout(timeoutId);
+                reject(new Error("Failed to load D3.js"));
+              };
+
+              // Remove any existing script to avoid conflicts
+              const existingScript = document.getElementById('d3-script');
+              if (existingScript) {
+                existingScript.remove();
+              }
+
+              document.head.appendChild(script);
+            });
+
+            // Add a small delay to ensure the library is fully initialized
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Test if D3 is actually available
+            if (!(window as any).d3) {
+              throw new Error("D3.js not found after script loaded");
+            }
+
+            break; // Success, exit the retry loop
+          } catch (error) {
+            retries++;
+            console.warn(`D3.js load attempt ${retries} failed: ${error}`);
+
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
+        if (!(window as any).d3) {
+          throw new Error(`Failed to load D3.js after ${maxRetries} attempts`);
+        }
+
         this.chartLoaded = true;
+        console.log("Starting chart rendering...");
         this.drawMeteogram();
       } catch (error) {
         this.meteogramError = `Failed to load D3.js: ${error}`;
         console.error(error);
       }
     } else {
+      console.log("D3.js already loaded, proceeding with chart rendering");
       this.chartLoaded = true;
       this.drawMeteogram();
     }
@@ -409,10 +502,17 @@ export class MeteogramCard extends LitElement {
 
     this.meteogramError = "";
 
-    // Ensure D3 is loaded
+    // Enhanced D3 availability check
     if (!(window as any).d3) {
-      this.setError("D3.js library not loaded.");
-      return;
+      console.warn("D3.js not found, attempting to reload");
+      this.chartLoaded = false;
+      try {
+        await this.loadD3AndDraw();
+        return; // loadD3AndDraw will call drawMeteogram when ready
+      } catch (error) {
+        this.setError("D3.js library could not be loaded. Please refresh the page.");
+        return;
+      }
     }
 
     // Clean up any existing chart
@@ -806,26 +906,44 @@ export class MeteogramCard extends LitElement {
       .attr("class", "temp-line")
       .attr("d", line);
 
-    // Weather icons along temperature curve
+    // Weather icons along temperature curve - increase size to 2x
     chart.selectAll(".weather-icon")
         .data(symbolCode)
         .enter()
-        .append("g")  // Use a group element instead of image
+        .append("foreignObject")  // Use foreignObject instead of g for better SVG support
         .attr("class", "weather-icon")
-        .attr("transform", (_: string, i: number) => {
+        .attr("x", (_: string, i: number) => x(i) - 20) // Increased offset from 10 to 20 for larger icons
+        .attr("y", (_: string, i: number) => {
           const temp = temperature[i];
-          const yPos = temp !== null ? yTemp(temp) - 32 - 8 : -999;
-          return `translate(${x(i) - 16}, ${yPos})`;
+          return temp !== null ? yTemp(temp) - 40 : -999; // Increased offset from 20 to 40 for larger icons
         })
+        .attr("width", 40) // Increased from 20 to 40
+        .attr("height", 40) // Increased from 20 to 40
         .attr("opacity", (_: string, i: number) => temperature[i] !== null ? 1 : 0)
         .each((d: string, i: number, nodes: any) => {
-          // For each icon, fetch the SVG and insert it
           const node = nodes[i];
-          this.getIconSVG(d).then(svgContent => {
+          if (!d) return; // Skip if no symbol code
+
+          // Handle the typo in the API (extra "s" after "light" in some symbols)
+          const correctedSymbol = d
+            .replace(/^lightssleet/, 'lightsleet')
+            .replace(/^lightssnow/, 'lightsnow');
+
+          this.getIconSVG(correctedSymbol).then(svgContent => {
             if (svgContent) {
-              // Use d3's html method to insert the SVG
-              d3.select(node).html(svgContent);
+              // Create a div to hold the SVG
+              const div = document.createElement('div');
+              div.style.width = '40px'; // Increased from 20px to 40px
+              div.style.height = '40px'; // Increased from 20px to 40px
+              div.innerHTML = svgContent;
+
+              // Append the div to the foreignObject
+              node.appendChild(div);
+            } else {
+              console.warn(`Failed to load icon: ${correctedSymbol}`);
             }
+          }).catch(err => {
+            console.error(`Error loading icon ${correctedSymbol}:`, err);
           });
         });
 
@@ -921,24 +1039,25 @@ export class MeteogramCard extends LitElement {
         // Skip if this is the last box and it's less than 2 hours wide
         if (isLastBox && hourDiff < 2) continue;
 
-        // Calculate center position between even hour and next even hour
-        // If i is the index of an even hour, the barb should be centered between i and i+2
-        const nextEvenHourIdx = i + windBarbInterval;
-        if (nextEvenHourIdx < N) {
-          // Find the center between this even hour and the next even hour
-          const cx = x(i) + (x(nextEvenHourIdx) - x(i)) / 2;
-          const speed = windSpeed[i + windBarbInterval/2]; // Use the middle hour's wind data
-          const dir = windDirection[i + windBarbInterval/2];
+        // Find the center between this even hour and the next even hour
+        // Add 1 to the index to shift the wind barbs one hour to the right
+        const adjustedIndex = i + 1;
+        const adjustedNextIndex = Math.min(adjustedIndex + windBarbInterval - 1, N-1);
+        const cx = (x(adjustedIndex) + x(adjustedNextIndex)) / 2;
 
-          const minBarbLen = width < 400 ? 18 : 23;
-          const maxBarbLen = width < 400 ? 30 : 38;
-          const windLenScale = d3.scaleLinear()
-            .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
-            .range([minBarbLen, maxBarbLen]);
-          const barbLen = windLenScale(speed);
+        // Use the data from the center of the interval
+        const dataIdx = Math.min(Math.floor((adjustedIndex + adjustedNextIndex) / 2), N-1);
+        const speed = windSpeed[dataIdx];
+        const dir = windDirection[dataIdx];
 
-          this.drawWindBarb(windBand, cx, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
-        }
+        const minBarbLen = width < 400 ? 18 : 23;
+        const maxBarbLen = width < 400 ? 30 : 38;
+        const windLenScale = d3.scaleLinear()
+          .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
+          .range([minBarbLen, maxBarbLen]);
+        const barbLen = windLenScale(speed);
+
+        this.drawWindBarb(windBand, cx, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
       }
     }
 
@@ -1027,12 +1146,22 @@ export class MeteogramCard extends LitElement {
 
 }
 
+// Tell TypeScript that the class is being used
+// @ts-ignore: Used by customElement decorator
+window.customElements.get('meteogram-card') || customElements.define('meteogram-card', MeteogramCard);
+
 // Visual editor for HACS
+@customElement('meteogram-card-editor')
 class MeteogramCardEditor extends HTMLElement {
   private _config: any = {};
   private _initialized = false;
   private _elements: Map<string, ConfigurableHTMLElement> = new Map();
   private _hass: any;
+
+  // Add this as a static initialization block inside MeteogramCardEditor class
+  static {
+    console.log("MeteogramCardEditor class defined");
+  }
 
   set hass(hass: any) {
     this._hass = hass;
@@ -1251,11 +1380,9 @@ class MeteogramCardEditor extends HTMLElement {
   }
 }
 
-// Register the main card component
-customElements.define("meteogram-card", MeteogramCard);
-
-// Register the editor component
-customElements.define("meteogram-card-editor", MeteogramCardEditor);
+// Tell TypeScript that the editor class is being used
+// @ts-ignore: Used by customElement decorator
+window.customElements.get('meteogram-card-editor') || customElements.define('meteogram-card-editor', MeteogramCardEditor);
 
 // Home Assistant requires this for custom cards
 (window as any).customCards = (window as any).customCards || [];
@@ -1264,3 +1391,20 @@ customElements.define("meteogram-card-editor", MeteogramCardEditor);
   name: "Meteogram Card",
   description: "A custom card showing a 48-hour meteogram with wind barbs."
 });
+
+console.log("Meteogram Card registered in customCards", (window as any).customCards);
+};
+
+// Wait for Lit modules to be loaded before running the code
+if ((window as any).litElementModules) {
+  runWhenLitLoaded();
+} else {
+  // If the banner has already set up the promise, wait for it to resolve
+  if (typeof litModulesPromise !== 'undefined') {
+    litModulesPromise.then(() => {
+      runWhenLitLoaded();
+    });
+  } else {
+    console.error("Lit modules not found and litModulesPromise not available");
+  }
+}

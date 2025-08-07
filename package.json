@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "description": "A custom card showing a 48-hour meteogram with wind barbs for Home Assistant",
   "type": "module",
-  "main": "dist/meteogram-card.js",
+  "main": "meteogram-card.js",
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c --watch"
+    "build": "rollup -c --bundleConfigAsCjs",
+    "watch": "rollup -c --watch --bundleConfigAsCjs",
+    "download-icons": "node scripts/download-icons.cjs",
+    "lint": "eslint --ext .ts --ext .js --fix src",
+    "start": "npm run build && serve"
   },
   "repository": {
     "type": "git",
@@ -24,18 +27,14 @@
   ],
   "author": "Jeremy Cook",
   "license": "MIT",
-  "dependencies": {
-    "lit": "^3.1.0"
-  },
   "devDependencies": {
+    "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.1",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^12.1.4",
     "rollup": "^4.9.5",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3",
-    "@lit/reactive-element": "^2.0.2",
-    "lit-element": "^4.0.2",
-    "lit-html": "^3.1.0"
+    "lit": "^3.1.0"
   }
 }
