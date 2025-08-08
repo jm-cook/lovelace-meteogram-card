@@ -1,8 +1,12 @@
+// Define the configuration interface for the card
 export interface MeteogramCardConfig {
-  type: string;
-  title?: string;
-  latitude?: number;
-  longitude?: number;
+    title?: string;
+    latitude?: number;
+    longitude?: number;
+    show_cloud_cover?: boolean;
+    show_pressure?: boolean;
+    show_weather_icons?: boolean;
+    show_wind?: boolean;
 }
 
 export interface MeteogramData {
@@ -14,6 +18,7 @@ export interface MeteogramData {
   windSpeed: number[];
   windDirection: number[];
   symbolCode: string[];
+  pressure: number[]; // Add pressure to match the actual data structure
 }
 
 export interface WeatherDataPoint {
@@ -25,6 +30,7 @@ export interface WeatherDataPoint {
         cloud_area_fraction?: number;
         wind_speed?: number;
         wind_from_direction?: number;
+        air_pressure_at_sea_level?: number; // Add pressure field
       }
     };
     next_1_hours?: {
@@ -56,4 +62,12 @@ export interface DayRange {
 export interface ConfigurableHTMLElement extends HTMLElement {
   configValue?: string;
   value?: string | number;
+  checked?: boolean; // Add the checked property for switches
+}
+
+// Define editor interface with required methods
+export interface MeteogramCardEditorElement extends HTMLElement {
+  setConfig(config: MeteogramCardConfig): void;
+  hass?: any;
+  config?: MeteogramCardConfig;
 }

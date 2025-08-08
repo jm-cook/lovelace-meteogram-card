@@ -1,11 +1,9 @@
 // Use only the imports that are actually needed for type checking
 import {PropertyValues} from "lit";
-
 // Import our local types
-import {MeteogramCardConfig} from "./types";
-
+import {MeteogramCardConfig, MeteogramCardEditorElement} from "./types";
 // Version info - update this when releasing new versions
-import { version } from "../package.json";
+import {version} from "../package.json";
 const CARD_NAME = "Meteogram Card";
 
 // Declare litModulesPromise to avoid TypeScript error
@@ -25,9 +23,7 @@ declare global {
         // Simple interface that avoids referencing non-existent types
         interface Selection {
             node(): Element | null;
-
             selectAll(selector: string): any;
-
             remove(): void;
         }
     }
@@ -73,6 +69,7 @@ const runWhenLitLoaded = () => {
     interface ConfigurableHTMLElement extends HTMLElement {
         configValue?: string;
         value?: string | number;
+        checked?: boolean;
     }
 
     @customElement("meteogram-card")
@@ -81,6 +78,12 @@ const runWhenLitLoaded = () => {
         @property({type: Number}) latitude?: number;
         @property({type: Number}) longitude?: number;
         @property({attribute: false}) hass!: any; // Changed from HomeAssistant to any
+
+        // Add new configuration properties with default values
+        @property({type: Boolean}) showCloudCover = true;
+        @property({type: Boolean}) showPressure = true;
+        @property({type: Boolean}) showWeatherIcons = true;
+        @property({type: Boolean}) showWind = true;
 
         @state() private chartLoaded = false;
         @state() private meteogramError = "";
@@ -151,6 +154,9 @@ const runWhenLitLoaded = () => {
         // Keep track of update cycles
         private _isInitialized = false;
 
+        // Keep track of last rendered data to avoid unnecessary redraws
+        private _lastRenderedData: string | null = null;
+
         static styles = css`
             :host {
                 display: block;
@@ -211,7 +217,7 @@ const runWhenLitLoaded = () => {
                 stroke-width: 3;
                 fill: none;
             }
-            
+
             .pressure-line {
                 stroke: #1976d2;
                 stroke-width: 2.5;
@@ -332,17 +338,36 @@ const runWhenLitLoaded = () => {
             if (config.title) this.title = config.title;
             if (config.latitude !== undefined) this.latitude = config.latitude;
             if (config.longitude !== undefined) this.longitude = config.longitude;
+
+            // Set the display options from config, using defaults if not specified
+            this.showCloudCover = config.show_cloud_cover !== undefined ? config.show_cloud_cover : true;
+            this.showPressure = config.show_pressure !== undefined ? config.show_pressure : true;
+            this.showWeatherIcons = config.show_weather_icons !== undefined ? config.show_weather_icons : true;
+            this.showWind = config.show_wind !== undefined ? config.show_wind : true;
         }
 
         // Required for HA visual editor support
         public static getConfigElement() {
-            return document.createElement("meteogram-card-editor");
+            // Pre-initialize the editor component for faster display
+            const editor = document.createElement("meteogram-card-editor") as MeteogramCardEditorElement;
+            // Create a basic config to start with
+            editor.setConfig({
+                show_cloud_cover: true,
+                show_pressure: true,
+                show_weather_icons: true,
+                show_wind: true
+            });
+            return editor;
         }
 
         // Define card configuration type
         public static getStubConfig(): object {
             return {
-                title: "Weather Forecast"
+                title: "Weather Forecast",
+                show_cloud_cover: true,
+                show_pressure: true,
+                show_weather_icons: true,
+                show_wind: true
                 // Coordinates will be fetched from HA configuration
             };
         }
@@ -743,7 +768,7 @@ const runWhenLitLoaded = () => {
                     const longitude = parseFloat(lon);
 
                     if (!isNaN(latitude) && !isNaN(longitude)) {
-                        return { latitude, longitude };
+                        return {latitude, longitude};
                     }
                 }
                 return null;
@@ -925,6 +950,25 @@ const runWhenLitLoaded = () => {
 
             this.meteogramError = "";
 
+            // Make sure we have a location before proceeding
+            this._checkAndUpdateLocation();
+
+            if (!this.latitude || !this.longitude) {
+                this.setError("Location not available. Please check your card configuration or Home Assistant settings.");
+                return;
+            }
+
+            // Create a fingerprint of current location and display settings
+            const settingsFingerprint = `${this.latitude},${this.longitude},${this.showCloudCover},${this.showPressure},${this.showWeatherIcons},${this.showWind}`;
+
+            // If nothing has changed and we already have a rendered chart, don't redraw
+            if (this._lastRenderedData === settingsFingerprint && this.svg) {
+                return;
+            }
+
+            // Store the current settings fingerprint
+            this._lastRenderedData = settingsFingerprint;
+
             // Wait for the render cycle to complete before accessing the DOM
             await this.updateComplete;
 
@@ -1051,7 +1095,7 @@ const runWhenLitLoaded = () => {
             const N = time.length;
 
             // SVG and chart parameters
-            const windBarbBand = 55;
+            const windBarbBand = this.showWind ? 55 : 0; // Only allocate space for wind barbs if they're enabled
             const bottomHourBand = 24;
             const margin = {top: 70, right: 70, bottom: bottomHourBand + 10, left: 70};
             const chartWidth = width;
@@ -1151,14 +1195,18 @@ const runWhenLitLoaded = () => {
                 .range([chartHeight, chartHeight * 0.65]);
 
             // Pressure Y scale - we'll use the right side of the chart
-            const pressureRange = d3.extent(pressure);
-            const pressurePadding = (pressureRange[1] - pressureRange[0]) * 0.1;
-            const yPressure = d3.scaleLinear()
-                .domain([
-                    Math.floor((pressureRange[0] - pressurePadding) / 5) * 5,
-                    Math.ceil((pressureRange[1] + pressurePadding) / 5) * 5
-                ])
-                .range([chartHeight, 0]);
+            // Only create if pressure is shown
+            let yPressure;
+            if (this.showPressure) {
+                const pressureRange = d3.extent(pressure);
+                const pressurePadding = (pressureRange[1] - pressureRange[0]) * 0.1;
+                yPressure = d3.scaleLinear()
+                    .domain([
+                        Math.floor((pressureRange[0] - pressurePadding) / 5) * 5,
+                        Math.ceil((pressureRange[1] + pressurePadding) / 5) * 5
+                    ])
+                    .range([chartHeight, 0]);
+            }
 
             // Add vertical gridlines
             svg.append("g")
@@ -1189,24 +1237,26 @@ const runWhenLitLoaded = () => {
                 .attr("y2", chartHeight)
                 .lower();
 
-            // Cloud cover band
-            const bandTop = chartHeight * 0.05;
-            const bandHeight = chartHeight * 0.20;
-            const cloudBandPoints: [number, number][] = [];
+            // Cloud cover band - only if enabled
+            if (this.showCloudCover) {
+                const bandTop = chartHeight * 0.05;
+                const bandHeight = chartHeight * 0.20;
+                const cloudBandPoints: [number, number][] = [];
 
-            for (let i = 0; i < N; i++) {
-                cloudBandPoints.push([x(i), bandTop + bandHeight * (cloudCover[i] / 100)]);
-            }
-            for (let i = N - 1; i >= 0; i--) {
-                cloudBandPoints.push([x(i), bandTop + bandHeight * (1 - cloudCover[i] / 100)]);
-            }
+                for (let i = 0; i < N; i++) {
+                    cloudBandPoints.push([x(i), bandTop + bandHeight * (cloudCover[i] / 100)]);
+                }
+                for (let i = N - 1; i >= 0; i--) {
+                    cloudBandPoints.push([x(i), bandTop + bandHeight * (1 - cloudCover[i] / 100)]);
+                }
 
-            chart.append("path")
-                .attr("class", "cloud-area")
-                .attr("d", d3.line()
-                    .x((d: [number, number]) => d[0])
-                    .y((d: [number, number]) => d[1])
-                    .curve(d3.curveLinearClosed)(cloudBandPoints));
+                chart.append("path")
+                    .attr("class", "cloud-area")
+                    .attr("d", d3.line()
+                        .x((d: [number, number]) => d[0])
+                        .y((d: [number, number]) => d[1])
+                        .curve(d3.curveLinearClosed)(cloudBandPoints));
+            }
 
             // Temperature axis and grid
             chart.append("g").attr("class", "grid")
@@ -1219,12 +1269,26 @@ const runWhenLitLoaded = () => {
 
             chart.append("g").call(d3.axisLeft(yTemp));
 
-            // Pressure axis (right side)
-            chart.append("g")
-                .attr("class", "pressure-axis")
-                .attr("transform", `translate(${chartWidth}, 0)`)
-                .call(d3.axisRight(yPressure)
-                    .tickFormat((d: any) => `${d}`));
+            // Pressure axis (right side) - only if enabled
+            if (this.showPressure && yPressure) {
+                chart.append("g")
+                    .attr("class", "pressure-axis")
+                    .attr("transform", `translate(${chartWidth}, 0)`)
+                    .call(d3.axisRight(yPressure)
+                        .tickFormat((d: any) => `${d}`));
+
+                chart.append("text")
+                    .attr("class", "axis-label")
+                    .attr("text-anchor", "middle")
+                    .attr("transform", `translate(${chartWidth + 50},${chartHeight / 2}) rotate(90)`)
+                    .text("Pressure (hPa)");
+
+                chart.append("text")
+                    .attr("class", "legend")
+                    .attr("x", 340).attr("y", -45)
+                    .style("fill", "#1976d2")
+                    .text("Pressure (hPa)");
+            }
 
             // Axis labels and legend
             chart.append("text")
@@ -1233,28 +1297,19 @@ const runWhenLitLoaded = () => {
                 .attr("transform", `translate(-50,${chartHeight / 2}) rotate(-90)`)
                 .text("Temperature (°C)");
 
-            chart.append("text")
-                .attr("class", "axis-label")
-                .attr("text-anchor", "middle")
-                .attr("transform", `translate(${chartWidth + 50},${chartHeight / 2}) rotate(90)`)
-                .text("Pressure (hPa)");
-
-            chart.append("text")
-                .attr("class", "legend")
-                .attr("x", 0).attr("y", -45)
-                .text("Cloud Cover (%)");
+            // Only add cloud cover legend if enabled
+            if (this.showCloudCover) {
+                chart.append("text")
+                    .attr("class", "legend")
+                    .attr("x", 0).attr("y", -45)
+                    .text("Cloud Cover (%)");
+            }
 
             chart.append("text")
                 .attr("class", "legend")
                 .attr("x", 200).attr("y", -45)
                 .style("fill", "orange")
                 .text("Temperature (°C)");
-
-            chart.append("text")
-                .attr("class", "legend")
-                .attr("x", 340).attr("y", -45)
-                .style("fill", "#1976d2")
-                .text("Pressure (hPa)");
 
             chart.append("text")
                 .attr("class", "legend")
@@ -1279,66 +1334,67 @@ const runWhenLitLoaded = () => {
                 .attr("class", "temp-line")
                 .attr("d", line);
 
-            // Pressure line
-            const pressureLine = d3.line()
-                .defined((d: number) => !isNaN(d))
-                .x((_: number, i: number) => x(i))
-                .y((d: number) => yPressure(d));
+            // Pressure line - only if enabled
+            if (this.showPressure && yPressure) {
+                const pressureLine = d3.line()
+                    .defined((d: number) => !isNaN(d))
+                    .x((_: number, i: number) => x(i))
+                    .y((d: number) => yPressure(d));
 
-            chart.append("path")
-                .datum(pressure)
-                .attr("class", "pressure-line")
-                .attr("d", pressureLine);
+                chart.append("path")
+                    .datum(pressure)
+                    .attr("class", "pressure-line")
+                    .attr("d", pressureLine);
+            }
 
-            // Weather icons along temperature curve - increase size to 2x
-            // On smaller screens, only show every second icon for better visibility
-            const iconInterval = width < 600 ? 2 : 1; // Display every second icon on small screens
+            // Weather icons along temperature curve - only if enabled
+            if (this.showWeatherIcons) {
+                // On smaller screens, only show every second icon for better visibility
+                const iconInterval = width < 600 ? 2 : 1;
 
-            chart.selectAll(".weather-icon")
-                .data(symbolCode)
-                .enter()
-                .append("foreignObject")  // Use foreignObject instead of g for better SVG support
-                .attr("class", "weather-icon")
-                .attr("x", (_: string, i: number) => x(i) - 20) // Increased offset from 10 to 20 for larger icons
-                .attr("y", (_: string, i: number) => {
-                    const temp = temperature[i];
-                    return temp !== null ? yTemp(temp) - 40 : -999; // Increased offset from 20 to 40 for larger icons
-                })
-                .attr("width", 40) // Increased from 20 to 40
-                .attr("height", 40) // Increased from 20 to 40
-                .attr("opacity", (_: string, i: number) =>
-                    (temperature[i] !== null && (width >= 600 || i % iconInterval === 0)) ? 1 : 0)
-                .each((d: string, i: number, nodes: any) => {
-                    // Skip icons on mobile based on iconInterval
-                    if (width < 600 && i % iconInterval !== 0) return;
+                chart.selectAll(".weather-icon")
+                    .data(symbolCode)
+                    .enter()
+                    .append("foreignObject")
+                    .attr("class", "weather-icon")
+                    .attr("x", (_: string, i: number) => x(i) - 20)
+                    .attr("y", (_: string, i: number) => {
+                        const temp = temperature[i];
+                        return temp !== null ? yTemp(temp) - 40 : -999;
+                    })
+                    .attr("width", 40)
+                    .attr("height", 40)
+                    .attr("opacity", (_: string, i: number) =>
+                        (temperature[i] !== null && (width >= 600 || i % iconInterval === 0)) ? 1 : 0)
+                    .each((d: string, i: number, nodes: any) => {
+                        // Skip icons on mobile based on iconInterval
+                        if (width < 600 && i % iconInterval !== 0) return;
 
-                    const node = nodes[i];
-                    if (!d) return; // Skip if no symbol code
+                        const node = nodes[i];
+                        if (!d) return;
 
-                    // Handle the typo in the API (extra "s" after "light" in some symbols)
-                    const correctedSymbol = d
-                        .replace(/^lightssleet/, 'lightsleet')
-                        .replace(/^lightssnow/, 'lightsnow');
+                        // Handle the typo in the API
+                        const correctedSymbol = d
+                            .replace(/^lightssleet/, 'lightsleet')
+                            .replace(/^lightssnow/, 'lightsnow');
 
-                    this.getIconSVG(correctedSymbol).then(svgContent => {
-                        if (svgContent) {
-                            // Create a div to hold the SVG
-                            const div = document.createElement('div');
-                            div.style.width = '40px'; // Increased from 20px to 40px
-                            div.style.height = '40px'; // Increased from 20px to 40px
-                            div.innerHTML = svgContent;
-
-                            // Append the div to the foreignObject
-                            node.appendChild(div);
-                        } else {
-                            console.warn(`Failed to load icon: ${correctedSymbol}`);
-                        }
-                    }).catch((err: Error) => {
-                        console.error(`Error loading icon ${correctedSymbol}:`, err);
+                        this.getIconSVG(correctedSymbol).then(svgContent => {
+                            if (svgContent) {
+                                const div = document.createElement('div');
+                                div.style.width = '40px';
+                                div.style.height = '40px';
+                                div.innerHTML = svgContent;
+                                node.appendChild(div);
+                            } else {
+                                console.warn(`Failed to load icon: ${correctedSymbol}`);
+                            }
+                        }).catch((err: Error) => {
+                            console.error(`Error loading icon ${correctedSymbol}:`, err);
+                        });
                     });
-                });
+            }
 
-            // Rain bars with labels - adjust bar width based on available space
+            // Rain bars with labels
             const barWidth = Math.min(26, dx * 0.8);
 
             chart.selectAll(".rain-bar")
@@ -1369,97 +1425,96 @@ const runWhenLitLoaded = () => {
                 .attr("width", barWidth)
                 .attr("height", (d: number) => chartHeight - yPrecip(d));
 
-            // Wind band
-            const windBandYOffset = margin.top + chartHeight;
-            const windBand = svg.append('g')
-                .attr('transform', `translate(${margin.left},${windBandYOffset})`);
+            // Wind band - only if enabled
+            if (this.showWind) {
+                const windBandYOffset = margin.top + chartHeight;
+                const windBand = svg.append('g')
+                    .attr('transform', `translate(${margin.left},${windBandYOffset})`);
 
-            const windBandHeight = windBarbBand - 10;
-            const windBarbY = windBandHeight / 2;
+                const windBandHeight = windBarbBand - 10;
+                const windBarbY = windBandHeight / 2;
 
-            windBand.append("rect")
-                .attr("class", "wind-band-bg")
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("width", chartWidth)
-                .attr("height", windBandHeight);
+                windBand.append("rect")
+                    .attr("class", "wind-band-bg")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("width", chartWidth)
+                    .attr("height", windBandHeight);
 
-            // Even hour grid lines
-            const twoHourIdx: number[] = [];
-            for (let i = 0; i < N; i++) {
-                if (time[i].getHours() % 2 === 0) twoHourIdx.push(i);
+                // Even hour grid lines
+                const twoHourIdx: number[] = [];
+                for (let i = 0; i < N; i++) {
+                    if (time[i].getHours() % 2 === 0) twoHourIdx.push(i);
+                }
+
+                windBand.selectAll(".wind-band-grid")
+                    .data(twoHourIdx)
+                    .enter()
+                    .append("line")
+                    .attr("class", "wind-band-grid")
+                    .attr("x1", (i: number) => x(i))
+                    .attr("x2", (i: number) => x(i))
+                    .attr("y1", 0)
+                    .attr("y2", windBandHeight)
+                    .attr("stroke", "#b8c4d9")
+                    .attr("stroke-width", 1);
+
+                const dayChangeIdx = dayStarts.slice(1);
+                windBand.selectAll(".twentyfourh-line-wind")
+                    .data(dayChangeIdx)
+                    .enter()
+                    .append("line")
+                    .attr("class", "twentyfourh-line-wind")
+                    .attr("x1", (i: number) => x(i))
+                    .attr("x2", (i: number) => x(i))
+                    .attr("y1", 0)
+                    .attr("y2", windBandHeight);
+
+                // Find the even hours for grid lines first
+                const evenHourIdx: number[] = [];
+                for (let i = 0; i < N; i++) {
+                    if (time[i].getHours() % 2 === 0) evenHourIdx.push(i);
+                }
+
+                // Now place wind barbs exactly in the middle between even hours
+                for (let i = 0; i < evenHourIdx.length - 1; i++) {
+                    const startIdx = evenHourIdx[i];
+                    const endIdx = evenHourIdx[i + 1];
+
+                    // Skip if the interval doesn't match our desired spacing for small screens
+                    if (width < 400 && i % 2 !== 0) continue;
+
+                    // Calculate the exact center between the grid lines
+                    const centerX = (x(startIdx) + x(endIdx)) / 2;
+
+                    // Use average data for the interval
+                    const dataIdx = Math.floor((startIdx + endIdx) / 2);
+                    const speed = windSpeed[dataIdx];
+                    const dir = windDirection[dataIdx];
+
+                    // Scale barb length based on screen size
+                    const minBarbLen = width < 400 ? 18 : 23;
+                    const maxBarbLen = width < 400 ? 30 : 38;
+                    const windLenScale = d3.scaleLinear()
+                        .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
+                        .range([minBarbLen, maxBarbLen]);
+                    const barbLen = windLenScale(speed);
+
+                    // Draw the wind barb
+                    this.drawWindBarb(windBand, centerX, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
+                }
+
+                // Wind band border
+                windBand.append("rect")
+                    .attr("class", "wind-band-outline")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("width", chartWidth)
+                    .attr("height", windBandHeight)
+                    .attr("stroke", "#000")
+                    .attr("stroke-width", 1)
+                    .attr("fill", "none");
             }
-
-            windBand.selectAll(".wind-band-grid")
-                .data(twoHourIdx)
-                .enter()
-                .append("line")
-                .attr("class", "wind-band-grid")
-                .attr("x1", (i: number) => x(i))
-                .attr("x2", (i: number) => x(i))
-                .attr("y1", 0)
-                .attr("y2", windBandHeight)
-                .attr("stroke", "#b8c4d9")
-                .attr("stroke-width", 1);
-
-            windBand.selectAll(".twentyfourh-line-wind")
-                .data(dayChangeIdx)
-                .enter()
-                .append("line")
-                .attr("class", "twentyfourh-line-wind")
-                .attr("x1", (i: number) => x(i))
-                .attr("x2", (i: number) => x(i))
-                .attr("y1", 0)
-                .attr("y2", windBandHeight);
-
-            // Draw wind barbs between grid lines (centered in each 2-hour box)
-            // Remove the unused windBarbInterval variable
-            // const windBarbInterval = width < 400 ? 4 : 2;
-
-            // Find the even hours for grid lines first
-            const evenHourIdx: number[] = [];
-            for (let i = 0; i < N; i++) {
-                if (time[i].getHours() % 2 === 0) evenHourIdx.push(i);
-            }
-
-            // Now place wind barbs exactly in the middle between even hours
-            for (let i = 0; i < evenHourIdx.length - 1; i++) {
-                const startIdx = evenHourIdx[i];
-                const endIdx = evenHourIdx[i + 1];
-
-                // Skip if the interval doesn't match our desired spacing for small screens
-                if (width < 400 && i % 2 !== 0) continue;
-
-                // Calculate the exact center between the grid lines
-                const centerX = (x(startIdx) + x(endIdx)) / 2;
-
-                // Use average data for the interval
-                const dataIdx = Math.floor((startIdx + endIdx) / 2);
-                const speed = windSpeed[dataIdx];
-                const dir = windDirection[dataIdx];
-
-                // Scale barb length based on screen size
-                const minBarbLen = width < 400 ? 18 : 23;
-                const maxBarbLen = width < 400 ? 30 : 38;
-                const windLenScale = d3.scaleLinear()
-                    .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
-                    .range([minBarbLen, maxBarbLen]);
-                const barbLen = windLenScale(speed);
-
-                // Draw the wind barb
-                this.drawWindBarb(windBand, centerX, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
-            }
-
-            // Wind band border
-            windBand.append("rect")
-                .attr("class", "wind-band-outline")
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("width", chartWidth)
-                .attr("height", windBandHeight)
-                .attr("stroke", "#000")
-                .attr("stroke-width", 1)
-                .attr("fill", "none");
 
             // Bottom hour labels - adjust frequency based on width
             const hourLabelY = margin.top + chartHeight + windBarbBand + 18;
@@ -1600,8 +1655,8 @@ const runWhenLitLoaded = () => {
 
 // Visual editor for HACS
     @customElement('meteogram-card-editor')
-    class MeteogramCardEditor extends HTMLElement {
-        private _config: any = {};
+    class MeteogramCardEditor extends HTMLElement implements MeteogramCardEditorElement {
+        private _config: MeteogramCardConfig = {};
         private _initialized = false;
         private _elements: Map<string, ConfigurableHTMLElement> = new Map();
         private _hass: any;
@@ -1613,12 +1668,16 @@ const runWhenLitLoaded = () => {
             }
         }
 
-        setConfig(config: any) {
+        get hass() {
+            return this._hass;
+        }
+
+        setConfig(config: MeteogramCardConfig): void {
             this._config = config || {};
             if (this._initialized) {
                 this._updateValues();
             } else {
-                this.render();
+                this._initialize();
             }
         }
 
@@ -1662,6 +1721,27 @@ const runWhenLitLoaded = () => {
                     String(this._config.longitude) :
                     (this._hass?.config?.longitude !== undefined ? String(this._hass.config.longitude) : '');
             }
+
+            // Update toggle switches
+            const cloudCoverSwitch = this._elements.get('show_cloud_cover');
+            if (cloudCoverSwitch) {
+                cloudCoverSwitch.checked = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
+            }
+
+            const pressureSwitch = this._elements.get('show_pressure');
+            if (pressureSwitch) {
+                pressureSwitch.checked = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
+            }
+
+            const weatherIconsSwitch = this._elements.get('show_weather_icons');
+            if (weatherIconsSwitch) {
+                weatherIconsSwitch.checked = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
+            }
+
+            const windSwitch = this._elements.get('show_wind');
+            if (windSwitch) {
+                windSwitch.checked = this._config.show_wind !== undefined ? this._config.show_wind : true;
+            }
         }
 
         render() {
@@ -1669,6 +1749,12 @@ const runWhenLitLoaded = () => {
             // Get default coordinates from Home Assistant config if available
             const defaultLat = this._hass?.config?.latitude ?? '';
             const defaultLon = this._hass?.config?.longitude ?? '';
+
+            // Get current toggle values or default to true
+            const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
+            const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
+            const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
+            const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
 
             const div = document.createElement('div');
             div.innerHTML = `
@@ -1714,6 +1800,20 @@ const runWhenLitLoaded = () => {
           font-style: italic;
           margin: 4px 0 16px 0;
         }
+        .toggle-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        .toggle-label {
+          flex-grow: 1;
+        }
+        .toggle-section {
+          margin-top: 16px;
+          border-top: 1px solid var(--divider-color);
+          padding-top: 16px;
+        }
       </style>
       <ha-card>
         <h3>Meteogram Card Settings</h3>
@@ -1752,6 +1852,42 @@ const runWhenLitLoaded = () => {
             ></ha-textfield>
           </div>
           <p class="help-text">Leave empty to use Home Assistant's configured location</p>
+          
+          <div class="toggle-section">
+            <h3>Display Options</h3>
+            
+            <div class="toggle-row">
+              <div class="toggle-label">Show Cloud Cover</div>
+              <ha-switch
+                id="show-cloud-cover"
+                .checked="${showCloudCover}"
+              ></ha-switch>
+            </div>
+            
+            <div class="toggle-row">
+              <div class="toggle-label">Show Pressure</div>
+              <ha-switch
+                id="show-pressure"
+                .checked="${showPressure}"
+              ></ha-switch>
+            </div>
+            
+            <div class="toggle-row">
+              <div class="toggle-label">Show Weather Icons</div>
+              <ha-switch
+                id="show-weather-icons"
+                .checked="${showWeatherIcons}"
+              ></ha-switch>
+            </div>
+            
+            <div class="toggle-row">
+              <div class="toggle-label">Show Wind</div>
+              <ha-switch
+                id="show-wind"
+                .checked="${showWind}"
+              ></ha-switch>
+            </div>
+          </div>
         </div>
       </ha-card>
     `;
@@ -1767,34 +1903,65 @@ const runWhenLitLoaded = () => {
                 const titleInput = this.querySelector('#title-input') as ConfigurableHTMLElement;
                 if (titleInput) {
                     titleInput.configValue = 'title';
-                    titleInput.addEventListener('input', this.I.bind(this));
+                    titleInput.addEventListener('input', this._valueChanged.bind(this));
                     this._elements.set('title', titleInput);
                 }
 
                 const latInput = this.querySelector('#latitude-input') as ConfigurableHTMLElement;
                 if (latInput) {
                     latInput.configValue = 'latitude';
-                    latInput.addEventListener('input', this.I.bind(this));
+                    latInput.addEventListener('input', this._valueChanged.bind(this));
                     this._elements.set('latitude', latInput);
                 }
 
                 const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
                 if (lonInput) {
                     lonInput.configValue = 'longitude';
-                    lonInput.addEventListener('input', this.I.bind(this));
+                    lonInput.addEventListener('input', this._valueChanged.bind(this));
                     this._elements.set('longitude', lonInput);
+                }
+
+                // Set up toggle switches
+                const cloudCoverSwitch = this.querySelector('#show-cloud-cover') as ConfigurableHTMLElement;
+                if (cloudCoverSwitch) {
+                    cloudCoverSwitch.configValue = 'show_cloud_cover';
+                    cloudCoverSwitch.addEventListener('change', this._valueChanged.bind(this));
+                    this._elements.set('show_cloud_cover', cloudCoverSwitch);
+                }
+
+                const pressureSwitch = this.querySelector('#show-pressure') as ConfigurableHTMLElement;
+                if (pressureSwitch) {
+                    pressureSwitch.configValue = 'show_pressure';
+                    pressureSwitch.addEventListener('change', this._valueChanged.bind(this));
+                    this._elements.set('show_pressure', pressureSwitch);
+                }
+
+                const weatherIconsSwitch = this.querySelector('#show-weather-icons') as ConfigurableHTMLElement;
+                if (weatherIconsSwitch) {
+                    weatherIconsSwitch.configValue = 'show_weather_icons';
+                    weatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                    this._elements.set('show_weather_icons', weatherIconsSwitch);
+                }
+
+                const windSwitch = this.querySelector('#show-wind') as ConfigurableHTMLElement;
+                if (windSwitch) {
+                    windSwitch.configValue = 'show_wind';
+                    windSwitch.addEventListener('change', this._valueChanged.bind(this));
+                    this._elements.set('show_wind', windSwitch);
                 }
             }, 0);
         }
 
-        // Rename _valueChanged to I to match the reference in the event listeners above
-        private I(ev: Event) {
+        private _valueChanged(ev: Event) {
             const target = ev.target as ConfigurableHTMLElement;
             if (!this._config || !target || !target.configValue) return;
 
-            let newValue: string | number | undefined = target.value || '';
+            let newValue: string | number | boolean | undefined = target.value || '';
 
-            if ((target as HTMLInputElement).type === 'number') {
+            // Handle different input types
+            if (target.tagName === 'HA-SWITCH') {
+                newValue = target.checked;
+            } else if ((target as HTMLInputElement).type === 'number') {
                 if (newValue === '') {
                     // If field is cleared, set to undefined to use defaults
                     newValue = undefined;
