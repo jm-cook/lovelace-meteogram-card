@@ -8,9 +8,10 @@ A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API
 
 - 48-hour weather forecast visualization
 - Temperature curve with weather icons
-- Precipitation display (rain/snow)
+- Precipitation display (rain/snow) with probability indicators
 - Cloud coverage visualization
 - Professional-style wind barbs showing wind speed and direction
+- Barometric pressure trend
 - Automatically uses Home Assistant's configured location
 
 ## Configuration
@@ -26,6 +27,7 @@ show_cloud_cover: true
 show_pressure: true
 show_weather_icons: true
 show_wind: true
+show_rain_probability: true
 ```
 
 ## Options
@@ -39,3 +41,4 @@ show_wind: true
 | show_pressure | boolean | true | Show/hide pressure curve |
 | show_weather_icons | boolean | true | Show/hide weather icons |
 | show_wind | boolean | true | Show/hide wind barbs section |
+| show_rain_probability | boolean | true | Show/hide precipitation probability |

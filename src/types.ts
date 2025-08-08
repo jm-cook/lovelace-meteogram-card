@@ -5,6 +5,7 @@ export interface MeteogramCardConfig {
     longitude?: number;
     show_cloud_cover?: boolean;
     show_pressure?: boolean;
+    show_rain?: boolean;
     show_weather_icons?: boolean;
     show_wind?: boolean;
 }
@@ -13,12 +14,14 @@ export interface MeteogramData {
   time: Date[];
   temperature: (number | null)[];
   rain: number[];
+  rainMin: number[]; // Add min precipitation array
+  rainMax: number[]; // Add max precipitation array
   snow: number[];
   cloudCover: number[];
   windSpeed: number[];
   windDirection: number[];
   symbolCode: string[];
-  pressure: number[]; // Add pressure to match the actual data structure
+  pressure: number[];
 }
 
 export interface WeatherDataPoint {
@@ -30,12 +33,14 @@ export interface WeatherDataPoint {
         cloud_area_fraction?: number;
         wind_speed?: number;
         wind_from_direction?: number;
-        air_pressure_at_sea_level?: number; // Add pressure field
+        air_pressure_at_sea_level?: number;
       }
     };
     next_1_hours?: {
       details?: {
         precipitation_amount?: number;
+        precipitation_amount_min?: number; // Add min precipitation
+        precipitation_amount_max?: number; // Add max precipitation
       };
       summary?: {
         symbol_code?: string;

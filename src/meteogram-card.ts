@@ -4,6 +4,7 @@ import {PropertyValues} from "lit";
 import {MeteogramCardConfig, MeteogramCardEditorElement} from "./types";
 // Version info - update this when releasing new versions
 import {version} from "../package.json";
+
 const CARD_NAME = "Meteogram Card";
 
 // Declare litModulesPromise to avoid TypeScript error
@@ -23,7 +24,9 @@ declare global {
         // Simple interface that avoids referencing non-existent types
         interface Selection {
             node(): Element | null;
+
             selectAll(selector: string): any;
+
             remove(): void;
         }
     }
@@ -52,6 +55,8 @@ const runWhenLitLoaded = () => {
         time: Date[];
         temperature: (number | null)[];
         rain: number[];
+        rainMin: number[]; // Add min precipitation array
+        rainMax: number[]; // Add max precipitation array
         snow: number[];
         cloudCover: number[];
         windSpeed: number[];
@@ -82,6 +87,7 @@ const runWhenLitLoaded = () => {
         // Add new configuration properties with default values
         @property({type: Boolean}) showCloudCover = true;
         @property({type: Boolean}) showPressure = true;
+        @property({type: Boolean}) showRain = true;
         @property({type: Boolean}) showWeatherIcons = true;
         @property({type: Boolean}) showWind = true;
 
@@ -230,6 +236,30 @@ const runWhenLitLoaded = () => {
                 opacity: 0.8;
             }
 
+            .rain-min-bar {
+                fill: #0074d9; /* Darker blue for min precipitation */
+                opacity: 0.95;
+            }
+
+            .rain-max-bar {
+                fill: #7fdbff; /* Lighter blue for max precipitation */
+                opacity: 0.5; /* Reduced opacity to make it fainter */
+            }
+
+            .rain-min-label {
+                font: 13px sans-serif;
+                text-anchor: middle;
+                font-weight: bold;
+                fill: #0058a3; /* Darker blue for min label */
+            }
+
+            .rain-max-label {
+                font: 13px sans-serif;
+                text-anchor: middle;
+                font-weight: bold;
+                fill: #2693e6; /* Lighter blue for max label */
+            }
+
             .snow-bar {
                 fill: #b3e6ff;
                 opacity: 0.8;
@@ -342,6 +372,7 @@ const runWhenLitLoaded = () => {
             // Set the display options from config, using defaults if not specified
             this.showCloudCover = config.show_cloud_cover !== undefined ? config.show_cloud_cover : true;
             this.showPressure = config.show_pressure !== undefined ? config.show_pressure : true;
+            this.showRain = config.show_rain !== undefined ? config.show_rain : true;
             this.showWeatherIcons = config.show_weather_icons !== undefined ? config.show_weather_icons : true;
             this.showWind = config.show_wind !== undefined ? config.show_wind : true;
         }
@@ -354,6 +385,7 @@ const runWhenLitLoaded = () => {
             editor.setConfig({
                 show_cloud_cover: true,
                 show_pressure: true,
+                show_rain: true,
                 show_weather_icons: true,
                 show_wind: true
             });
@@ -366,6 +398,7 @@ const runWhenLitLoaded = () => {
                 title: "Weather Forecast",
                 show_cloud_cover: true,
                 show_pressure: true,
+                show_rain: true,
                 show_weather_icons: true,
                 show_wind: true
                 // Coordinates will be fetched from HA configuration
@@ -836,7 +869,8 @@ const runWhenLitLoaded = () => {
 
             try {
                 // Get 2.5 day forecast to cover 48 hours plus a buffer
-                const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${this.latitude}&lon=${this.longitude}`;
+                // Changed from compact to complete API to get min/max precipitation values
+                const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${this.latitude}&lon=${this.longitude}`;
 
                 const response = await fetch(forecastUrl, {
                     headers: {
@@ -869,6 +903,8 @@ const runWhenLitLoaded = () => {
                     time: [],
                     temperature: [],
                     rain: [],
+                    rainMin: [], // Initialize min precipitation array
+                    rainMax: [], // Initialize max precipitation array
                     snow: [],
                     cloudCover: [],
                     windSpeed: [],
@@ -891,9 +927,22 @@ const runWhenLitLoaded = () => {
                     result.pressure.push(instant.air_pressure_at_sea_level);
 
                     if (next1h) {
-                        // Some APIs include separate rain and snow amount
-                        const rainAmount = next1h.precipitation_amount || 0;
-                        result.rain.push(rainAmount);
+                        // Use precipitation_amount_max and precipitation_amount_min if available
+                        const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
+                            next1h.precipitation_amount_max :
+                            (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+
+                        const rainAmountMin = next1h.precipitation_amount_min !== undefined ?
+                            next1h.precipitation_amount_min :
+                            (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+
+                        // Store min and max separately
+                        result.rainMin.push(rainAmountMin);
+                        result.rainMax.push(rainAmountMax);
+
+                        // Keep the rain array for backwards compatibility
+                        result.rain.push(rainAmountMax); // Use max for legacy visualization
+
                         result.snow.push(0); // Default to 0 if snow isn't separated out
 
                         // Get weather symbol code for icons
@@ -905,6 +954,8 @@ const runWhenLitLoaded = () => {
                     } else {
                         // Fill in empty data if we don't have hourly precipitation data
                         result.rain.push(0);
+                        result.rainMin.push(0);
+                        result.rainMax.push(0);
                         result.snow.push(0);
                         result.symbolCode.push('');
                     }
@@ -1091,7 +1142,7 @@ const runWhenLitLoaded = () => {
 
         renderMeteogram(svg: any, data: MeteogramData, width: number, height: number): void {
             const d3 = window.d3;
-            const {time, temperature, rain, snow, cloudCover, windSpeed, windDirection, symbolCode, pressure} = data;
+            const {time, temperature, rain, rainMin, rainMax, snow, cloudCover, windSpeed, windDirection, symbolCode, pressure} = data;
             const N = time.length;
 
             // SVG and chart parameters
@@ -1191,7 +1242,7 @@ const runWhenLitLoaded = () => {
 
             // Precipitation Y scale
             const yPrecip = d3.scaleLinear()
-                .domain([0, Math.max(2, d3.max([...rain, ...snow]) + 1)])
+                .domain([0, Math.max(2, d3.max([...rainMax, ...rain, ...snow]) + 1)])
                 .range([chartHeight, chartHeight * 0.65]);
 
             // Pressure Y scale - we'll use the right side of the chart
@@ -1394,36 +1445,71 @@ const runWhenLitLoaded = () => {
                     });
             }
 
-            // Rain bars with labels
+            // Rain bars with labels - only if enabled
             const barWidth = Math.min(26, dx * 0.8);
 
-            chart.selectAll(".rain-bar")
-                .data(rain.slice(0, N - 1))
-                .enter().append("rect")
-                .attr("class", "rain-bar")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                .attr("y", (d: number) => yPrecip(d))
-                .attr("width", barWidth)
-                .attr("height", (d: number) => chartHeight - yPrecip(d));
+            if (this.showRain) {
+                // First add max rain bars (lighter blue in background)
+                chart.selectAll(".rain-max-bar")
+                    .data(rainMax.slice(0, N - 1))
+                    .enter().append("rect")
+                    .attr("class", "rain-max-bar")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
+                    .attr("y", (d: number) => yPrecip(d))
+                    .attr("width", barWidth)
+                    .attr("height", (d: number) => chartHeight - yPrecip(d));
 
-            chart.selectAll(".rain-label")
-                .data(rain.slice(0, N - 1))
-                .enter()
-                .append("text")
-                .attr("class", "rain-label")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2)
-                .attr("y", (d: number) => yPrecip(d) - 4)
-                .text((d: number) => d > 0 ? (d < 1 ? d.toFixed(1) : d.toFixed(0)) : "")
-                .attr("opacity", (d: number) => d > 0 ? 1 : 0);
+                // Then add min rain bars (darker blue in foreground)
+                chart.selectAll(".rain-min-bar")
+                    .data(rainMin.slice(0, N - 1))
+                    .enter().append("rect")
+                    .attr("class", "rain-min-bar")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
+                    .attr("y", (d: number) => yPrecip(d))
+                    .attr("width", barWidth)
+                    .attr("height", (d: number) => chartHeight - yPrecip(d));
 
-            chart.selectAll(".snow-bar")
-                .data(snow.slice(0, N - 1))
-                .enter().append("rect")
-                .attr("class", "snow-bar")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                .attr("y", (_: number, i: number) => yPrecip(rain[i] + snow[i]))
-                .attr("width", barWidth)
-                .attr("height", (d: number) => chartHeight - yPrecip(d));
+                // Add max labels - properly centered at the same position as the bars
+                chart.selectAll(".rain-max-label")
+                    .data(rainMax.slice(0, N - 1))
+                    .enter()
+                    .append("text")
+                    .attr("class", "rain-max-label")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2) // Center exactly at bar center
+                    .attr("y", (d: number) => yPrecip(d) - 4) // Keep slightly above the bar
+                    .text((d: number) => {
+                        if (d <= 0) return "";
+                        return d < 1 ? d.toFixed(1) : d.toFixed(0);
+                    })
+                    .attr("opacity", (d: number, i: number) => {
+                        // Only show max label if there's a meaningful difference from min
+                        const min = rainMin[i];
+                        return (d > 0 && d - min > 0.1) ? 1 : 0;
+                    });
+
+                // Add min labels - properly centered at the same position as the bars
+                chart.selectAll(".rain-min-label")
+                    .data(rainMin.slice(0, N - 1))
+                    .enter()
+                    .append("text")
+                    .attr("class", "rain-min-label")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2) // Center exactly at bar center
+                    .attr("y", (d: number) => yPrecip(d) - 4) // Keep slightly above the bar
+                    .text((d: number) => {
+                        if (d <= 0) return "";
+                        return d < 1 ? d.toFixed(1) : d.toFixed(0);
+                    })
+                    .attr("opacity", (d: number) => d > 0 ? 1 : 0);
+
+                chart.selectAll(".snow-bar")
+                    .data(snow.slice(0, N - 1))
+                    .enter().append("rect")
+                    .attr("class", "snow-bar")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
+                    .attr("y", (_: number, i: number) => yPrecip(rain[i] + snow[i]))
+                    .attr("width", barWidth)
+                    .attr("height", (d: number) => chartHeight - yPrecip(d));
+            }
 
             // Wind band - only if enabled
             if (this.showWind) {
@@ -1733,6 +1819,11 @@ const runWhenLitLoaded = () => {
                 pressureSwitch.checked = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
             }
 
+            const rainSwitch = this._elements.get('show_rain');
+            if (rainSwitch) {
+                rainSwitch.checked = this._config.show_rain !== undefined ? this._config.show_rain : true;
+            }
+
             const weatherIconsSwitch = this._elements.get('show_weather_icons');
             if (weatherIconsSwitch) {
                 weatherIconsSwitch.checked = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
@@ -1745,7 +1836,6 @@ const runWhenLitLoaded = () => {
         }
 
         render() {
-
             // Get default coordinates from Home Assistant config if available
             const defaultLat = this._hass?.config?.latitude ?? '';
             const defaultLon = this._hass?.config?.longitude ?? '';
@@ -1753,144 +1843,153 @@ const runWhenLitLoaded = () => {
             // Get current toggle values or default to true
             const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
             const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
+            const showRain = this._config.show_rain !== undefined ? this._config.show_rain : true;
             const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
             const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
 
             const div = document.createElement('div');
             div.innerHTML = `
-      <style>
-        ha-card {
-          padding: 16px;
-        }
-        .values {
-          padding-left: 16px;
-          margin: 8px 0;
-        }
-        .row {
-          display: flex;
-          margin-bottom: 12px;
-          align-items: center;
-        }
-        ha-textfield {
-          width: 100%;
-        }
-        .side-by-side {
-          display: flex;
-          gap: 12px;
-        }
-        .side-by-side > * {
-          flex: 1;
-        }
-        h3 {
-          font-size: 18px;
-          color: var(--primary-text-color);
-          font-weight: 500;
-          margin-bottom: 12px;
-          margin-top: 0;
-        }
-        .help-text {
-          color: var(--secondary-text-color);
-          font-size: 0.875rem;
-          margin-top: 4px;
-        }
-        .info-text {
-          color: var(--primary-text-color);
-          opacity: 0.8;
-          font-size: 0.9rem;
-          font-style: italic;
-          margin: 4px 0 16px 0;
-        }
-        .toggle-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 8px;
-        }
-        .toggle-label {
-          flex-grow: 1;
-        }
-        .toggle-section {
-          margin-top: 16px;
-          border-top: 1px solid var(--divider-color);
-          padding-top: 16px;
-        }
-      </style>
-      <ha-card>
-        <h3>Meteogram Card Settings</h3>
-        
-        <div class="values">
-          <div class="row">
-            <ha-textfield
-              label="Title"
-              id="title-input"
-              .value="${this._config.title || ''}"
-            ></ha-textfield>
-          </div>
-          
-          <p class="info-text">
-            Location coordinates will be used to fetch weather data directly from Met.no API.
-            ${defaultLat ? "Using Home Assistant's location by default." : ""}
-          </p>
-          
-          <div class="side-by-side">
-            <ha-textfield
-              label="Latitude"
-              id="latitude-input"
-              type="number"
-              step="any"
-              .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
-              placeholder="${defaultLat ? `Default: ${defaultLat}` : ""}"
-            ></ha-textfield>
-            
-            <ha-textfield
-              label="Longitude"
-              id="longitude-input"
-              type="number"
-              step="any"
-              .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
-              placeholder="${defaultLon ? `Default: ${defaultLon}` : ""}"
-            ></ha-textfield>
-          </div>
-          <p class="help-text">Leave empty to use Home Assistant's configured location</p>
-          
-          <div class="toggle-section">
-            <h3>Display Options</h3>
-            
-            <div class="toggle-row">
-              <div class="toggle-label">Show Cloud Cover</div>
-              <ha-switch
-                id="show-cloud-cover"
-                .checked="${showCloudCover}"
-              ></ha-switch>
-            </div>
-            
-            <div class="toggle-row">
-              <div class="toggle-label">Show Pressure</div>
-              <ha-switch
-                id="show-pressure"
-                .checked="${showPressure}"
-              ></ha-switch>
-            </div>
-            
-            <div class="toggle-row">
-              <div class="toggle-label">Show Weather Icons</div>
-              <ha-switch
-                id="show-weather-icons"
-                .checked="${showWeatherIcons}"
-              ></ha-switch>
-            </div>
-            
-            <div class="toggle-row">
-              <div class="toggle-label">Show Wind</div>
-              <ha-switch
-                id="show-wind"
-                .checked="${showWind}"
-              ></ha-switch>
-            </div>
-          </div>
+  <style>
+    ha-card {
+      padding: 16px;
+    }
+    .values {
+      padding-left: 16px;
+      margin: 8px 0;
+    }
+    .row {
+      display: flex;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    ha-textfield {
+      width: 100%;
+    }
+    .side-by-side {
+      display: flex;
+      gap: 12px;
+    }
+    .side-by-side > * {
+      flex: 1;
+    }
+    h3 {
+      font-size: 18px;
+      color: var(--primary-text-color);
+      font-weight: 500;
+      margin-bottom: 12px;
+      margin-top: 0;
+    }
+    .help-text {
+      color: var(--secondary-text-color);
+      font-size: 0.875rem;
+      margin-top: 4px;
+    }
+    .info-text {
+      color: var(--primary-text-color);
+      opacity: 0.8;
+      font-size: 0.9rem;
+      font-style: italic;
+      margin: 4px 0 16px 0;
+    }
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .toggle-label {
+      flex-grow: 1;
+    }
+    .toggle-section {
+      margin-top: 16px;
+      border-top: 1px solid var(--divider-color);
+      padding-top: 16px;
+    }
+  </style>
+  <ha-card>
+    <h3>Meteogram Card Settings</h3>
+
+    <div class="values">
+      <div class="row">
+        <ha-textfield
+          label="Title"
+          id="title-input"
+          .value="${this._config.title || ''}"
+        ></ha-textfield>
+      </div>
+
+      <p class="info-text">
+        Location coordinates will be used to fetch weather data directly from Met.no API.
+        ${defaultLat ? "Using Home Assistant's location by default." : ""}
+      </p>
+
+      <div class="side-by-side">
+        <ha-textfield
+          label="Latitude"
+          id="latitude-input"
+          type="number"
+          step="any"
+          .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
+          placeholder="${defaultLat ? `Default: ${defaultLat}` : ""}"
+        ></ha-textfield>
+
+        <ha-textfield
+          label="Longitude"
+          id="longitude-input"
+          type="number"
+          step="any"
+          .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
+          placeholder="${defaultLon ? `Default: ${defaultLon}` : ""}"
+        ></ha-textfield>
+      </div>
+      <p class="help-text">Leave empty to use Home Assistant's configured location</p>
+
+      <div class="toggle-section">
+        <h3>Display Options</h3>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Show Cloud Cover</div>
+          <ha-switch
+            id="show-cloud-cover"
+            .checked="${showCloudCover}"
+          ></ha-switch>
         </div>
-      </ha-card>
-    `;
+
+        <div class="toggle-row">
+          <div class="toggle-label">Show Pressure</div>
+          <ha-switch
+            id="show-pressure"
+            .checked="${showPressure}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Show Rain</div>
+          <ha-switch
+            id="show-rain"
+            .checked="${showRain}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Show Weather Icons</div>
+          <ha-switch
+            id="show-weather-icons"
+            .checked="${showWeatherIcons}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Show Wind</div>
+          <ha-switch
+            id="show-wind"
+            .checked="${showWind}"
+          ></ha-switch>
+        </div>
+      </div>
+    </div>
+  </ha-card>
+`;
 
             // Clear previous content
             this.innerHTML = '';
@@ -1936,6 +2035,13 @@ const runWhenLitLoaded = () => {
                     this._elements.set('show_pressure', pressureSwitch);
                 }
 
+                const rainSwitch = this.querySelector('#show-rain') as ConfigurableHTMLElement;
+                if (rainSwitch) {
+                    rainSwitch.configValue = 'show_rain';
+                    rainSwitch.addEventListener('change', this._valueChanged.bind(this));
+                    this._elements.set('show_rain', rainSwitch);
+                }
+
                 const weatherIconsSwitch = this.querySelector('#show-weather-icons') as ConfigurableHTMLElement;
                 if (weatherIconsSwitch) {
                     weatherIconsSwitch.configValue = 'show_weather_icons';
@@ -1952,6 +2058,7 @@ const runWhenLitLoaded = () => {
             }, 0);
         }
 
+        // Add the missing _valueChanged method
         private _valueChanged(ev: Event) {
             const target = ev.target as ConfigurableHTMLElement;
             if (!this._config || !target || !target.configValue) return;
@@ -1987,10 +2094,6 @@ const runWhenLitLoaded = () => {
         }
     }
 
-// Export the editor class to satisfy TypeScript
-// This line tells TypeScript that the class is being used even though it's only used via the customElements registry
-// @ts-ignore: Used by customElement decorator but TypeScript doesn't recognize it
-    window.customElements.get('meteogram-card-editor') || customElements.define('meteogram-card-editor', MeteogramCardEditor);
 
 // Home Assistant requires this for custom cards
     (window as any).customCards = (window as any).customCards || [];
@@ -2000,8 +2103,7 @@ const runWhenLitLoaded = () => {
         description: "A custom card showing a 48-hour meteogram with wind barbs.",
         version: version
     });
-};
-
+}
 // Wait for Lit modules to be loaded before running the code
 if (window.litElementModules) {
     runWhenLitLoaded();
@@ -2015,3 +2117,4 @@ if (window.litElementModules) {
         console.error("Lit modules not found and litModulesPromise not available");
     }
 }
+
