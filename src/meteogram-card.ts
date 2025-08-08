@@ -87,6 +87,10 @@ const runWhenLitLoaded = () => {
         @state() private errorCount = 0;
         @state() private lastErrorTime = 0;
 
+        // Add storage keys for location caching
+        private static readonly STORAGE_KEY_LAT = 'meteogram-card-latitude';
+        private static readonly STORAGE_KEY_LON = 'meteogram-card-longitude';
+
         private iconCache = new Map<string, string>();
         private iconBasePath = 'https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/icons/';
 
@@ -675,6 +679,14 @@ const runWhenLitLoaded = () => {
 
         // Check if we need to get location from HA
         private _checkAndUpdateLocation() {
+            // Try to get location from config first
+            if (this.latitude !== undefined && this.longitude !== undefined) {
+                // We have configured coordinates, save them to localStorage for future fallback
+                this._saveLocationToStorage(this.latitude, this.longitude);
+                return;
+            }
+
+            // Try to get location from HA
             if (this.hass && (this.latitude === undefined || this.longitude === undefined)) {
                 const hassConfig = this.hass.config || {};
                 const hassLocation = hassConfig.latitude !== undefined && hassConfig.longitude !== undefined;
@@ -682,112 +694,119 @@ const runWhenLitLoaded = () => {
                 if (hassLocation) {
                     this.latitude = hassConfig.latitude;
                     this.longitude = hassConfig.longitude;
+                    // Save successful HA location to localStorage
+                    this._saveLocationToStorage(this.latitude, this.longitude);
                     console.debug(`Using HA location: ${this.latitude}, ${this.longitude}`);
+                    return;
+                }
+            }
+
+            // If we still don't have location, try to load from localStorage
+            if (this.latitude === undefined || this.longitude === undefined) {
+                const cachedLocation = this._loadLocationFromStorage();
+                if (cachedLocation) {
+                    this.latitude = cachedLocation.latitude;
+                    this.longitude = cachedLocation.longitude;
+                    console.debug(`Using cached location: ${this.latitude}, ${this.longitude}`);
+                } else {
+                    // Last resort - use a default location if nothing else is available
+                    // London coordinates as a reasonable default
+                    this.latitude = 51.5074;
+                    this.longitude = -0.1278;
+                    console.debug(`Using default location: ${this.latitude}, ${this.longitude}`);
                 }
             }
         }
 
-        // Clean up any previous chart to avoid duplicates
-        private cleanupChart() {
-            if (this.svg) {
-                try {
-                    // Remove all child elements from the SVG
-                    this.svg.selectAll("*").remove();
-                    // Explicitly remove the SVG element itself
-                    const svgElement = this.svg.node();
-                    if (svgElement && svgElement.parentNode) {
-                        svgElement.parentNode.removeChild(svgElement);
+        // Save location to localStorage
+        private _saveLocationToStorage(latitude: number | undefined, longitude: number | undefined) {
+            try {
+                // Only save if both values are defined
+                if (latitude !== undefined && longitude !== undefined) {
+                    localStorage.setItem(MeteogramCard.STORAGE_KEY_LAT, latitude.toString());
+                    localStorage.setItem(MeteogramCard.STORAGE_KEY_LON, longitude.toString());
+                }
+            } catch (e) {
+                // Handle potential localStorage errors (e.g., private browsing mode)
+                console.debug('Failed to save location to localStorage:', e);
+            }
+        }
+
+        // Load location from localStorage
+        private _loadLocationFromStorage(): { latitude: number, longitude: number } | null {
+            try {
+                const lat = localStorage.getItem(MeteogramCard.STORAGE_KEY_LAT);
+                const lon = localStorage.getItem(MeteogramCard.STORAGE_KEY_LON);
+
+                if (lat !== null && lon !== null) {
+                    const latitude = parseFloat(lat);
+                    const longitude = parseFloat(lon);
+
+                    if (!isNaN(latitude) && !isNaN(longitude)) {
+                        return { latitude, longitude };
                     }
-                } catch (e) {
-                    console.debug("Error cleaning up chart:", e);
                 }
-                this.svg = null;
-            }
-
-            const chartDiv = this.shadowRoot?.querySelector("#chart");
-            if (chartDiv) {
-                // More aggressive cleanup to prevent duplicate charts
-                chartDiv.innerHTML = "";
+                return null;
+            } catch (e) {
+                console.debug('Failed to load location from localStorage:', e);
+                return null;
             }
         }
 
+        // Implement the missing loadD3AndDraw method
         async loadD3AndDraw(): Promise<void> {
+            // Check if D3 is already loaded
             if (window.d3) {
                 this.chartLoaded = true;
-                this._drawMeteogram(); // Changed from drawMeteogram to _drawMeteogram
-            } else {
-                try {
-                    // Create a more robust loading mechanism with retries
-                    let retries = 0;
-                    const maxRetries = 3;
+                this._drawMeteogram();
+                return;
+            }
 
-                    while (!window.d3 && retries < maxRetries) {
-                        try {
-                            await new Promise<void>((resolve, reject) => {
-                                const script = document.createElement('script');
-                                script.src = 'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js';
-                                script.async = true;
-                                script.id = 'd3-script';
+            // Try to load D3.js dynamically
+            try {
+                // Create script element
+                const script = document.createElement('script');
+                script.src = 'https://d3js.org/d3.v7.min.js';
+                script.async = true;
 
-                                // Set a timeout to detect failed loads
-                                const timeoutId = setTimeout(() => {
-                                    reject(new Error("D3.js load timeout"));
-                                }, 10000); // 10 second timeout
+                // Create a promise to track when the script loads
+                const loadPromise = new Promise<void>((resolve, reject) => {
+                    script.onload = () => {
+                        this.chartLoaded = true;
+                        resolve();
+                    };
+                    script.onerror = () => {
+                        reject(new Error('Failed to load D3.js library'));
+                    };
+                });
 
-                                script.onload = () => {
-                                    clearTimeout(timeoutId);
-                                    resolve();
-                                };
+                // Add script to document
+                document.head.appendChild(script);
 
-                                script.onerror = () => {
-                                    clearTimeout(timeoutId);
-                                    reject(new Error("Failed to load D3.js"));
-                                };
+                // Wait for script to load
+                await loadPromise;
 
-                                // Remove any existing script to avoid conflicts
-                                const existingScript = document.getElementById('d3-script');
-                                if (existingScript) {
-                                    existingScript.remove();
-                                }
-
-                                document.head.appendChild(script);
-                            });
-
-                            // Add a small delay to ensure the library is fully initialized
-                            await new Promise(resolve => setTimeout(resolve, 100));
-
-                            // Test if D3 is actually available
-                            if (!window.d3) {
-                                throw new Error("D3.js not found after script loaded");
-                            }
-
-                            break; // Success, exit the retry loop
-                        } catch (error: unknown) {
-                            retries++;
-                            console.warn(`D3.js load attempt ${retries} failed: ${error}`);
-
-                            // Wait a bit before retrying
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                        }
-                    }
-
-                    if (!window.d3) {
-                        throw new Error(`Failed to load D3.js after ${maxRetries} attempts`);
-                    }
-
-                    this.chartLoaded = true;
-                    this._drawMeteogram(); // Changed from drawMeteogram to _drawMeteogram
-                } catch (error: unknown) {
-                    this.meteogramError = `Failed to load D3.js: ${error}`;
-                    console.error(error);
+                // Check if D3 was successfully loaded
+                if (!window.d3) {
+                    throw new Error('D3.js not available after loading script');
                 }
+
+                // Now that D3 is loaded, draw the meteogram
+                await this._drawMeteogram();
+            } catch (error) {
+                console.error('Error loading D3.js:', error);
+                this.setError('Failed to load D3.js visualization library. Please refresh the page.');
             }
         }
 
-        // Add back the fetchWeatherData method
         async fetchWeatherData(): Promise<MeteogramData> {
+            // Enhanced location check with better error message
             if (!this.latitude || !this.longitude) {
-                throw new Error("Latitude and longitude are required. Check your location settings.");
+                this._checkAndUpdateLocation(); // Try harder to get location
+
+                if (!this.latitude || !this.longitude) {
+                    throw new Error("Could not determine location. Please check your card configuration or Home Assistant settings.");
+                }
             }
 
             try {
@@ -870,6 +889,28 @@ const runWhenLitLoaded = () => {
             } catch (error: unknown) {
                 console.error('Error fetching weather data:', error);
                 throw new Error(`Failed to get weather data: ${(error as Error).message}`);
+            }
+        }
+
+        // Add the cleanupChart method before the _drawMeteogram method
+        cleanupChart(): void {
+            try {
+                // Check if we have an active D3 selection
+                if (this.svg && typeof this.svg.remove === 'function') {
+                    // Use D3's remove method to clean up properly
+                    this.svg.remove();
+                    this.svg = null;
+                }
+
+                // Also clear any chart content directly from the DOM
+                if (this.shadowRoot) {
+                    const chartDiv = this.shadowRoot.querySelector('#chart');
+                    if (chartDiv) {
+                        chartDiv.innerHTML = '';
+                    }
+                }
+            } catch (error) {
+                console.warn('Error cleaning up chart:', error);
             }
         }
 
@@ -1057,7 +1098,7 @@ const runWhenLitLoaded = () => {
                 .attr("height", chartHeight + windBarbBand + 42 + bottomHourBand)
                 .attr("opacity", (_: DayRange, i: number) => i % 2 === 0 ? 0.16 : 0);
 
-            // Date labels at top
+            // Date labels at top - with spacing check to prevent overlap
             svg.selectAll(".top-date-label")
                 .data(dayStarts)
                 .enter()
@@ -1066,6 +1107,17 @@ const runWhenLitLoaded = () => {
                 .attr("x", (d: number) => margin.left + x(d))
                 .attr("y", dateLabelY)
                 .attr("text-anchor", "start")
+                .attr("opacity", (d: number, i: number) => {
+                    // Check if there's enough space for this label
+                    if (i === dayStarts.length - 1) return 1; // Always show the last day
+
+                    const thisLabelPos = margin.left + x(d);
+                    const nextLabelPos = margin.left + x(dayStarts[i + 1]);
+                    const minSpaceNeeded = 100; // Minimum pixels needed between labels
+
+                    // If not enough space between this and next label, hide this one
+                    return nextLabelPos - thisLabelPos < minSpaceNeeded ? 0 : 1;
+                })
                 .text((d: number) => {
                     const dt = time[d];
                     return dt.toLocaleDateString(undefined, {weekday: "short", day: "2-digit", month: "short"});
