@@ -101,7 +101,7 @@ const runWhenLitLoaded = () => {
         private static readonly STORAGE_KEY_LON = 'meteogram-card-longitude';
 
         private iconCache = new Map<string, string>();
-        private iconBasePath = 'https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/icons/';
+        private iconBasePath = 'https://raw.githubusercontent.com/metno/weathericons/refs/heads/main/weather/svg/';
 
         // Add a method to fetch icons
         private async getIconSVG(iconName: string): Promise<string> {
