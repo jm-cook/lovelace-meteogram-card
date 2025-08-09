@@ -1,5 +1,10 @@
 # Meteogram Card for Home Assistant
 
+[![hacs][hacs-badge]][hacs-url]
+![Maintenance][maintenance-badge]
+[![release][release-badge]][release-url]
+![downloads][downloads-badge]
+
 A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API.
 
 ![Meteogram Card](https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/images/meteogram-card.png)
@@ -64,3 +69,12 @@ The card uses the "complete" API endpoint to retrieve precipitation probability 
 
 - Weather data provided by [MET Norway Weather API](https://api.met.no/)
 - Weather icons from [Met.no Weather Icons](https://github.com/metno/weathericons)
+
+<!-- Badges -->
+[hacs-badge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square
+[release-badge]: https://img.shields.io/github/v/release/jm-cook/ha-meteogram-card?style=flat-square
+[downloads-badge]: https://img.shields.io/github/downloads/jm-cook/ha-meteogram-card/total?style=flat-square
+[hacs-url]: https://github.com/hacs/integration
+
+[maintenance-badge]: https://img.shields.io/maintenance/yes/2025.svg?style=flat-square
+[release-url]: https://github.com/jm-cook/ha-meteogram-card/releases
