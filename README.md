@@ -23,17 +23,6 @@ A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API
 4. Click "Add"
 5. Find and install "Meteogram Card"
 
-### Manual Installation
-1. Download the `meteogram-card.js` file from the latest release
-2. Create a `ha-meteogram-card` folder under `config/www/` directory 
-3. Copy the downloaded `meteogram-card.js` file to this directory
-4. Download the `icons` folder from this repository and place it under `config/www/ha-meteogram-card/`
-5. Add the following to your Lovelace resources:
-   ```yaml
-   - url: /local/ha-meteogram-card/meteogram-card.js
-     type: module
-   ```
-
 ## Usage
 
 Add the card to your dashboard:
