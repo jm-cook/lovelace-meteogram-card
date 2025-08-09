@@ -872,13 +872,21 @@ const runWhenLitLoaded = () => {
                 // Changed from compact to complete API to get min/max precipitation values
                 const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${this.latitude}&lon=${this.longitude}`;
 
+                // inside fetchWeatherData()
                 const response = await fetch(forecastUrl, {
                     headers: {
-                        'User-Agent': 'Home Assistant Weather Card - Contact: your-email@example.com'
+                        'User-Agent': 'Meteogram Card for Home Assistant (https://github.com/jm-cook/meteogram-card)'
                     }
                 });
 
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Weather API fetch failed:', {
+                        url: forecastUrl,
+                        status: response.status,
+                        statusText: response.statusText,
+                        body: errorText
+                    });
                     throw new Error(`Weather API returned ${response.status}: ${response.statusText}`);
                 }
 
@@ -1142,7 +1150,19 @@ const runWhenLitLoaded = () => {
 
         renderMeteogram(svg: any, data: MeteogramData, width: number, height: number): void {
             const d3 = window.d3;
-            const {time, temperature, rain, rainMin, rainMax, snow, cloudCover, windSpeed, windDirection, symbolCode, pressure} = data;
+            const {
+                time,
+                temperature,
+                rain,
+                rainMin,
+                rainMax,
+                snow,
+                cloudCover,
+                windSpeed,
+                windDirection,
+                symbolCode,
+                pressure
+            } = data;
             const N = time.length;
 
             // SVG and chart parameters
