@@ -877,22 +877,34 @@ const runWhenLitLoaded = () => {
                 // Use truncated lat/lon in API URL
                 const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
 
-                // inside fetchWeatherData()
-                const response = await fetch(forecastUrl, {
-                    headers: {
-                        'User-Agent': 'Meteogram Card for Home Assistant (https://github.com/jm-cook/meteogram-card)'
-                    }
-                });
+                // Try fetch with User-Agent header, fallback if needed
+                let response: Response;
+                try {
+                    response = await fetch(forecastUrl, {
+                        headers: {
+                            'User-Agent': 'Meteogram Card for Home Assistant (https://github.com/jm-cook/meteogram-card)'
+                        }
+                    });
+                } catch (err) {
+                    // Fallback: try without User-Agent header
+                    console.warn('Fetch failed with User-Agent header, retrying without it...', err);
+                    response = await fetch(forecastUrl);
+                }
 
                 if (!response.ok) {
                     const errorText = await response.text();
+                    // Log more details for debugging
                     console.error('Weather API fetch failed:', {
                         url: forecastUrl,
                         status: response.status,
                         statusText: response.statusText,
                         body: errorText
                     });
-                    throw new Error(`Weather API returned ${response.status}: ${response.statusText}`);
+                    // Add CORS/network hint if status is 0
+                    if (response.status === 0) {
+                        throw new Error(`Weather API request failed (status 0). This may be a network or CORS issue. See browser console for details.`);
+                    }
+                    throw new Error(`Weather API returned ${response.status}: ${response.statusText}\n${errorText}`);
                 }
 
                 const data = await response.json();
@@ -976,8 +988,9 @@ const runWhenLitLoaded = () => {
 
                 return result;
             } catch (error: unknown) {
+                // Log error and provide more info for troubleshooting
                 console.error('Error fetching weather data:', error);
-                throw new Error(`Failed to get weather data: ${(error as Error).message}`);
+                throw new Error(`Failed to get weather data: ${(error as Error).message}\nCheck your network connection, browser console, and API accessibility.`);
             }
         }
 
