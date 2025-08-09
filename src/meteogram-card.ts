@@ -870,7 +870,12 @@ const runWhenLitLoaded = () => {
             try {
                 // Get 2.5 day forecast to cover 48 hours plus a buffer
                 // Changed from compact to complete API to get min/max precipitation values
-                const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${this.latitude}&lon=${this.longitude}`;
+                // Truncate latitude and longitude to 4 decimals for API call
+                const lat = this.latitude !== undefined ? Number(this.latitude).toFixed(4) : undefined;
+                const lon = this.longitude !== undefined ? Number(this.longitude).toFixed(4) : undefined;
+
+                // Use truncated lat/lon in API URL
+                const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
 
                 // inside fetchWeatherData()
                 const response = await fetch(forecastUrl, {
@@ -948,8 +953,8 @@ const runWhenLitLoaded = () => {
                         result.rainMin.push(rainAmountMin);
                         result.rainMax.push(rainAmountMax);
 
-                        // Keep the rain array for backwards compatibility
-                        result.rain.push(rainAmountMax); // Use max for legacy visualization
+                        // FIX: Use precipitation_amount for main rain bar
+                        result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
 
                         result.snow.push(0); // Default to 0 if snow isn't separated out
 
@@ -1263,7 +1268,7 @@ const runWhenLitLoaded = () => {
             // Precipitation Y scale
             const yPrecip = d3.scaleLinear()
                 .domain([0, Math.max(2, d3.max([...rainMax, ...rain, ...snow]) + 1)])
-                .range([chartHeight, chartHeight * 0.65]);
+                .range([chartHeight, 0]); // <-- FIXED: range goes from chartHeight (bottom) to 0 (top)
 
             // Pressure Y scale - we'll use the right side of the chart
             // Only create if pressure is shown
@@ -1469,66 +1474,92 @@ const runWhenLitLoaded = () => {
             const barWidth = Math.min(26, dx * 0.8);
 
             if (this.showRain) {
-                // First add max rain bars (lighter blue in background)
+                // Draw max rain bars (background, lighter blue)
                 chart.selectAll(".rain-max-bar")
                     .data(rainMax.slice(0, N - 1))
                     .enter().append("rect")
                     .attr("class", "rain-max-bar")
                     .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                    .attr("y", (d: number) => yPrecip(d))
-                    .attr("width", barWidth)
-                    .attr("height", (d: number) => chartHeight - yPrecip(d));
-
-                // Then add min rain bars (darker blue in foreground)
-                chart.selectAll(".rain-min-bar")
-                    .data(rainMin.slice(0, N - 1))
-                    .enter().append("rect")
-                    .attr("class", "rain-min-bar")
-                    .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                    .attr("y", (d: number) => yPrecip(d))
-                    .attr("width", barWidth)
-                    .attr("height", (d: number) => chartHeight - yPrecip(d));
-
-                // Add max labels - properly centered at the same position as the bars
-                chart.selectAll(".rain-max-label")
-                    .data(rainMax.slice(0, N - 1))
-                    .enter()
-                    .append("text")
-                    .attr("class", "rain-max-label")
-                    .attr("x", (_: number, i: number) => x(i) + dx / 2) // Center exactly at bar center
-                    .attr("y", (d: number) => yPrecip(d) - 4) // Keep slightly above the bar
-                    .text((d: number) => {
-                        if (d <= 0) return "";
-                        return d < 1 ? d.toFixed(1) : d.toFixed(0);
+                    .attr("y", (d: number) => {
+                        const h = chartHeight - yPrecip(d);
+                        const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+                        return yPrecip(0) - scaledH;
                     })
-                    .attr("opacity", (d: number, i: number) => {
-                        // Only show max label if there's a meaningful difference from min
-                        const min = rainMin[i];
-                        return (d > 0 && d - min > 0.1) ? 1 : 0;
+                    .attr("width", barWidth)
+                    .attr("height", (d: number) => {
+                        const h = chartHeight - yPrecip(d);
+                        return h < 2 && d > 0 ? 2 : h * 0.7;
                     });
 
-                // Add min labels - properly centered at the same position as the bars
-                chart.selectAll(".rain-min-label")
-                    .data(rainMin.slice(0, N - 1))
+                // Draw main rain bars (foreground, deeper blue)
+                chart.selectAll(".rain-bar")
+                    .data(rain.slice(0, N - 1))
+                    .enter().append("rect")
+                    .attr("class", "rain-bar")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
+                    .attr("y", (d: number) => {
+                        const h = chartHeight - yPrecip(d);
+                        const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+                        return yPrecip(0) - scaledH;
+                    })
+                    .attr("width", barWidth)
+                    .attr("height", (d: number) => {
+                        const h = chartHeight - yPrecip(d);
+                        return h < 2 && d > 0 ? 2 : h * 0.7;
+                    });
+
+                // Add main rain labels (show if rain > 0)
+                chart.selectAll(".rain-label")
+                    .data(rain.slice(0, N - 1))
                     .enter()
                     .append("text")
-                    .attr("class", "rain-min-label")
-                    .attr("x", (_: number, i: number) => x(i) + dx / 2) // Center exactly at bar center
-                    .attr("y", (d: number) => yPrecip(d) - 4) // Keep slightly above the bar
+                    .attr("class", "rain-label")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2)
+                    .attr("y", (d: number) => {
+                        const h = chartHeight - yPrecip(d);
+                        const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+                        return yPrecip(0) - scaledH - 4; // 4px above the top of the bar
+                    })
                     .text((d: number) => {
                         if (d <= 0) return "";
                         return d < 1 ? d.toFixed(1) : d.toFixed(0);
                     })
                     .attr("opacity", (d: number) => d > 0 ? 1 : 0);
 
+                // Add max rain labels (show if max > rain)
+                chart.selectAll(".rain-max-label")
+                    .data(rainMax.slice(0, N - 1))
+                    .enter()
+                    .append("text")
+                    .attr("class", "rain-max-label")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2)
+                    // Remove unused 'i' from the function signature
+                    .attr("y", (d: number) => {
+                        const h = chartHeight - yPrecip(d);
+                        const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+                        return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
+                    })
+                    .text((d: number, i: number) => {
+                        if (d <= rain[i]) return "";
+                        return d < 1 ? d.toFixed(1) : d.toFixed(0);
+                    })
+                    .attr("opacity", (d: number, i: number) => (d > rain[i]) ? 1 : 0);
+
                 chart.selectAll(".snow-bar")
                     .data(snow.slice(0, N - 1))
                     .enter().append("rect")
                     .attr("class", "snow-bar")
                     .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                    .attr("y", (_: number, i: number) => yPrecip(rain[i] + snow[i]))
+                    .attr("y", (_: number, i: number) => {
+                        const h = chartHeight - yPrecip(snow[i]);
+                        const scaledH = h < 2 && snow[i] > 0 ? 2 : h * 0.7;
+                        return yPrecip(0) - scaledH;
+                    })
                     .attr("width", barWidth)
-                    .attr("height", (d: number) => chartHeight - yPrecip(d));
+                    .attr("height", (d: number) => {
+                        const h = chartHeight - yPrecip(d);
+                        return h < 2 && d > 0 ? 2 : h * 0.7;
+                    });
             }
 
             // Wind band - only if enabled
@@ -1583,12 +1614,12 @@ const runWhenLitLoaded = () => {
                 }
 
                 // Now place wind barbs exactly in the middle between even hours
-                for (let i = 0; i < evenHourIdx.length - 1; i++) {
-                    const startIdx = evenHourIdx[i];
-                    const endIdx = evenHourIdx[i + 1];
+                for (let idx = 0; idx < evenHourIdx.length - 1; idx++) {
+                    const startIdx = evenHourIdx[idx];
+                    const endIdx = evenHourIdx[idx + 1];
 
                     // Skip if the interval doesn't match our desired spacing for small screens
-                    if (width < 400 && i % 2 !== 0) continue;
+                    if (width < 400 && idx % 2 !== 0) continue;
 
                     // Calculate the exact center between the grid lines
                     const centerX = (x(startIdx) + x(endIdx)) / 2;
@@ -2034,7 +2065,7 @@ const runWhenLitLoaded = () => {
                 }
 
                 const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
-                if (lonInput) {
+                if ( lonInput) {
                     lonInput.configValue = 'longitude';
                     lonInput.addEventListener('input', this._valueChanged.bind(this));
                     this._elements.set('longitude', lonInput);
