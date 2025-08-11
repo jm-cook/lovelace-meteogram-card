@@ -1158,7 +1158,12 @@ const runWhenLitLoaded = () => {
                     this._setupResizeObserver();
                     this._setupVisibilityObserver();
                     this._setupMutationObserver();
-                }).catch((error: Error) => {
+                }).catch((error: any) => {
+                    // Handle Home Assistant websocket subscription error specifically
+                    if (error && typeof error === "object" && error.message === "Subscription not found.") {
+                        this.setError("Home Assistant subscription not found. This may be a backend or network issue. Try reloading Home Assistant or check your connection.");
+                        return;
+                    }
                     this.setError(`Failed to fetch weather data: ${error.message}`);
                 });
             } catch (error: unknown) {
