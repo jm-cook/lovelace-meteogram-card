@@ -1092,20 +1092,19 @@ const runWhenLitLoaded = () => {
                 MeteogramCard.lastD3RetryTime = 0;
             }
 
-            // Enhanced D3 availability check with retry throttling
+            // Always attempt to load D3 if not present
             if (!window.d3) {
-                const now = Date.now();
-                if (now - MeteogramCard.lastD3RetryTime < D3_RETRY_INTERVAL) {
-                    // Too soon to retry loading D3, skip this attempt
-                    return;
-                }
-                MeteogramCard.lastD3RetryTime = now;
-                console.warn("D3.js not found, attempting to reload");
-                this.chartLoaded = false;
                 try {
                     await this.loadD3AndDraw();
                     return; // loadD3AndDraw will call drawMeteogram when ready
                 } catch (error) {
+                    // Only throttle error messages if repeated failures
+                    const now = Date.now();
+                    if (now - MeteogramCard.lastD3RetryTime < D3_RETRY_INTERVAL) {
+                        // Too soon to retry loading D3, skip this attempt
+                        return;
+                    }
+                    MeteogramCard.lastD3RetryTime = now;
                     this.setError("D3.js library could not be loaded. Please refresh the page.");
                     return;
                 }
