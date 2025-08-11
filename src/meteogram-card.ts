@@ -180,6 +180,8 @@ const runWhenLitLoaded = () => {
                 width: 100%;
                 box-sizing: border-box;
                 overflow: hidden;
+                background: var(--card-background-color, #fff);
+                color: var(--primary-text-color, #222);
             }
 
             .card-header {
@@ -187,6 +189,7 @@ const runWhenLitLoaded = () => {
                 font-size: 1.25em;
                 font-weight: 500;
                 line-height: 1.2;
+                color: var(--primary-text-color, #222);
             }
 
             .card-content {
@@ -225,8 +228,8 @@ const runWhenLitLoaded = () => {
             }
 
             .pressure-line {
-                stroke: #1976d2;
-                stroke-width: 2.5;
+                stroke: var(--meteogram-pressure-color, #90caf9);
+                stroke-width: 4; /* Increased thickness */
                 stroke-dasharray: 3, 3;
                 fill: none;
             }
@@ -237,27 +240,27 @@ const runWhenLitLoaded = () => {
             }
 
             .rain-min-bar {
-                fill: #0074d9; /* Darker blue for min precipitation */
+                fill: #0074d9;
                 opacity: 0.95;
             }
 
             .rain-max-bar {
-                fill: #7fdbff; /* Lighter blue for max precipitation */
-                opacity: 0.5; /* Reduced opacity to make it fainter */
+                fill: #7fdbff;
+                opacity: 0.5;
             }
 
             .rain-min-label {
                 font: 13px sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: #0058a3; /* Darker blue for min label */
+                fill: #0058a3;
             }
 
             .rain-max-label {
                 font: 13px sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: #2693e6; /* Lighter blue for max label */
+                fill: #2693e6;
             }
 
             .snow-bar {
@@ -266,32 +269,39 @@ const runWhenLitLoaded = () => {
             }
 
             .cloud-area {
-                fill: gray;
-                opacity: 0.32;
+                fill: var(--meteogram-cloud-color, #b0bec5);
+                opacity: 0.42;
+            }
+
+            /* Use host attribute for dark mode */
+
+            :host([dark]) .cloud-area {
+                fill: var(--meteogram-cloud-color-dark, #eceff1);
+                opacity: 0.55;
             }
 
             .grid line {
-                stroke: #b8c4d9;
+                stroke: var(--meteogram-grid-color, #90caf9);
             }
 
             .xgrid line {
-                stroke: #b8c4d9;
+                stroke: var(--meteogram-grid-color, #90caf9);
             }
 
             .wind-band-grid {
-                stroke: #b8c4d9;
+                stroke: var(--meteogram-grid-color, #90caf9);
                 stroke-width: 1;
             }
 
             .twentyfourh-line, .day-tic {
-                stroke: #1a237e;
+                stroke: var(--meteogram-timescale-color, #ffb300);
                 stroke-width: 3;
                 stroke-dasharray: 6, 5;
-                opacity: 0.6;
+                opacity: 0.7;
             }
 
             .twentyfourh-line-wind {
-                stroke: #1a237e;
+                stroke: var(--meteogram-timescale-color, #ffb300);
                 stroke-width: 2.5;
                 stroke-dasharray: 6, 5;
                 opacity: 0.5;
@@ -299,10 +309,12 @@ const runWhenLitLoaded = () => {
 
             .axis-label {
                 font: 14px sans-serif;
+                fill: var(--primary-text-color, #222);
             }
 
             .legend {
                 font: 14px sans-serif;
+                fill: var(--primary-text-color, #222);
             }
 
             .wind-barb {
@@ -330,36 +342,46 @@ const runWhenLitLoaded = () => {
                 fill: #1976d2;
             }
 
-            .wind-band-bg {
-                fill: #fff;
+            /* Improve wind barb contrast in dark mode */
+
+            :host([dark]) .wind-barb,
+            :host([dark]) .wind-barb-feather,
+            :host([dark]) .wind-barb-half,
+            :host([dark]) .wind-barb-calm {
+                stroke: #fff;
             }
 
-            .wind-band-outline {
-                stroke: #000;
-                fill: none;
-                stroke-width: 1;
+            :host([dark]) .wind-barb-dot {
+                fill: #fff;
             }
 
             .top-date-label {
                 font: 16px sans-serif;
-                fill: #333;
+                fill: var(--primary-text-color, #222);
                 font-weight: bold;
                 dominant-baseline: hanging;
             }
 
             .bottom-hour-label {
                 font: 13px sans-serif;
-                fill: #333;
+                fill: var(--meteogram-timescale-color, #ffb300);
             }
 
             .rain-label {
-                font: 13px sans-serif, #0058a3;
+                font: 13px sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
+                fill: #0058a3;
             }
 
             .day-bg {
-                fill: #e3edfa;
+                fill: transparent !important;
+                opacity: 0;
+                pointer-events: none;
+            }
+
+            .wind-band-bg {
+                fill: transparent;
             }
         `;
 
@@ -693,6 +715,8 @@ const runWhenLitLoaded = () => {
                 this.loadD3AndDraw();
             }, 50);
             this.hasRendered = false; // Force redraw on first update
+
+            this._updateDarkMode(); // Ensure dark mode is set on first update
         }
 
         protected updated(changedProps: PropertyValues) {
@@ -733,6 +757,8 @@ const runWhenLitLoaded = () => {
                     }, 50);
                 }
             }
+
+            this._updateDarkMode(); // Always check dark mode after update
         }
 
         // Check if we need to get location from HA
@@ -1039,8 +1065,12 @@ const runWhenLitLoaded = () => {
             const settingsFingerprint = `${this.latitude},${this.longitude},${this.showCloudCover},${this.showPressure},${this.showWeatherIcons},${this.showWind}`;
 
             // If nothing has changed and we already have a rendered chart, don't redraw
-            if (this._lastRenderedData === settingsFingerprint && this.svg) {
-                return;
+            if (this._lastRenderedData === settingsFingerprint && this.svg && this.chartLoaded) {
+                // Only redraw if chart container is missing or empty
+                const chartDiv = this.shadowRoot?.querySelector("#chart");
+                if (chartDiv && chartDiv.querySelector("svg")) {
+                    return;
+                }
             }
 
             // Store the current settings fingerprint
@@ -1052,8 +1082,20 @@ const runWhenLitLoaded = () => {
             // Use the _logDomState method to log diagnostic info
             this._logDomState();
 
-            // Enhanced D3 availability check
+            // Add a static property to limit D3 retry frequency
+            const D3_RETRY_INTERVAL = 10000; // 10 seconds
+            if (!MeteogramCard.lastD3RetryTime) {
+                MeteogramCard.lastD3RetryTime = 0;
+            }
+
+            // Enhanced D3 availability check with retry throttling
             if (!window.d3) {
+                const now = Date.now();
+                if (now - MeteogramCard.lastD3RetryTime < D3_RETRY_INTERVAL) {
+                    // Too soon to retry loading D3, skip this attempt
+                    return;
+                }
+                MeteogramCard.lastD3RetryTime = now;
                 console.warn("D3.js not found, attempting to reload");
                 this.chartLoaded = false;
                 try {
@@ -1109,10 +1151,13 @@ const runWhenLitLoaded = () => {
         // Separate chart rendering logic for better organization
         private _renderChart(chartDiv: Element) {
             try {
-                // Check if chart div already has content - don't draw multiple charts
-                if (chartDiv.children.length > 0) {
-                    console.debug("Chart div already has content, cleaning up first");
-                    chartDiv.innerHTML = "";
+                // Prevent unnecessary redraws if chart is already rendered and visible
+                const svgExists = chartDiv.querySelector("svg");
+                // Cast chartDiv to HTMLElement for offsetWidth/offsetHeight
+                const chartIsVisible = (chartDiv as HTMLElement).offsetWidth > 0 && (chartDiv as HTMLElement).offsetHeight > 0;
+                if (svgExists && chartIsVisible && this.hasRendered) {
+                    // Chart is already rendered and visible, skip redraw
+                    return;
                 }
 
                 // Responsive sizing based on parent
@@ -1132,40 +1177,45 @@ const runWhenLitLoaded = () => {
                 this._lastWidth = availableWidth;
                 this._lastHeight = availableHeight;
 
-                // Fetch weather data and render
-                this.fetchWeatherData().then((data: MeteogramData) => {
-                    // Ensure the chart div is still empty before creating a new SVG
-                    if (chartDiv.querySelector("svg")) {
-                        console.debug("SVG already exists, removing before creating new one");
-                        chartDiv.innerHTML = "";
-                    }
+                // Only clean up and redraw if chart is not rendered or dimensions have changed
+                if (!svgExists || this._lastWidth !== availableWidth || this._lastHeight !== availableHeight) {
+                    // Clean up previous chart
+                    chartDiv.innerHTML = "";
+                    // Fetch weather data and render
+                    this.fetchWeatherData().then((data: MeteogramData) => {
+                        // Ensure the chart div is still empty before creating a new SVG
+                        if (chartDiv.querySelector("svg")) {
+                            console.debug("SVG already exists, removing before creating new one");
+                            chartDiv.innerHTML = "";
+                        }
 
-                    // Create SVG with responsive viewBox
-                    this.svg = window.d3.select(chartDiv)
-                        .append("svg")
-                        .attr("width", "100%")
-                        .attr("height", "100%")
-                        .attr("viewBox", `0 0 ${width + 140} ${height + 160}`)
-                        .attr("preserveAspectRatio", "xMidYMid meet");
+                        // Create SVG with responsive viewBox
+                        this.svg = window.d3.select(chartDiv)
+                            .append("svg")
+                            .attr("width", "100%")
+                            .attr("height", "100%")
+                            .attr("viewBox", `0 0 ${width + 140} ${height + 160}`)
+                            .attr("preserveAspectRatio", "xMidYMid meet");
 
-                    this.renderMeteogram(this.svg, data, width, height);
-                    this.hasRendered = true;
+                        this.renderMeteogram(this.svg, data, width, height);
+                        this.hasRendered = true;
 
-                    // Reset error tracking on success
-                    this.errorCount = 0;
+                        // Reset error tracking on success
+                        this.errorCount = 0;
 
-                    // Ensure observers are setup again
-                    this._setupResizeObserver();
-                    this._setupVisibilityObserver();
-                    this._setupMutationObserver();
-                }).catch((error: any) => {
-                    // Handle Home Assistant websocket subscription error specifically
-                    if (error && typeof error === "object" && error.message === "Subscription not found.") {
-                        this.setError("Home Assistant subscription not found. This may be a backend or network issue. Try reloading Home Assistant or check your connection.");
-                        return;
-                    }
-                    this.setError(`Failed to fetch weather data: ${error.message}`);
-                });
+                        // Ensure observers are setup again
+                        this._setupResizeObserver();
+                        this._setupVisibilityObserver();
+                        this._setupMutationObserver();
+                    }).catch((error: any) => {
+                        // Handle Home Assistant websocket subscription error specifically
+                        if (error && typeof error === "object" && error.message === "Subscription not found.") {
+                            this.setError("Home Assistant subscription not found. This may be a backend or network issue. Try reloading Home Assistant or check your connection.");
+                            return;
+                        }
+                        this.setError(`Failed to fetch weather data: ${error.message}`);
+                    });
+                }
             } catch (error: unknown) {
                 this.setError(`Failed to render chart: ${(error as Error).message}`);
             }
@@ -1232,8 +1282,10 @@ const runWhenLitLoaded = () => {
                 .attr("class", "day-bg")
                 .attr("x", (d: DayRange) => margin.left + x(d.start))
                 .attr("y", margin.top - 42)
-                .attr("width", (d: DayRange) => x(Math.max(d.end - 1, d.start)) - x(d.start) + dx)
-                .attr("height", chartHeight + windBarbBand + 42 + bottomHourBand)
+                // Limit width to only main chart area (do not extend to right axis)
+                .attr("width", (d: DayRange) => Math.min(x(Math.max(d.end - 1, d.start)) - x(d.start) + dx, chartWidth - x(d.start)))
+                // Limit height to only main chart area (do not extend to lower x axis)
+                .attr("height", chartHeight + 42)
                 .attr("opacity", (_: DayRange, i: number) => i % 2 === 0 ? 0.16 : 0);
 
             // Date labels at top - with spacing check to prevent overlap
@@ -1666,7 +1718,7 @@ const runWhenLitLoaded = () => {
                     .attr("y", 0)
                     .attr("width", chartWidth)
                     .attr("height", windBandHeight)
-                    .attr("stroke", "#000")
+                    .attr("stroke", "var(--meteogram-grid-color, #90caf9)") // Match axis/grid color
                     .attr("stroke-width", 1)
                     .attr("fill", "none");
             }
@@ -1747,6 +1799,7 @@ const runWhenLitLoaded = () => {
 
         // Add explicit render method to ensure chart container is created properly
         render() {
+            this._updateDarkMode(); // Ensure dark mode is set before rendering
             const {html} = window.litElementModules;
             return html`
                 <ha-card>
@@ -1800,6 +1853,24 @@ const runWhenLitLoaded = () => {
                 this.meteogramError = message;
                 this.lastErrorTime = now;
                 console.error("Meteogram error:", message);
+            }
+        }
+
+        // Add dark mode detection
+        private _updateDarkMode() {
+            let isDark = false;
+            // Home Assistant sets dark mode in hass.themes.darkMode
+            if (this.hass && this.hass.themes && typeof this.hass.themes.darkMode === "boolean") {
+                isDark = this.hass.themes.darkMode;
+            } else {
+                // Fallback: check .dark-theme on <html> or <body>
+                isDark = document.documentElement.classList.contains('dark-theme') ||
+                         document.body.classList.contains('dark-theme');
+            }
+            if (isDark) {
+                this.setAttribute('dark', '');
+            } else {
+                this.removeAttribute('dark');
             }
         }
     }
