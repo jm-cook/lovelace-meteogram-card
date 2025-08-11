@@ -90,6 +90,7 @@ const runWhenLitLoaded = () => {
         @property({type: Boolean}) showRain = true;
         @property({type: Boolean}) showWeatherIcons = true;
         @property({type: Boolean}) showWind = true;
+        @property({type: Boolean}) denseWeatherIcons = true; // NEW: icon density config
 
         @state() private chartLoaded = false;
         @state() private meteogramError = "";
@@ -397,6 +398,7 @@ const runWhenLitLoaded = () => {
             this.showRain = config.show_rain !== undefined ? config.show_rain : true;
             this.showWeatherIcons = config.show_weather_icons !== undefined ? config.show_weather_icons : true;
             this.showWind = config.show_wind !== undefined ? config.show_wind : true;
+            this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
         }
 
         // Required for HA visual editor support
@@ -409,7 +411,8 @@ const runWhenLitLoaded = () => {
                 show_pressure: true,
                 show_rain: true,
                 show_weather_icons: true,
-                show_wind: true
+                show_wind: true,
+                dense_weather_icons: true
             });
             return editor;
         }
@@ -422,7 +425,8 @@ const runWhenLitLoaded = () => {
                 show_pressure: true,
                 show_rain: true,
                 show_weather_icons: true,
-                show_wind: true
+                show_wind: true,
+                dense_weather_icons: true
                 // Coordinates will be fetched from HA configuration
             };
         }
@@ -1495,8 +1499,8 @@ const runWhenLitLoaded = () => {
 
             // Weather icons along temperature curve - only if enabled
             if (this.showWeatherIcons) {
-                // On smaller screens, only show every second icon for better visibility
-                const iconInterval = width < 600 ? 2 : 1;
+                // Use config property for icon density
+                const iconInterval = this.denseWeatherIcons ? 1 : 2;
 
                 chart.selectAll(".weather-icon")
                     .data(symbolCode)
@@ -1511,10 +1515,9 @@ const runWhenLitLoaded = () => {
                     .attr("width", 40)
                     .attr("height", 40)
                     .attr("opacity", (_: string, i: number) =>
-                        (temperature[i] !== null && (width >= 600 || i % iconInterval === 0)) ? 1 : 0)
+                        (temperature[i] !== null && i % iconInterval === 0) ? 1 : 0)
                     .each((d: string, i: number, nodes: any) => {
-                        // Skip icons on mobile based on iconInterval
-                        if (width < 600 && i % iconInterval !== 0) return;
+                        if (i % iconInterval !== 0) return;
 
                         const node = nodes[i];
                         if (!d) return;
@@ -1973,6 +1976,11 @@ const runWhenLitLoaded = () => {
             if (windSwitch) {
                 windSwitch.checked = this._config.show_wind !== undefined ? this._config.show_wind : true;
             }
+
+            const denseWeatherIconsSwitch = this._elements.get('dense_weather_icons');
+            if (denseWeatherIconsSwitch) {
+                denseWeatherIconsSwitch.checked = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
+            }
         }
 
         render() {
@@ -1986,6 +1994,7 @@ const runWhenLitLoaded = () => {
             const showRain = this._config.show_rain !== undefined ? this._config.show_rain : true;
             const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
             const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
+            const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
 
             const div = document.createElement('div');
             div.innerHTML = `
@@ -2126,6 +2135,14 @@ const runWhenLitLoaded = () => {
             .checked="${showWind}"
           ></ha-switch>
         </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Dense Weather Icons (every hour)</div>
+          <ha-switch
+            id="dense-weather-icons"
+            .checked="${denseWeatherIcons}"
+          ></ha-switch>
+        </div>
       </div>
     </div>
   </ha-card>
@@ -2194,6 +2211,13 @@ const runWhenLitLoaded = () => {
                     windSwitch.configValue = 'show_wind';
                     windSwitch.addEventListener('change', this._valueChanged.bind(this));
                     this._elements.set('show_wind', windSwitch);
+                }
+
+                const denseWeatherIconsSwitch = this.querySelector('#dense-weather-icons') as ConfigurableHTMLElement;
+                if (denseWeatherIconsSwitch) {
+                    denseWeatherIconsSwitch.configValue = 'dense_weather_icons';
+                    denseWeatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                    this._elements.set('dense_weather_icons', denseWeatherIconsSwitch);
                 }
             }, 0);
         }

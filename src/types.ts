@@ -8,6 +8,7 @@ export interface MeteogramCardConfig {
     show_rain?: boolean;
     show_weather_icons?: boolean;
     show_wind?: boolean;
+    dense_weather_icons?: boolean; // Add this line
 }
 
 export interface MeteogramData {
