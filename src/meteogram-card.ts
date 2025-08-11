@@ -164,6 +164,9 @@ const runWhenLitLoaded = () => {
         // Keep track of last rendered data to avoid unnecessary redraws
         private _lastRenderedData: string | null = null;
 
+        // Add a flag to track if chart rendering is in progress
+        private _chartRenderInProgress = false;
+
         static styles = css`
             :host {
                 display: block;
@@ -887,7 +890,14 @@ const runWhenLitLoaded = () => {
             }
         }
 
+        // Store API expiry timestamp to avoid repeated requests before Expires
+        private static apiExpiresAt: number | null = null;
+        private static cachedWeatherData: MeteogramData | null = null;
+        private static weatherDataPromise: Promise<MeteogramData> | null = null; // NEW: in-flight promise
+
         async fetchWeatherData(): Promise<MeteogramData> {
+            console.log(`[meteogram-card] fetchWeatherData called at ${new Date().toISOString()} with lat=${this.latitude}, lon=${this.longitude}`);
+
             // Enhanced location check with better error message
             if (!this.latitude || !this.longitude) {
                 this._checkAndUpdateLocation(); // Try harder to get location
@@ -897,131 +907,177 @@ const runWhenLitLoaded = () => {
                 }
             }
 
-            try {
-                // Get 2.5 day forecast to cover 48 hours plus a buffer
-                // Changed from compact to complete API to get min/max precipitation values
-                // Truncate latitude and longitude to 4 decimals for API call
-                const lat = this.latitude !== undefined ? Number(this.latitude).toFixed(4) : undefined;
-                const lon = this.longitude !== undefined ? Number(this.longitude).toFixed(4) : undefined;
+            // Serve cached data if Expires has not passed and cache exists
+            if (
+                MeteogramCard.apiExpiresAt &&
+                Date.now() < MeteogramCard.apiExpiresAt &&
+                MeteogramCard.cachedWeatherData
+            ) {
+                console.log("[meteogram-card] Returning cached weather data.");
+                return Promise.resolve(MeteogramCard.cachedWeatherData);
+            }
 
-                // Use truncated lat/lon in API URL
-                const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
+            // If a fetch is already in progress, return the same promise
+            if (MeteogramCard.weatherDataPromise) {
+                console.log("[meteogram-card] Returning in-flight weather data promise.");
+                return MeteogramCard.weatherDataPromise;
+            }
 
-                // Try fetch with User-Agent header, fallback if needed
-                let response: Response;
+            // Start a new fetch and cache the promise
+            MeteogramCard.weatherDataPromise = (async () => {
                 try {
-                    response = await fetch(forecastUrl, {
+                    // Get 2.5 day forecast to cover 48 hours plus a buffer
+                    // Changed from compact to complete API to get min/max precipitation values
+                    // Truncate latitude and longitude to 4 decimals for API call
+                    const lat = this.latitude !== undefined ? Number(this.latitude).toFixed(4) : undefined;
+                    const lon = this.longitude !== undefined ? Number(this.longitude).toFixed(4) : undefined;
+
+                    // Use truncated lat/lon in API URL
+                    const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
+
+                    // Only attempt fetch with User-Agent header
+                    const response = await fetch(forecastUrl, {
                         headers: {
                             'User-Agent': 'Meteogram Card for Home Assistant (https://github.com/jm-cook/meteogram-card)'
                         }
                     });
-                } catch (err) {
-                    // Fallback: try without User-Agent header
-                    console.warn('Fetch failed with User-Agent header, retrying without it...', err);
-                    response = await fetch(forecastUrl);
-                }
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    // Log more details for debugging
-                    console.error('Weather API fetch failed:', {
-                        url: forecastUrl,
-                        status: response.status,
-                        statusText: response.statusText,
-                        body: errorText
-                    });
-                    // Add CORS/network hint if status is 0
-                    if (response.status === 0) {
-                        throw new Error(`Weather API request failed (status 0). This may be a network or CORS issue. See browser console for details.`);
+                    // Handle 429 Too Many Requests
+                    if (response.status === 429) {
+                        const expiresHeader = response.headers.get("Expires");
+                        let expiresAt: number | null = null;
+                        if (expiresHeader) {
+                            const expiresDate = new Date(expiresHeader);
+                            if (!isNaN(expiresDate.getTime())) {
+                                expiresAt = expiresDate.getTime();
+                                MeteogramCard.apiExpiresAt = expiresAt;
+                            }
+                        }
+                        const nextTry = expiresAt ? new Date(expiresAt).toLocaleTimeString() : "later";
+                        // Log warning and show user message
+                        console.warn(`Weather API throttling (429). Next attempt allowed after ${nextTry}.`);
+                        throw new Error(`Weather API throttling: Too many requests. Please wait until ${nextTry} before retrying.`);
                     }
-                    throw new Error(`Weather API returned ${response.status}: ${response.statusText}\n${errorText}`);
-                }
 
-                const data = await response.json();
+                    // If Expires header is present, cache it for future requests
+                    const expiresHeader = response.headers.get("Expires");
+                    if (expiresHeader) {
+                        const expiresDate = new Date(expiresHeader);
+                        if (!isNaN(expiresDate.getTime())) {
+                            MeteogramCard.apiExpiresAt = expiresDate.getTime();
+                        }
+                    }
 
-                if (!data || !data.properties || !data.properties.timeseries || data.properties.timeseries.length === 0) {
-                    throw new Error('Invalid data format received from API');
-                }
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        // Log more details for debugging
+                        console.error('Weather API fetch failed:', {
+                            url: forecastUrl,
+                            status: response.status,
+                            statusText: response.statusText,
+                            body: errorText
+                        });
+                        // Add CORS/network hint if status is 0
+                        if (response.status === 0) {
+                            throw new Error(`Weather API request failed (status 0). This may be a network or CORS issue. See browser console for details.`);
+                        }
+                        throw new Error(`Weather API returned ${response.status}: ${response.statusText}\n${errorText}`);
+                    }
 
-                // Process forecast data
-                const timeseries = data.properties.timeseries;
-                const now = new Date();
-                const timePlus48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+                    const data = await response.json();
 
-                // Filter timeseries to get data for the next 48 hours, keep hourly resolution
-                const filtered = timeseries.filter((item: any) => {
-                    const time = new Date(item.time);
-                    return time >= now && time <= timePlus48h && time.getMinutes() === 0;
-                });
+                    if (!data || !data.properties || !data.properties.timeseries || data.properties.timeseries.length === 0) {
+                        throw new Error('Invalid data format received from API');
+                    }
 
-                const result: MeteogramData = {
-                    time: [],
-                    temperature: [],
-                    rain: [],
-                    rainMin: [], // Initialize min precipitation array
-                    rainMax: [], // Initialize max precipitation array
-                    snow: [],
-                    cloudCover: [],
-                    windSpeed: [],
-                    windDirection: [],
-                    symbolCode: [],
-                    pressure: [] // Initialize the pressure array
-                };
+                    // Process forecast data
+                    const timeseries = data.properties.timeseries;
+                    const now = new Date();
+                    const timePlus48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
-                filtered.forEach((item: any) => {
-                    const time = new Date(item.time);
-                    const instant = item.data.instant.details;
-                    const next1h = item.data.next_1_hours?.details;
+                    // Filter timeseries to get data for the next 48 hours, keep hourly resolution
+                    const filtered = timeseries.filter((item: any) => {
+                        const time = new Date(item.time);
+                        return time >= now && time <= timePlus48h && time.getMinutes() === 0;
+                    });
 
-                    result.time.push(time);
-                    result.temperature.push(instant.air_temperature);
-                    result.cloudCover.push(instant.cloud_area_fraction);
-                    result.windSpeed.push(instant.wind_speed);
-                    result.windDirection.push(instant.wind_from_direction);
-                    // Extract pressure data (air_pressure_at_sea_level is in hPa)
-                    result.pressure.push(instant.air_pressure_at_sea_level);
+                    const result: MeteogramData = {
+                        time: [],
+                        temperature: [],
+                        rain: [],
+                        rainMin: [], // Initialize min precipitation array
+                        rainMax: [], // Initialize max precipitation array
+                        snow: [],
+                        cloudCover: [],
+                        windSpeed: [],
+                        windDirection: [],
+                        symbolCode: [],
+                        pressure: [] // Initialize the pressure array
+                    };
 
-                    if (next1h) {
-                        // Use precipitation_amount_max and precipitation_amount_min if available
-                        const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
-                            next1h.precipitation_amount_max :
-                            (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                    filtered.forEach((item: any) => {
+                        const time = new Date(item.time);
+                        const instant = item.data.instant.details;
+                        const next1h = item.data.next_1_hours?.details;
 
-                        const rainAmountMin = next1h.precipitation_amount_min !== undefined ?
-                            next1h.precipitation_amount_min :
-                            (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                        result.time.push(time);
+                        result.temperature.push(instant.air_temperature);
+                        result.cloudCover.push(instant.cloud_area_fraction);
+                        result.windSpeed.push(instant.wind_speed);
+                        result.windDirection.push(instant.wind_from_direction);
+                        // Extract pressure data (air_pressure_at_sea_level is in hPa)
+                        result.pressure.push(instant.air_pressure_at_sea_level);
 
-                        // Store min and max separately
-                        result.rainMin.push(rainAmountMin);
-                        result.rainMax.push(rainAmountMax);
+                        if (next1h) {
+                            // Use precipitation_amount_max and precipitation_amount_min if available
+                            const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
+                                next1h.precipitation_amount_max :
+                                (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
 
-                        // FIX: Use precipitation_amount for main rain bar
-                        result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                            const rainAmountMin = next1h.precipitation_amount_min !== undefined ?
+                                next1h.precipitation_amount_min :
+                                (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
 
-                        result.snow.push(0); // Default to 0 if snow isn't separated out
+                            // Store min and max separately
+                            result.rainMin.push(rainAmountMin);
+                            result.rainMax.push(rainAmountMax);
 
-                        // Get weather symbol code for icons
-                        if (item.data.next_1_hours?.summary?.symbol_code) {
-                            result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
+                            // FIX: Use precipitation_amount for main rain bar
+                            result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+
+                            result.snow.push(0); // Default to 0 if snow isn't separated out
+
+                            // Get weather symbol code for icons
+                            if (item.data.next_1_hours?.summary?.symbol_code) {
+                                result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
+                            } else {
+                                result.symbolCode.push('');
+                            }
                         } else {
+                            // Fill in empty data if we don't have hourly precipitation data
+                            result.rain.push(0);
+                            result.rainMin.push(0);
+                            result.rainMax.push(0);
+                            result.snow.push(0);
                             result.symbolCode.push('');
                         }
-                    } else {
-                        // Fill in empty data if we don't have hourly precipitation data
-                        result.rain.push(0);
-                        result.rainMin.push(0);
-                        result.rainMax.push(0);
-                        result.snow.push(0);
-                        result.symbolCode.push('');
-                    }
-                });
+                    });
 
-                return result;
-            } catch (error: unknown) {
-                // Log error and provide more info for troubleshooting
-                console.error('Error fetching weather data:', error);
-                throw new Error(`Failed to get weather data: ${(error as Error).message}\nCheck your network connection, browser console, and API accessibility.`);
-            }
+                    // Cache the data for future requests
+                    MeteogramCard.cachedWeatherData = result;
+
+                    return result;
+                } catch (error: unknown) {
+                    // Log error and provide more info for troubleshooting
+                    console.error('Error fetching weather data:', error);
+                    throw new Error(`Failed to get weather data: ${(error as Error).message}\nCheck your network connection, browser console, and API accessibility.`);
+                } finally {
+                    // Clear the in-flight promise after completion (success or error)
+                    MeteogramCard.weatherDataPromise = null;
+                }
+            })();
+
+            return MeteogramCard.weatherDataPromise;
         }
 
         // Add the cleanupChart method before the _drawMeteogram method
@@ -1153,13 +1209,34 @@ const runWhenLitLoaded = () => {
 
         // Separate chart rendering logic for better organization
         private _renderChart(chartDiv: Element) {
+            // If a render is already in progress, skip this call
+            if (this._chartRenderInProgress) {
+                console.log("[meteogram-card] Chart render already in progress, skipping redundant render.");
+                // If chart is not rendered, clear the flag to allow recovery
+                const svgExists = chartDiv.querySelector("svg");
+                if (!svgExists) {
+                    console.log("[meteogram-card] No SVG found, clearing render-in-progress flag to recover.");
+                    this._chartRenderInProgress = false;
+                }
+                return;
+            }
+            this._chartRenderInProgress = true;
+
+            // Add a timeout to clear the flag after 1s in case of unexpected hangs
+            setTimeout(() => {
+                if (this._chartRenderInProgress) {
+                    console.log("[meteogram-card] Clearing chart render flag after timeout.");
+                    this._chartRenderInProgress = false;
+                }
+            }, 1000);
+
             try {
                 // Prevent unnecessary redraws if chart is already rendered and visible
                 const svgExists = chartDiv.querySelector("svg");
                 // Cast chartDiv to HTMLElement for offsetWidth/offsetHeight
                 const chartIsVisible = (chartDiv as HTMLElement).offsetWidth > 0 && (chartDiv as HTMLElement).offsetHeight > 0;
                 if (svgExists && chartIsVisible && this.hasRendered) {
-                    // Chart is already rendered and visible, skip redraw
+                    this._chartRenderInProgress = false; // Ensure flag is cleared
                     return;
                 }
 
@@ -1216,11 +1293,20 @@ const runWhenLitLoaded = () => {
                             this.setError("Home Assistant subscription not found. This may be a backend or network issue. Try reloading Home Assistant or check your connection.");
                             return;
                         }
-                        this.setError(`Failed to fetch weather data: ${error.message}`);
+                        // Fix: Avoid TypeError if error.message is undefined
+                        const errorMsg = (error && typeof error === "object" && "message" in error && typeof error.message === "string")
+                            ? error.message
+                            : String(error);
+                        this.setError(`Failed to fetch weather data: ${errorMsg}`);
+                    }).finally(() => {
+                        this._chartRenderInProgress = false;
                     });
+                } else {
+                    this._chartRenderInProgress = false;
                 }
             } catch (error: unknown) {
                 this.setError(`Failed to render chart: ${(error as Error).message}`);
+                this._chartRenderInProgress = false;
             }
         }
 
@@ -1813,6 +1899,9 @@ const runWhenLitLoaded = () => {
                                     <div class="error">${this.meteogramError}</div>`
                                 : html`
                                     <div id="chart"></div>`}
+                    </div>
+                    <div style="font-size: 0.85em; color: var(--secondary-text-color); text-align: right; padding: 0 16px 8px 0;">
+                        Data from <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
                     </div>
                 </ha-card>
             `;
