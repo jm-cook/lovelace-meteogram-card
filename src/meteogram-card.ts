@@ -5,6 +5,9 @@ import {MeteogramCardConfig, MeteogramCardEditorElement} from "./types";
 // Version info - update this when releasing new versions
 import {version} from "../package.json";
 
+// Add logEnabled boolean at the outer scope
+const logEnabled = version.includes("beta");
+
 const CARD_NAME = "Meteogram Card";
 
 // Declare litModulesPromise to avoid TypeScript error
@@ -890,19 +893,67 @@ const runWhenLitLoaded = () => {
             }
         }
 
-        // Store API expiry timestamp to avoid repeated requests before Expires
+        // Store API expiry timestamp and cached data in localStorage for persistence across reloads
         private static apiExpiresAt: number | null = null;
         private static cachedWeatherData: MeteogramData | null = null;
-        private static weatherDataPromise: Promise<MeteogramData> | null = null; // NEW: in-flight promise
+        private static weatherDataPromise: Promise<MeteogramData> | null = null;
+
+        // Helper to persist cache to localStorage
+        private static saveCacheToStorage() {
+            try {
+                if (MeteogramCard.cachedWeatherData && MeteogramCard.apiExpiresAt) {
+                    localStorage.setItem('meteogram-card-weather-cache', JSON.stringify({
+                        expiresAt: MeteogramCard.apiExpiresAt,
+                        data: MeteogramCard.cachedWeatherData
+                    }));
+                }
+            } catch (e) {
+                // Ignore storage errors
+            }
+        }
+
+        // Helper to load cache from localStorage
+        private static loadCacheFromStorage() {
+            try {
+                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                if (cacheStr) {
+                    const cacheObj = JSON.parse(cacheStr);
+                    if (cacheObj && cacheObj.expiresAt && cacheObj.data) {
+                        MeteogramCard.apiExpiresAt = cacheObj.expiresAt;
+                        // Convert time strings back to Date objects for cachedWeatherData
+                        if (Array.isArray(cacheObj.data.time)) {
+                            cacheObj.data.time = cacheObj.data.time.map((t: string | Date) =>
+                                typeof t === "string" ? new Date(t) : t
+                            );
+                        }
+                        MeteogramCard.cachedWeatherData = cacheObj.data;
+                    }
+                }
+            } catch (e) {
+                // Ignore storage errors
+            }
+        }
 
         async fetchWeatherData(): Promise<MeteogramData> {
-            console.log(`[meteogram-card] fetchWeatherData called at ${new Date().toISOString()} with lat=${this.latitude}, lon=${this.longitude}`);
+            // Load cache from storage on every call (in case of reload)
+            MeteogramCard.loadCacheFromStorage();
+
+            const expiresStr = MeteogramCard.apiExpiresAt ? new Date(MeteogramCard.apiExpiresAt).toISOString() : "unknown";
+            const lat = this.latitude !== undefined ? Number(this.latitude).toFixed(4) : undefined;
+            const lon = this.longitude !== undefined ? Number(this.longitude).toFixed(4) : undefined;
+
+            if (logEnabled) {
+                console.log(`[meteogram-card] fetchWeatherData called at ${new Date().toISOString()} with lat=${lat}, lon=${lon} (expires at ${expiresStr})`);
+            }
 
             // Enhanced location check with better error message
-            if (!this.latitude || !this.longitude) {
+            if (!lat || !lon) {
                 this._checkAndUpdateLocation(); // Try harder to get location
 
-                if (!this.latitude || !this.longitude) {
+                const checkedLat = this.latitude !== undefined ? Number(this.latitude).toFixed(4) : undefined;
+                const checkedLon = this.longitude !== undefined ? Number(this.longitude).toFixed(4) : undefined;
+
+                if (!checkedLat || !checkedLon) {
                     throw new Error("Could not determine location. Please check your card configuration or Home Assistant settings.");
                 }
             }
@@ -913,34 +964,32 @@ const runWhenLitLoaded = () => {
                 Date.now() < MeteogramCard.apiExpiresAt &&
                 MeteogramCard.cachedWeatherData
             ) {
-                console.log("[meteogram-card] Returning cached weather data.");
+                if (logEnabled) {
+                    console.log(`[meteogram-card] Returning cached weather data (expires at ${expiresStr})`);
+                }
                 return Promise.resolve(MeteogramCard.cachedWeatherData);
             }
 
             // If a fetch is already in progress, return the same promise
             if (MeteogramCard.weatherDataPromise) {
-                console.log("[meteogram-card] Returning in-flight weather data promise.");
+                if (logEnabled) {
+                    console.log(`[meteogram-card] Returning in-flight weather data promise (expires at ${expiresStr})`);
+                }
                 return MeteogramCard.weatherDataPromise;
             }
 
-            // Start a new fetch and cache the promise
             MeteogramCard.weatherDataPromise = (async () => {
                 try {
-                    // Get 2.5 day forecast to cover 48 hours plus a buffer
-                    // Changed from compact to complete API to get min/max precipitation values
-                    // Truncate latitude and longitude to 4 decimals for API call
-                    const lat = this.latitude !== undefined ? Number(this.latitude).toFixed(4) : undefined;
-                    const lon = this.longitude !== undefined ? Number(this.longitude).toFixed(4) : undefined;
-
-                    // Use truncated lat/lon in API URL
+                    // Use If-Modified-Since header if we have an expiry
                     const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
+                    const headers: Record<string, string> = {
+                        'User-Agent': 'Meteogram Card for Home Assistant (https://github.com/jm-cook/ha-meteogram-card)'
+                    };
+                    if (MeteogramCard.apiExpiresAt) {
+                        headers['If-Modified-Since'] = new Date(MeteogramCard.apiExpiresAt).toUTCString();
+                    }
 
-                    // Only attempt fetch with User-Agent header
-                    const response = await fetch(forecastUrl, {
-                        headers: {
-                            'User-Agent': 'Meteogram Card for Home Assistant (https://github.com/jm-cook/meteogram-card)'
-                        }
-                    });
+                    const response = await fetch(forecastUrl, { headers });
 
                     // Handle 429 Too Many Requests
                     if (response.status === 429) {
@@ -954,23 +1003,36 @@ const runWhenLitLoaded = () => {
                             }
                         }
                         const nextTry = expiresAt ? new Date(expiresAt).toLocaleTimeString() : "later";
-                        // Log warning and show user message
                         console.warn(`Weather API throttling (429). Next attempt allowed after ${nextTry}.`);
                         throw new Error(`Weather API throttling: Too many requests. Please wait until ${nextTry} before retrying.`);
                     }
 
-                    // If Expires header is present, cache it for future requests
+                    // Cache Expires header if present
                     const expiresHeader = response.headers.get("Expires");
                     if (expiresHeader) {
                         const expiresDate = new Date(expiresHeader);
                         if (!isNaN(expiresDate.getTime())) {
                             MeteogramCard.apiExpiresAt = expiresDate.getTime();
+                            if (logEnabled) {
+                                console.log(`[meteogram-card] API response Expires at ${expiresDate.toISOString()}`);
+                            }
+                        }
+                    }
+
+                    // Handle 304 Not Modified
+                    if (response.status === 304) {
+                        if (logEnabled) {
+                            console.log("[meteogram-card] API returned 304 Not Modified, using cached data.");
+                        }
+                        if (MeteogramCard.cachedWeatherData) {
+                            return MeteogramCard.cachedWeatherData;
+                        } else {
+                            throw new Error("API returned 304 but no cached data is available.");
                         }
                     }
 
                     if (!response.ok) {
                         const errorText = await response.text();
-                        // Log more details for debugging
                         console.error('Weather API fetch failed:', {
                             url: forecastUrl,
                             status: response.status,
@@ -1065,6 +1127,7 @@ const runWhenLitLoaded = () => {
 
                     // Cache the data for future requests
                     MeteogramCard.cachedWeatherData = result;
+                    MeteogramCard.saveCacheToStorage();
 
                     return result;
                 } catch (error: unknown) {
@@ -1211,21 +1274,25 @@ const runWhenLitLoaded = () => {
         private _renderChart(chartDiv: Element) {
             // If a render is already in progress, skip this call
             if (this._chartRenderInProgress) {
-                console.log("[meteogram-card] Chart render already in progress, skipping redundant render.");
-                // If chart is not rendered, clear the flag to allow recovery
+                if (logEnabled) {
+                    console.log("[meteogram-card] Chart render already in progress, skipping redundant render.");
+                }
                 const svgExists = chartDiv.querySelector("svg");
                 if (!svgExists) {
-                    console.log("[meteogram-card] No SVG found, clearing render-in-progress flag to recover.");
+                    if (logEnabled) {
+                        console.log("[meteogram-card] No SVG found, clearing render-in-progress flag to recover.");
+                    }
                     this._chartRenderInProgress = false;
                 }
                 return;
             }
             this._chartRenderInProgress = true;
 
-            // Add a timeout to clear the flag after 1s in case of unexpected hangs
             setTimeout(() => {
                 if (this._chartRenderInProgress) {
-                    console.log("[meteogram-card] Clearing chart render flag after timeout.");
+                    if (logEnabled) {
+                        console.log("[meteogram-card] Clearing chart render flag after timeout.");
+                    }
                     this._chartRenderInProgress = false;
                 }
             }, 1000);
@@ -1909,7 +1976,7 @@ const runWhenLitLoaded = () => {
 
         // Add logging method to help debug DOM structure - only used when errors occur
         private _logDomState() {
-            if (this.errorCount > 0) {
+            if (this.errorCount > 0 && logEnabled) {
                 console.debug('DOM state check:');
                 console.debug('- shadowRoot exists:', !!this.shadowRoot);
                 if (this.shadowRoot) {
