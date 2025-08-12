@@ -197,6 +197,7 @@ const runWhenLitLoaded = () => {
 
         // Change these from static to instance properties
         private apiExpiresAt: number | null = null;
+        private apiLastModified: string | null = null;
         private cachedWeatherData: MeteogramData | null = null;
         private weatherDataPromise: Promise<MeteogramData> | null = null;
 
@@ -956,9 +957,18 @@ const runWhenLitLoaded = () => {
             try {
                 if (this.cachedWeatherData && this.apiExpiresAt) {
                     const key = this.getLocationKey(lat, lon);
-                    const cacheObj = JSON.parse(localStorage.getItem('meteogram-card-weather-cache') || '{}');
+                    let cacheObj: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> = {};
+                    const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                    if (cacheStr) {
+                        try {
+                            cacheObj = JSON.parse(cacheStr);
+                        } catch {
+                            cacheObj = {};
+                        }
+                    }
                     cacheObj[key] = {
                         expiresAt: this.apiExpiresAt,
+                        lastModified: this.apiLastModified || undefined,
                         data: this.cachedWeatherData
                     };
                     localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
@@ -968,24 +978,31 @@ const runWhenLitLoaded = () => {
             }
         }
 
-        // Helper to load cache from localStorage, indexed by location
+        // Update loadCacheFromStorage to also load lastModified
         private loadCacheFromStorage(lat: number, lon: number) {
             try {
                 const key = this.getLocationKey(lat, lon);
                 const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
                 if (cacheStr) {
-                    const cacheObj = JSON.parse(cacheStr);
-                    if (cacheObj && cacheObj[key] && cacheObj[key].expiresAt && cacheObj[key].data) {
-                        this.apiExpiresAt = cacheObj[key].expiresAt;
-                        // Convert time strings back to Date objects for cachedWeatherData
-                        if (Array.isArray(cacheObj[key].data.time)) {
-                            cacheObj[key].data.time = cacheObj[key].data.time.map((t: string | Date) =>
+                    let cacheObj: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> = {};
+                    try {
+                        cacheObj = JSON.parse(cacheStr);
+                    } catch {
+                        cacheObj = {};
+                    }
+                    const entry = cacheObj[key];
+                    if (entry && entry.expiresAt && entry.data) {
+                        this.apiExpiresAt = entry.expiresAt;
+                        this.apiLastModified = entry.lastModified || null;
+                        if (Array.isArray(entry.data.time)) {
+                            entry.data.time = entry.data.time.map((t: string | Date) =>
                                 typeof t === "string" ? new Date(t) : t
                             );
                         }
-                        this.cachedWeatherData = cacheObj[key].data;
+                        this.cachedWeatherData = entry.data;
                     } else {
                         this.apiExpiresAt = null;
+                        this.apiLastModified = null;
                         this.cachedWeatherData = null;
                     }
                 }
@@ -1045,11 +1062,11 @@ const runWhenLitLoaded = () => {
 
             this.weatherDataPromise = (async () => {
                 try {
-                    // Use If-Modified-Since header if we have an expiry
+                    // Use If-Modified-Since header if we have a Last-Modified value
                     const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
                     const headers: Record<string, string> = {};
-                    if (this.apiExpiresAt) {
-                        headers['If-Modified-Since'] = new Date(this.apiExpiresAt).toUTCString();
+                    if (this.apiLastModified) {
+                        headers['If-Modified-Since'] = this.apiLastModified;
                     }
                     // Add Origin header for identification
                     headers['Origin'] = window.location.origin;
@@ -1086,6 +1103,15 @@ const runWhenLitLoaded = () => {
                             if (logEnabled) {
                                 console.log(`[meteogram-card] API response Expires at ${expiresDate.toISOString()}`);
                             }
+                        }
+                    }
+
+                    // Cache Last-Modified header if present
+                    const lastModifiedHeader = response.headers.get("Last-Modified");
+                    if (lastModifiedHeader) {
+                        this.apiLastModified = lastModifiedHeader;
+                        if (logEnabled) {
+                            console.log(`[meteogram-card] API response Last-Modified: ${lastModifiedHeader}`);
                         }
                     }
 
