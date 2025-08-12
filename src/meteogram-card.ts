@@ -900,43 +900,17 @@ const runWhenLitLoaded = () => {
 
         // Helper to persist cache to localStorage
         private static saveCacheToStorage() {
-            try {
-                if (MeteogramCard.cachedWeatherData && MeteogramCard.apiExpiresAt) {
-                    localStorage.setItem('meteogram-card-weather-cache', JSON.stringify({
-                        expiresAt: MeteogramCard.apiExpiresAt,
-                        data: MeteogramCard.cachedWeatherData
-                    }));
-                }
-            } catch (e) {
-                // Ignore storage errors
-            }
+            // Disabled: do nothing
         }
 
         // Helper to load cache from localStorage
         private static loadCacheFromStorage() {
-            try {
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                if (cacheStr) {
-                    const cacheObj = JSON.parse(cacheStr);
-                    if (cacheObj && cacheObj.expiresAt && cacheObj.data) {
-                        MeteogramCard.apiExpiresAt = cacheObj.expiresAt;
-                        // Convert time strings back to Date objects for cachedWeatherData
-                        if (Array.isArray(cacheObj.data.time)) {
-                            cacheObj.data.time = cacheObj.data.time.map((t: string | Date) =>
-                                typeof t === "string" ? new Date(t) : t
-                            );
-                        }
-                        MeteogramCard.cachedWeatherData = cacheObj.data;
-                    }
-                }
-            } catch (e) {
-                // Ignore storage errors
-            }
+            // Disabled: do nothing
         }
 
         async fetchWeatherData(): Promise<MeteogramData> {
-            // Load cache from storage on every call (in case of reload)
-            MeteogramCard.loadCacheFromStorage();
+            // Disabled: do not load cache from storage
+            // MeteogramCard.loadCacheFromStorage();
 
             const expiresStr = MeteogramCard.apiExpiresAt ? new Date(MeteogramCard.apiExpiresAt).toISOString() : "unknown";
             const lat = this.latitude !== undefined ? Number(this.latitude).toFixed(4) : undefined;
@@ -1127,7 +1101,8 @@ const runWhenLitLoaded = () => {
 
                     // Cache the data for future requests
                     MeteogramCard.cachedWeatherData = result;
-                    MeteogramCard.saveCacheToStorage();
+                    // Disabled: do not save cache to storage
+                    // MeteogramCard.saveCacheToStorage();
 
                     return result;
                 } catch (error: unknown) {
