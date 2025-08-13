@@ -43,21 +43,21 @@ show_cloud_cover: true
 show_pressure: true
 show_weather_icons: true
 show_wind: true
-show_rain_probability: true
+dense_weather_icons: false
 ```
 
 ## Options
 
-| Name | Type | Default | Description |
-| ---- | ---- | ------- | ----------- |
-| title | string | | Optional title for the card |
-| latitude | number | HA's default | Latitude for weather data |
-| longitude | number | HA's default | Longitude for weather data |
-| show_cloud_cover | boolean | true | Show/hide cloud cover visualization |
-| show_pressure | boolean | true | Show/hide pressure curve |
-| show_weather_icons | boolean | true | Show/hide weather icons |
-| show_wind | boolean | true | Show/hide wind barbs section |
-| show_rain_probability | boolean | true | Show/hide precipitation probability |
+| Name                 | Type    | Default | Description                                 |
+|----------------------|---------|---------|---------------------------------------------|
+| title                | string  |         | Optional title for the card                 |
+| latitude             | number  | HA's default | Latitude for weather data              |
+| longitude            | number  | HA's default | Longitude for weather data             |
+| show_cloud_cover     | boolean | true    | Show/hide cloud cover visualization         |
+| show_pressure        | boolean | true    | Show/hide pressure curve                    |
+| show_weather_icons   | boolean | true    | Show/hide weather icons                     |
+| show_wind            | boolean | true    | Show/hide wind barbs section                |
+| dense_weather_icons  | boolean | false   | Show weather icons in a denser layout       |
 
 ## Weather Data
 
