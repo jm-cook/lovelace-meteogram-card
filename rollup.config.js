@@ -45,12 +45,7 @@ const litModulesPromise = Promise.all([
       format: {
         comments: true // Keep comments to preserve the banner
       },
-      ecma: 2020,
-      mangle: {
-        properties: {
-          regex: /^_/,
-        },
-      },
+      ecma: 2020
     }),
   ],
   // Add these modules as externals

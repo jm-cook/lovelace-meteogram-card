@@ -201,6 +201,19 @@ const runWhenLitLoaded = () => {
         private cachedWeatherData: MeteogramData | null = null;
         private weatherDataPromise: Promise<MeteogramData> | null = null;
 
+        // Add this property to the class
+        private _redrawScheduled = false;
+
+        // Helper to schedule a meteogram draw if not already scheduled
+        private _scheduleDrawMeteogram() {
+            if (this._redrawScheduled) return;
+            this._redrawScheduled = true;
+            setTimeout(() => {
+                this._drawMeteogram();
+                this._redrawScheduled = false;
+            }, 50);
+        }
+
         static styles = css`
             :host {
                 display: block;
@@ -508,7 +521,7 @@ const runWhenLitLoaded = () => {
                     if (!this.hasRendered || !this.chartLoaded) {
                         this.loadD3AndDraw();
                     } else {
-                        this._drawMeteogram(); // Changed from drawMeteogram to _drawMeteogram
+                        this._scheduleDrawMeteogram();
                     }
                 }
             });
@@ -619,19 +632,6 @@ const runWhenLitLoaded = () => {
                             break;
                         }
                     }
-
-                    if (needsVisibilityCheck && this.isConnected) {
-                        // Small delay to let DOM settle after changes
-                        setTimeout(() => {
-                            const nowVisible = this._isElementVisible();
-
-                            if (nowVisible && this.chartLoaded) {
-                                // Always force redraw after tab switch
-                                this.hasRendered = false;
-                                this._handleVisibilityChange();
-                            }
-                        }, 50);
-                    }
                 });
 
                 // Specifically observe HA-TABS elements for tab switching
@@ -714,7 +714,7 @@ const runWhenLitLoaded = () => {
                     this.hasRendered = false;
                     this.cleanupChart(); // Ensure previous chart is cleaned up
                     this.requestUpdate();
-                    this.updateComplete.then(() => this._drawMeteogram()); // Changed from drawMeteogram to _drawMeteogram
+                    this.updateComplete.then(() => this._scheduleDrawMeteogram());
                 }
             }
         }
@@ -745,12 +745,12 @@ const runWhenLitLoaded = () => {
             // Reduce the threshold for horizontal resizing to be more responsive to width changes
             // but keep vertical threshold higher to avoid unnecessary redraws
             if (
-                Math.abs(entry.contentRect.width - this._lastWidth) > this._lastWidth * 0.05 || // Reduced from 0.1 to 0.05
+                Math.abs(entry.contentRect.width - this._lastWidth) > this._lastWidth * 0.05 ||
                 Math.abs(entry.contentRect.height - this._lastHeight) > this._lastHeight * 0.1
             ) {
                 this._lastWidth = entry.contentRect.width;
                 this._lastHeight = entry.contentRect.height;
-                this._drawMeteogram(); // Changed from drawMeteogram to _drawMeteogram
+                this._scheduleDrawMeteogram();
             }
         }
 
@@ -774,26 +774,30 @@ const runWhenLitLoaded = () => {
         }
 
         protected updated(changedProps: PropertyValues) {
-            // Only redraw if coordinates change or it's the first render
-            if (this.chartLoaded && (
+            // Only redraw if coordinates, hass, or relevant config options change, or it's the first render
+            const needsRedraw =
                 changedProps.has('latitude') ||
                 changedProps.has('longitude') ||
                 changedProps.has('hass') ||
-                !this.hasRendered)
-            ) {
+                changedProps.has('showCloudCover') ||
+                changedProps.has('showPressure') ||
+                changedProps.has('showRain') ||
+                changedProps.has('showWeatherIcons') ||
+                changedProps.has('showWind') ||
+                changedProps.has('denseWeatherIcons') ||
+                !this.hasRendered;
+
+            if (this.chartLoaded && needsRedraw) {
                 // Get location from HA if not configured
                 this._checkAndUpdateLocation();
 
                 // Check if we really need to redraw
                 const chartDiv = this.shadowRoot?.querySelector("#chart");
-                const needsRedraw = !chartDiv ||
-                    chartDiv.innerHTML === "" ||
-                    !chartDiv.querySelector("svg");
+                const chartMissing = !chartDiv || chartDiv.innerHTML === "" || !chartDiv.querySelector("svg");
 
-                // Only redraw if needed
-                if (needsRedraw) {
-                    // Delay drawing slightly to ensure DOM is ready
-                    setTimeout(() => this._drawMeteogram(), 10); // Changed from drawMeteogram to _drawMeteogram
+                // Only redraw if not already rendered or chart is missing
+                if (!this.hasRendered || chartMissing) {
+                    this._scheduleDrawMeteogram();
                 }
             }
 
@@ -803,12 +807,10 @@ const runWhenLitLoaded = () => {
 
                 // Force a redraw when added back to the DOM after being in the editor
                 if (this.chartLoaded) {
-                    setTimeout(() => {
-                        const chartDiv = this.shadowRoot?.querySelector("#chart");
-                        if (chartDiv && chartDiv.innerHTML === "") {
-                            this._drawMeteogram();
-                        }
-                    }, 50);
+                    const chartDiv = this.shadowRoot?.querySelector("#chart");
+                    if (chartDiv && chartDiv.innerHTML === "") {
+                        this._scheduleDrawMeteogram();
+                    }
                 }
             }
 
@@ -825,10 +827,56 @@ const runWhenLitLoaded = () => {
             this._updateDarkMode(); // Always check dark mode after update
         }
 
+        // Helper to get a truncated location key for caching
+        private getLocationKey(lat: number, lon: number): string {
+            // Always use 4 decimals for both lat and lon
+            return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+        }
+
+        // Save location to localStorage
+        private _saveLocationToStorage(latitude: number | undefined, longitude: number | undefined) {
+            try {
+                // Only save if both values are defined
+                if (latitude !== undefined && longitude !== undefined) {
+                    // Truncate to 4 decimals before saving
+                    localStorage.setItem(MeteogramCard.STORAGE_KEY_LAT, parseFloat(latitude.toFixed(4)).toString());
+                    localStorage.setItem(MeteogramCard.STORAGE_KEY_LON, parseFloat(longitude.toFixed(4)).toString());
+                }
+            } catch (e) {
+                // Handle potential localStorage errors (e.g., private browsing mode)
+                console.debug('Failed to save location to localStorage:', e);
+            }
+        }
+
+        // Load location from localStorage
+        private _loadLocationFromStorage(): { latitude: number, longitude: number } | null {
+            try {
+                const lat = localStorage.getItem(MeteogramCard.STORAGE_KEY_LAT);
+                const lon = localStorage.getItem(MeteogramCard.STORAGE_KEY_LON);
+
+                if (lat !== null && lon !== null) {
+                    // Parse and truncate to 4 decimals
+                    const latitude = parseFloat(parseFloat(lat).toFixed(4));
+                    const longitude = parseFloat(parseFloat(lon).toFixed(4));
+
+                    if (!isNaN(latitude) && !isNaN(longitude)) {
+                        return {latitude, longitude};
+                    }
+                }
+                return null;
+            } catch (e) {
+                console.debug('Failed to load location from localStorage:', e);
+                return null;
+            }
+        }
+
         // Check if we need to get location from HA
         private _checkAndUpdateLocation() {
             // Try to get location from config first
             if (this.latitude !== undefined && this.longitude !== undefined) {
+                // Truncate to 4 decimals before using
+                this.latitude = parseFloat(Number(this.latitude).toFixed(4));
+                this.longitude = parseFloat(Number(this.longitude).toFixed(4));
                 // We have configured coordinates, save them to localStorage for future fallback
                 this._saveLocationToStorage(this.latitude, this.longitude);
                 return;
@@ -840,8 +888,9 @@ const runWhenLitLoaded = () => {
                 const hassLocation = hassConfig.latitude !== undefined && hassConfig.longitude !== undefined;
 
                 if (hassLocation) {
-                    this.latitude = hassConfig.latitude;
-                    this.longitude = hassConfig.longitude;
+                    // Truncate to 4 decimals before using
+                    this.latitude = parseFloat(Number(hassConfig.latitude).toFixed(4));
+                    this.longitude = parseFloat(Number(hassConfig.longitude).toFixed(4));
                     // Save successful HA location to localStorage
                     this._saveLocationToStorage(this.latitude, this.longitude);
                     console.debug(`Using HA location: ${this.latitude}, ${this.longitude}`);
@@ -866,47 +915,13 @@ const runWhenLitLoaded = () => {
             }
         }
 
-        // Save location to localStorage
-        private _saveLocationToStorage(latitude: number | undefined, longitude: number | undefined) {
-            try {
-                // Only save if both values are defined
-                if (latitude !== undefined && longitude !== undefined) {
-                    localStorage.setItem(MeteogramCard.STORAGE_KEY_LAT, latitude.toString());
-                    localStorage.setItem(MeteogramCard.STORAGE_KEY_LON, longitude.toString());
-                }
-            } catch (e) {
-                // Handle potential localStorage errors (e.g., private browsing mode)
-                console.debug('Failed to save location to localStorage:', e);
-            }
-        }
-
-        // Load location from localStorage
-        private _loadLocationFromStorage(): { latitude: number, longitude: number } | null {
-            try {
-                const lat = localStorage.getItem(MeteogramCard.STORAGE_KEY_LAT);
-                const lon = localStorage.getItem(MeteogramCard.STORAGE_KEY_LON);
-
-                if (lat !== null && lon !== null) {
-                    const latitude = parseFloat(lat);
-                    const longitude = parseFloat(lon);
-
-                    if (!isNaN(latitude) && !isNaN(longitude)) {
-                        return {latitude, longitude};
-                    }
-                }
-                return null;
-            } catch (e) {
-                console.debug('Failed to load location from localStorage:', e);
-                return null;
-            }
-        }
 
         // Implement the missing loadD3AndDraw method
         async loadD3AndDraw(): Promise<void> {
             // Check if D3 is already loaded
             if (window.d3) {
                 this.chartLoaded = true;
-                this._drawMeteogram();
+                this._scheduleDrawMeteogram();
                 return;
             }
 
@@ -940,17 +955,13 @@ const runWhenLitLoaded = () => {
                 }
 
                 // Now that D3 is loaded, draw the meteogram
-                await this._drawMeteogram();
+                await this._scheduleDrawMeteogram();
             } catch (error) {
                 console.error('Error loading D3.js:', error);
                 this.setError('Failed to load D3.js visualization library. Please refresh the page.');
             }
         }
 
-        // Helper to get a truncated location key for caching
-        private getLocationKey(lat: number, lon: number): string {
-            return `${lat.toFixed(2)},${lon.toFixed(2)}`;
-        }
 
         // Helper to persist cache to localStorage, indexed by location
         private saveCacheToStorage(lat: number, lon: number) {
@@ -1012,8 +1023,9 @@ const runWhenLitLoaded = () => {
         }
 
         async fetchWeatherData(): Promise<MeteogramData> {
-            const lat = this.latitude !== undefined ? Number(this.latitude) : undefined;
-            const lon = this.longitude !== undefined ? Number(this.longitude) : undefined;
+            // Always truncate to 4 decimals before using
+            const lat = this.latitude !== undefined ? parseFloat(Number(this.latitude).toFixed(4)) : undefined;
+            const lon = this.longitude !== undefined ? parseFloat(Number(this.longitude).toFixed(4)) : undefined;
 
             // Load cache for this location
             if (lat !== undefined && lon !== undefined) {
@@ -1032,8 +1044,8 @@ const runWhenLitLoaded = () => {
             if (!lat || !lon) {
                 this._checkAndUpdateLocation(); // Try harder to get location
 
-                const checkedLat = this.latitude !== undefined ? Number(this.latitude).toFixed(4) : undefined;
-                const checkedLon = this.longitude !== undefined ? Number(this.longitude).toFixed(4) : undefined;
+                const checkedLat = this.latitude !== undefined ? parseFloat(Number(this.latitude).toFixed(4)) : undefined;
+                const checkedLon = this.longitude !== undefined ? parseFloat(Number(this.longitude).toFixed(4)) : undefined;
 
                 if (!checkedLat || !checkedLon) {
                     throw new Error("Could not determine location. Please check your card configuration or Home Assistant settings.");
@@ -1262,6 +1274,8 @@ const runWhenLitLoaded = () => {
         }
 
         async _drawMeteogram() {
+            // Removed stack trace log
+
             // Limit excessive error messages
             const now = Date.now();
             if (this.meteogramError && now - this.lastErrorTime < 60000) {
