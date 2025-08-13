@@ -438,12 +438,18 @@ const runWhenLitLoaded = () => {
 
         // Required for Home Assistant
         public setConfig(config: MeteogramCardConfig): void {
-            const latChanged = config.latitude !== undefined && config.latitude !== this.latitude;
-            const lonChanged = config.longitude !== undefined && config.longitude !== this.longitude;
+            // Truncate to 4 decimals for comparison
+            const configLat = config.latitude !== undefined ? parseFloat(Number(config.latitude).toFixed(4)) : undefined;
+            const configLon = config.longitude !== undefined ? parseFloat(Number(config.longitude).toFixed(4)) : undefined;
+            const currentLat = this.latitude !== undefined ? parseFloat(Number(this.latitude).toFixed(4)) : undefined;
+            const currentLon = this.longitude !== undefined ? parseFloat(Number(this.longitude).toFixed(4)) : undefined;
+
+            const latChanged = configLat !== undefined && configLat !== currentLat;
+            const lonChanged = configLon !== undefined && configLon !== currentLon;
 
             if (config.title) this.title = config.title;
-            if (config.latitude !== undefined) this.latitude = config.latitude;
-            if (config.longitude !== undefined) this.longitude = config.longitude;
+            if (config.latitude !== undefined) this.latitude = configLat;
+            if (config.longitude !== undefined) this.longitude = configLon;
 
             // Set the display options from config, using defaults if not specified
             this.showCloudCover = config.show_cloud_cover !== undefined ? config.show_cloud_cover : true;
@@ -453,15 +459,18 @@ const runWhenLitLoaded = () => {
             this.showWind = config.show_wind !== undefined ? config.show_wind : true;
             this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
 
-            if (latChanged || lonChanged) {
-                MeteogramCard.apiExpiresAt = null;
-                MeteogramCard.cachedWeatherData = null;
-                try {
-                    localStorage.removeItem('meteogram-card-weather-cache');
-                } catch (e) {
-                    // Ignore storage errors
-                }
-            }
+            // if (latChanged || lonChanged) {
+            //     MeteogramCard.apiExpiresAt = null;
+            //     MeteogramCard.cachedWeatherData = null;
+            //     try {
+            //         if (logEnabled) {
+            //             console.log(`[meteogram-card] Location changed: lat=${this.latitude}, lon=${this.longitude}`);
+            //         }
+            //         localStorage.removeItem('meteogram-card-weather-cache');
+            //     } catch (e) {
+            //         // Ignore storage errors
+            //     }
+            // }
         }
 
         // Required for HA visual editor support
@@ -814,15 +823,15 @@ const runWhenLitLoaded = () => {
                 }
             }
 
-            if (changedProps.has('latitude') || changedProps.has('longitude')) {
-                MeteogramCard.apiExpiresAt = null;
-                MeteogramCard.cachedWeatherData = null;
-                try {
-                    localStorage.removeItem('meteogram-card-weather-cache');
-                } catch (e) {
-                    // Ignore storage errors
-                }
-            }
+            // if (changedProps.has('latitude') || changedProps.has('longitude')) {
+            //     MeteogramCard.apiExpiresAt = null;
+            //     MeteogramCard.cachedWeatherData = null;
+            //     try {
+            //         localStorage.removeItem('meteogram-card-weather-cache');
+            //     } catch (e) {
+            //         // Ignore storage errors
+            //     }
+            // }
 
             this._updateDarkMode(); // Always check dark mode after update
         }
@@ -989,11 +998,12 @@ const runWhenLitLoaded = () => {
             }
         }
 
-        // Update loadCacheFromStorage to also load lastModified
+        // Update loadCacheFromStorage to also load lastModified and assign expiresAt
         private loadCacheFromStorage(lat: number, lon: number) {
             try {
                 const key = this.getLocationKey(lat, lon);
                 const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+
                 if (cacheStr) {
                     let cacheObj: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> = {};
                     try {
@@ -1002,8 +1012,11 @@ const runWhenLitLoaded = () => {
                         cacheObj = {};
                     }
                     const entry = cacheObj[key];
+                    if (logEnabled) {
+                        console.log(`[meteogram-card] Attempting to load cache for key: ${key}, entry:`, entry);
+                    }
                     if (entry && entry.expiresAt && entry.data) {
-                        this.apiExpiresAt = entry.expiresAt;
+                        this.apiExpiresAt = entry.expiresAt; // <-- Ensure expiresAt is assigned from cache
                         this.apiLastModified = entry.lastModified || null;
                         if (Array.isArray(entry.data.time)) {
                             entry.data.time = entry.data.time.map((t: string | Date) =>
@@ -1011,7 +1024,11 @@ const runWhenLitLoaded = () => {
                             );
                         }
                         this.cachedWeatherData = entry.data;
+
                     } else {
+                        if (logEnabled) {
+                            console.log(`[meteogram-card] No cache entry found for key: ${key}`);
+                        }
                         this.apiExpiresAt = null;
                         this.apiLastModified = null;
                         this.cachedWeatherData = null;
@@ -1019,6 +1036,7 @@ const runWhenLitLoaded = () => {
                 }
             } catch (e) {
                 // Ignore storage errors
+                console.debug('Failed to load cache from localStorage:', e);
             }
         }
 
@@ -1026,9 +1044,17 @@ const runWhenLitLoaded = () => {
             // Always truncate to 4 decimals before using
             const lat = this.latitude !== undefined ? parseFloat(Number(this.latitude).toFixed(4)) : undefined;
             const lon = this.longitude !== undefined ? parseFloat(Number(this.longitude).toFixed(4)) : undefined;
+            if (logEnabled) {
+                console.log(`[meteogram-card] fetchWeatherData called with lat=${lat}, lon=${lon}`);
+            }
 
             // Load cache for this location
             if (lat !== undefined && lon !== undefined) {
+                // Load cache from localStorage if available
+                if (logEnabled) {
+                    console.log(`[meteogram-card] Attempting to load cache for lat=${lat.toFixed(4)}, lon=${lon.toFixed(4)}`);
+                }
+
                 this.loadCacheFromStorage(lat, lon);
             }
 
@@ -1240,6 +1266,11 @@ const runWhenLitLoaded = () => {
                     }
                     return result;
                 } catch (error: unknown) {
+                    // If there is cached weather data, use it instead of throwing
+                    if (this.cachedWeatherData) {
+                        console.warn('Error fetching weather data, using cached data instead:', error);
+                        return this.cachedWeatherData;
+                    }
                     // Log error and provide more info for troubleshooting
                     console.error('Error fetching weather data:', error);
                     throw new Error(`Failed to get weather data: ${(error as Error).message}\nCheck your network connection, browser console, and API accessibility.`);

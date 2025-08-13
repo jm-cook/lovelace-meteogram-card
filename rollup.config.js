@@ -43,9 +43,15 @@ const litModulesPromise = Promise.all([
     }),
     !dev && terser({
       format: {
-        comments: true // Keep comments to preserve the banner
+        comments: false // Keep comments to preserve the banner
       },
-      ecma: 2020
+      ecma: 2020,
+      compress: true,
+      mangle: {
+        properties: {
+          regex: /^_/,
+        },
+      },
     }),
   ],
   // Add these modules as externals
