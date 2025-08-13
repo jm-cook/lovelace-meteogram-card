@@ -1105,12 +1105,12 @@ const runWhenLitLoaded = () => {
 
             this.weatherDataPromise = (async () => {
                 try {
-                    // Use If-Modified-Since header if we have a Last-Modified value
                     const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
                     const headers: Record<string, string> = {};
-                    if (this.apiLastModified) {
-                        headers['If-Modified-Since'] = this.apiLastModified;
-                    }
+                    // Remove If-Modified-Since header usage
+                    // if (this.apiLastModified) {
+                    //     headers['If-Modified-Since'] = this.apiLastModified;
+                    // }
                     // Add Origin header for identification
                     headers['Origin'] = window.location.origin;
 
