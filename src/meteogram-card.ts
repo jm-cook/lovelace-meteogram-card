@@ -551,6 +551,11 @@ const runWhenLitLoaded = () => {
                 clearTimeout(this._weatherRetryTimeout);
                 this._weatherRetryTimeout = null;
             }
+            // Clear refresh timer if present
+            if (this._weatherRefreshTimeout) {
+                clearTimeout(this._weatherRefreshTimeout);
+                this._weatherRefreshTimeout = null;
+            }
             super.disconnectedCallback();
         }
 
@@ -1089,8 +1094,21 @@ const runWhenLitLoaded = () => {
                 Date.now() < this.apiExpiresAt &&
                 this.cachedWeatherData
             ) {
+                // Schedule a refresh 1 minute after Expires if not already scheduled
+                if (this._weatherRefreshTimeout) {
+                    clearTimeout(this._weatherRefreshTimeout);
+                    this._weatherRefreshTimeout = null;
+                }
+                const msUntilRefresh = this.apiExpiresAt + 60000 - Date.now();
+                if (msUntilRefresh > 0) {
+                    this._weatherRefreshTimeout = window.setTimeout(() => {
+                        this._weatherRefreshTimeout = null;
+                        // Call fetchWeatherData to update the cache
+                        this.fetchWeatherData().catch(() => {});
+                    }, msUntilRefresh);
+                }
                 if (logEnabled) {
-                    console.log(`[meteogram-card] Returning cached weather data (expires at ${expiresStr})`);
+                    console.log(`[meteogram-card] Returning cached weather data (expires at ${expiresStr}), will refresh in ${Math.round(msUntilRefresh/1000)}s`);
                 }
                 return Promise.resolve(this.cachedWeatherData);
             }
