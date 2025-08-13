@@ -546,6 +546,11 @@ const runWhenLitLoaded = () => {
             window.removeEventListener('location-changed', this._onLocationChanged.bind(this));
 
             this.cleanupChart();
+            // Clear retry timer if present
+            if (this._weatherRetryTimeout) {
+                clearTimeout(this._weatherRetryTimeout);
+                this._weatherRetryTimeout = null;
+            }
             super.disconnectedCallback();
         }
 
@@ -1487,25 +1492,25 @@ const runWhenLitLoaded = () => {
 
                         this.renderMeteogram(this.svg, data, width, height);
                         this.hasRendered = true;
-
                         // Reset error tracking on success
                         this.errorCount = 0;
-
+                        // Clear retry timer if successful
+                        if (this._weatherRetryTimeout) {
+                            clearTimeout(this._weatherRetryTimeout);
+                            this._weatherRetryTimeout = null;
+                        }
                         // Ensure observers are setup again
                         this._setupResizeObserver();
                         this._setupVisibilityObserver();
                         this._setupMutationObserver();
-                    }).catch((error: any) => {
-                        // Handle Home Assistant websocket subscription error specifically
-                        if (error && typeof error === "object" && error.message === "Subscription not found.") {
-                            this.setError("Home Assistant subscription not found. This may be a backend or network issue. Try reloading Home Assistant or check your connection.");
-                            return;
-                        }
-                        // Fix: Avoid TypeError if error.message is undefined
-                        const errorMsg = (error && typeof error === "object" && "message" in error && typeof error.message === "string")
-                            ? error.message
-                            : String(error);
-                        this.setError(`Failed to fetch weather data: ${errorMsg}`);
+                    }).catch(() => {
+                        // Show a nice error message and retry in 60 seconds
+                        this.setError("Weather data not available, retrying in 60 seconds");
+                        if (this._weatherRetryTimeout) clearTimeout(this._weatherRetryTimeout);
+                        this._weatherRetryTimeout = window.setTimeout(() => {
+                            this.meteogramError = "";
+                            this._drawMeteogram();
+                        }, 60000);
                     }).finally(() => {
                         this._chartRenderInProgress = false;
                     });
