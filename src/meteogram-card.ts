@@ -2378,64 +2378,33 @@ const runWhenLitLoaded = () => {
         private _initialize() {
             this.render();
             this._initialized = true;
+            setTimeout(() => this._updateValues(), 0); // Wait for DOM to be ready
         }
 
         // Update only the values, not the entire DOM
         private _updateValues() {
             if (!this._initialized) return;
 
-            // Update title field
-            const titleField = this._elements.get('title');
-            if (titleField) {
-                titleField.value = this._config.title || '';
-            }
+            // Helper to update only if value changed
+            const setValue = (el: ConfigurableHTMLElement | undefined, value: any, prop: 'value' | 'checked' = 'value') => {
+                if (!el) return;
+                if (el[prop] !== value) el[prop] = value;
+            };
 
-            // Update latitude field
-            const latField = this._elements.get('latitude');
-            if (latField) {
-                latField.value = this._config.latitude !== undefined ?
-                    String(this._config.latitude) :
-                    (this._hass?.config?.latitude !== undefined ? String(this._hass.config.latitude) : '');
-            }
+            setValue(this._elements.get('title'), this._config.title || '');
+            setValue(this._elements.get('latitude'), this._config.latitude !== undefined
+                ? String(this._config.latitude)
+                : (this._hass?.config?.latitude !== undefined ? String(this._hass.config.latitude) : ''));
+            setValue(this._elements.get('longitude'), this._config.longitude !== undefined
+                ? String(this._config.longitude)
+                : (this._hass?.config?.longitude !== undefined ? String(this._hass.config.longitude) : ''));
 
-            // Update longitude field
-            const lonField = this._elements.get('longitude');
-            if (lonField) {
-                lonField.value = this._config.longitude !== undefined ?
-                    String(this._config.longitude) :
-                    (this._hass?.config?.longitude !== undefined ? String(this._hass.config.longitude) : '');
-            }
-
-            // Update toggle switches
-            const cloudCoverSwitch = this._elements.get('show_cloud_cover');
-            if (cloudCoverSwitch) {
-                cloudCoverSwitch.checked = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
-            }
-
-            const pressureSwitch = this._elements.get('show_pressure');
-            if (pressureSwitch) {
-                pressureSwitch.checked = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
-            }
-
-            const rainSwitch = this._elements.get('show_rain');
-            if (rainSwitch) {
-                rainSwitch.checked = this._config.show_rain !== undefined ? this._config.show_rain : true;
-            }
-
-            const weatherIconsSwitch = this._elements.get('show_weather_icons');
-            if (weatherIconsSwitch) {
-                weatherIconsSwitch.checked = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
-            }
-
-            const windSwitch = this._elements.get('show_wind');
-            if (windSwitch) {
-                windSwitch.checked = this._config.show_wind !== undefined ? this._config.show_wind : true;
-            }
-
-            const denseWeatherIconsSwitch = this._elements.get('dense_weather_icons');
-            if (denseWeatherIconsSwitch) {
-                denseWeatherIconsSwitch.checked = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
-            }
+            setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
+            setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
+            setValue(this._elements.get('show_rain'), this._config.show_rain !== undefined ? this._config.show_rain : true, 'checked');
+            setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
+            setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
+            setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
         }
 
         render() {
