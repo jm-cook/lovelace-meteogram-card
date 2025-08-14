@@ -1600,10 +1600,10 @@ const runWhenLitLoaded = () => {
                 const maxAllowedHeight = Math.min(window.innerHeight * 0.7, 520);
                 const aspectRatioHeight = width * 0.5;
                 const windBarbBand = this.showWind ? 55 : 0;
-                // If wind band is shown, subtract its height; otherwise, use full available height
-                const height = this.showWind
-                    ? Math.min(aspectRatioHeight, availableHeight - windBarbBand, maxAllowedHeight)
-                    : Math.min(aspectRatioHeight, availableHeight, maxAllowedHeight);
+                // Always reserve space for hour labels (24px) at the bottom
+                const hourLabelBand = 24;
+                // If wind is shown, reserve space for windBarbBand, otherwise use all available height for chart + hour labels
+                const height = Math.min(aspectRatioHeight, availableHeight, maxAllowedHeight);
 
                 // Store dimensions for resize detection
                 this._lastWidth = availableWidth;
@@ -1626,10 +1626,18 @@ const runWhenLitLoaded = () => {
                             .append("svg")
                             .attr("width", "100%")
                             .attr("height", "100%")
-                            .attr("viewBox", `0 0 ${width + 140} ${height + 160}`)
+                            // The SVG canvas height includes chart area, wind band (if shown), and hour labels
+                            .attr("viewBox", `0 0 ${width + 140} ${height + (this.showWind ? windBarbBand : 0) + hourLabelBand + 70}`)
                             .attr("preserveAspectRatio", "xMidYMid meet");
 
-                        this.renderMeteogram(this.svg, data, width, height);
+                        this.renderMeteogram(
+                            this.svg,
+                            data,
+                            width,
+                            height,
+                            windBarbBand,
+                            hourLabelBand
+                        );
                         this.hasRendered = true;
                         // Reset error tracking on success
                         this.errorCount = 0;
@@ -1662,7 +1670,15 @@ const runWhenLitLoaded = () => {
             }
         }
 
-        renderMeteogram(svg: any, data: MeteogramData, width: number, height: number): void {
+        // Add windBarbBand and hourLabelBand as arguments so chartHeight calculation can be correct
+        renderMeteogram(
+            svg: any,
+            data: MeteogramData,
+            width: number,
+            height: number,
+            windBarbBand: number = 0,
+            hourLabelBand: number = 24
+        ): void {
             const d3 = window.d3;
             const {
                 time,
@@ -1680,11 +1696,10 @@ const runWhenLitLoaded = () => {
             const N = time.length;
 
             // SVG and chart parameters
-            const windBarbBand = this.showWind ? 55 : 0;
-            const bottomHourBand = this.showWind ? 8 : 0;
-            const margin = {top: 70, right: 70, bottom: bottomHourBand + 10, left: 70};
+            // Always reserve space for hour labels (24px) at the bottom
+            const margin = {top: 70, right: 70, bottom: hourLabelBand + 10, left: 70};
             const chartWidth = width;
-            const chartHeight = height;
+            const chartHeight = height - windBarbBand;
 
             // Adjust dx for wider charts - ensure elements don't get too stretched or squished
             let dx = chartWidth / (N - 1);
@@ -2163,10 +2178,10 @@ const runWhenLitLoaded = () => {
                     .attr("fill", "none");
             }
 
-            // Bottom hour labels - adjust frequency based on width
+            // Bottom hour labels - always placed at the bottom of the SVG canvas
             const hourLabelY = margin.top + chartHeight + windBarbBand + 18;
             svg.selectAll(".bottom-hour-label")
-                .data(time)
+                .data(data.time)
                 .enter()
                 .append("text")
                 .attr("class", "bottom-hour-label")
