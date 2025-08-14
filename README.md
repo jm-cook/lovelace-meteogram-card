@@ -11,7 +11,7 @@ A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API
 
 ## Features
 
-- 48-hour weather forecast visualization
+- Full weather forecast visualization
 - Temperature curve with weather icons
 - Precipitation display (rain/snow) with probability indicators
 - Cloud coverage visualization
@@ -43,22 +43,82 @@ show_cloud_cover: true
 show_pressure: true
 show_weather_icons: true
 show_wind: true
-dense_weather_icons: false
+show_rain: true
 ```
 
-## Configuration Options
+## Features in detail
 
-| Name                 | Type    | Default | Description                                 |
-|----------------------|---------|---------|---------------------------------------------|
-| title                | string  |         | Optional title for the card                 |
-| latitude             | number  | HA's default | Latitude for weather data              |
-| longitude            | number  | HA's default | Longitude for weather data             |
-| show_cloud_cover     | boolean | true    | Show/hide cloud cover visualization         |
-| show_pressure        | boolean | true    | Show/hide pressure curve                    |
-| show_weather_icons   | boolean | true    | Show/hide weather icons                     |
-| show_wind            | boolean | true    | Show/hide wind barbs section                |
-| dense_weather_icons  | boolean | false   | Show weather icons in a denser layout       |
-- `meteogram_length`: (optional) Length of the meteogram to display. Options: `8h`, `12h`, `24h`, `max`. Default: `24h`
+The meteogram retrieves weather data from the Met.no API and displays it in a visually appealing format. 
+
+### Graphical elements
+- **Temperature Curve**  
+  Displays temperature over the next specified period with weather icons for each hour.
+- **Precipitation Visualization**  
+  Shows rain and snow probability with bars indicating expected precipitation.
+- **Cloud Coverage**  
+  Visualizes cloud cover as a shaded area on the chart.
+- **Wind Barbs**  
+  Displays wind speed and direction using professional-style wind barbs.
+- **Barometric Pressure**  
+  Shows the pressure trend over the next 48 hours with an optional right-side axis.
+
+### Customizable Options
+  Configure various display options like cloud cover, pressure, weather icons, wind, and rain.
+- **Meteogram Length**  
+  Configurable length of the meteogram (8, 12, 24, 48 hours, or "max" for full available data).
+- **Weather Icons Density**  
+  Choose between dense (every hour) or sparse (every 2 hours) weather icons.
+- **Title**  
+  Optional title for the card, displayed at the top.
+
+### Functionality
+- **Dynamic Location**  
+  Automatically uses Home Assistant's configured location or specified coordinates.
+- **Responsive Design**  
+  Automatically resizes to fit the card/container, ensuring a good layout on both wide and narrow screens.
+- **Error Handling**  
+  User-friendly error messages for network issues, API errors, and CORS problems.
+- **Dark Mode Support**  
+  Optimized for Home Assistant's dark mode with improved color contrast.
+- **Visual Editor Support**  
+  Fully compatible with Home Assistant's visual editor for easy configuration.
+- **Caching**  
+  Caches weather data per location to reduce API calls and improve performance. Uses an aggressive caching strategy to ensure compliance with Terms and Conditions for the MET API service.
+- **Location Handling**  
+  Uses configured coordinates, Home Assistant's location, or falls back to a default location (London).
+
+
+## Options
+
+| Name | Type | Default | Description |
+| ---- | ---- | ------- | ----------- |
+| title | string | | Optional title for the card |
+| latitude | string | HA's default | Latitude for weather data |
+| longitude | string | HA's default | Longitude for weather data |
+| show_cloud_cover | boolean | true | Show/hide cloud cover visualization |
+| show_pressure | boolean | true | Show/hide pressure curve |
+| show_weather_icons | boolean | true | Show/hide weather icons |
+| show_wind | boolean | true | Show/hide wind barbs section |
+| show_rain | boolean | true | Show/hide precipitation visualization |
+| meteogram_length | string | 48h | Number of hours to display in the meteogram (`12h`, `24h`, `48h`, `54h`, or `max`) |
+
+### meteogram_length
+
+The `meteogram_length` option allows you to specify the number of hours to display in the meteogram.  
+Accepted values: **12h**, **24h**, **48h**, **54h**, or **max** (as provided by the Met.no location forecast).  
+If not set, the default value is **48h**.
+
+**Example:**
+```yaml
+type: 'custom:ha-meteogram-card'
+meteogram_length: 24h  # Shows 24 hours in the meteogram
+```
+
+**Example (max available):**
+```yaml
+type: 'custom:ha-meteogram-card'
+meteogram_length: max  # Shows the maximum available hours from Met.no
+```
 
 ## Weather Data
 
