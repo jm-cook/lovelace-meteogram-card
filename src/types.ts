@@ -9,6 +9,7 @@ export interface MeteogramCardConfig {
     show_weather_icons?: boolean;
     show_wind?: boolean;
     dense_weather_icons?: boolean; // Add this line
+    meteogram_hours?: string; // Add this line for meteogram length selection
 }
 
 export interface MeteogramData {

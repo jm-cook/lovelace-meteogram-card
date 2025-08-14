@@ -149,6 +149,7 @@ const runWhenLitLoaded = () => {
         @property({type: Boolean}) showWeatherIcons = true;
         @property({type: Boolean}) showWind = true;
         @property({type: Boolean}) denseWeatherIcons = true; // NEW: icon density config
+        @property({type: String}) meteogramHours: string = "48h"; // Default is now 48h
 
         @state() private chartLoaded = false;
         @state() private meteogramError = "";
@@ -503,6 +504,7 @@ const runWhenLitLoaded = () => {
             this.showWeatherIcons = config.show_weather_icons !== undefined ? config.show_weather_icons : true;
             this.showWind = config.show_wind !== undefined ? config.show_wind : true;
             this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
+            this.meteogramHours = config.meteogram_hours || "48h";
 
             // if (latChanged || lonChanged) {
             //     MeteogramCard.apiExpiresAt = null;
@@ -529,7 +531,8 @@ const runWhenLitLoaded = () => {
                 show_rain: true,
                 show_weather_icons: true,
                 show_wind: true,
-                dense_weather_icons: true
+                dense_weather_icons: true,
+                meteogram_hours: "48h"
             });
             return editor;
         }
@@ -543,7 +546,8 @@ const runWhenLitLoaded = () => {
                 show_rain: true,
                 show_weather_icons: true,
                 show_wind: true,
-                dense_weather_icons: true
+                dense_weather_icons: true,
+                meteogram_hours: "48h"
                 // Coordinates will be fetched from HA configuration
             };
         }
@@ -849,6 +853,7 @@ const runWhenLitLoaded = () => {
                 changedProps.has('showWeatherIcons') ||
                 changedProps.has('showWind') ||
                 changedProps.has('denseWeatherIcons') ||
+                changedProps.has('meteogramHours') ||
                 !this.hasRendered;
 
             if (this.chartLoaded && needsRedraw) {
@@ -1329,27 +1334,29 @@ const runWhenLitLoaded = () => {
 
                     // Process forecast data
                     const timeseries = data.properties.timeseries;
-                    const now = new Date();
-                    const timePlus48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+                    // --- REMOVE 48h restriction ---
+                    // const now = new Date();
+                    // const timePlus48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
-                    // Filter timeseries to get data for the next 48 hours, keep hourly resolution
+                    // Filter timeseries to get all available hourly data
                     const filtered = timeseries.filter((item: any) => {
                         const time = new Date(item.time);
-                        return time >= now && time <= timePlus48h && time.getMinutes() === 0;
+                        // Only keep hourly data (minute == 0)
+                        return time.getMinutes() === 0;
                     });
 
                     const result: MeteogramData = {
                         time: [],
                         temperature: [],
                         rain: [],
-                        rainMin: [], // Initialize min precipitation array
-                        rainMax: [], // Initialize max precipitation array
+                        rainMin: [],
+                        rainMax: [],
                         snow: [],
                         cloudCover: [],
                         windSpeed: [],
                         windDirection: [],
                         symbolCode: [],
-                        pressure: [] // Initialize the pressure array
+                        pressure: []
                     };
 
                     filtered.forEach((item: any) => {
@@ -1405,6 +1412,22 @@ const runWhenLitLoaded = () => {
                     if (lat !== undefined && lon !== undefined) {
                         this.saveCacheToStorage(lat, lon);
                     }
+
+                    // Filter result by meteogramHours
+                    let hours = 48;
+                    if (this.meteogramHours === "8h") hours = 8;
+                    else if (this.meteogramHours === "12h") hours = 12;
+                    else if (this.meteogramHours === "24h") hours = 24;
+                    else if (this.meteogramHours === "48h") hours = 48;
+                    else if (this.meteogramHours === "max") hours = result.time.length;
+
+                    // Only keep the first N hours
+                    if (hours < result.time.length) {
+                        Object.keys(result).forEach((key) => {
+                            (result as any)[key] = (result as any)[key].slice(0, hours);
+                        });
+                    }
+
                     return result;
                 } catch (error: unknown) {
                     // If there is cached weather data, use it instead of throwing
@@ -1467,7 +1490,7 @@ const runWhenLitLoaded = () => {
             }
 
             // Create a fingerprint of current location and display settings
-            const settingsFingerprint = `${this.latitude},${this.longitude},${this.showCloudCover},${this.showPressure},${this.showWeatherIcons},${this.showWind}`;
+            const settingsFingerprint = `${this.latitude},${this.longitude},${this.showCloudCover},${this.showPressure},${this.showWeatherIcons},${this.showWind},${this.meteogramHours}`;
 
             // If nothing has changed and we already have a rendered chart, don't redraw
             if (this._lastRenderedData === settingsFingerprint && this.svg && this.chartLoaded) {
@@ -1626,13 +1649,43 @@ const runWhenLitLoaded = () => {
                             .append("svg")
                             .attr("width", "100%")
                             .attr("height", "100%")
-                            // The SVG canvas height includes chart area, wind band (if shown), and hour labels
                             .attr("viewBox", `0 0 ${width + 140} ${height + (this.showWind ? windBarbBand : 0) + hourLabelBand + 70}`)
                             .attr("preserveAspectRatio", "xMidYMid meet");
 
+                        // --- CHANGED: Calculate chartWidth based on number of hours ---
+                        // Cap the chart width to only what's needed for the data
+                        const maxHourSpacing = 90;
+                        const chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (data.time.length - 1)));
+                        // -------------------------------------------------------------
+
+                        // Determine how many hours to show
+                        let hours = 48;
+                        if (this.meteogramHours === "8h") hours = 8;
+                        else if (this.meteogramHours === "12h") hours = 12;
+                        else if (this.meteogramHours === "24h") hours = 24;
+                        else if (this.meteogramHours === "48h") hours = 48;
+                        else if (this.meteogramHours === "max") hours = data.time.length;
+
+                        // Slice all data arrays to the selected range
+                        // To show N intervals (hours), you need N+1 data points
+                        const sliceData = <T>(arr: T[]) => arr.slice(0, Math.min(hours, arr.length) + 1);
+                        const slicedData: MeteogramData = {
+                            time: sliceData(data.time),
+                            temperature: sliceData(data.temperature),
+                            rain: sliceData(data.rain),
+                            rainMin: sliceData(data.rainMin),
+                            rainMax: sliceData(data.rainMax),
+                            snow: sliceData(data.snow),
+                            cloudCover: sliceData(data.cloudCover),
+                            windSpeed: sliceData(data.windSpeed),
+                            windDirection: sliceData(data.windDirection),
+                            symbolCode: sliceData(data.symbolCode),
+                            pressure: sliceData(data.pressure)
+                        };
+
                         this.renderMeteogram(
                             this.svg,
-                            data,
+                            slicedData, // <-- use sliced data here
                             width,
                             height,
                             windBarbBand,
@@ -1698,18 +1751,24 @@ const runWhenLitLoaded = () => {
             // SVG and chart parameters
             // Always reserve space for hour labels (24px) at the bottom
             const margin = {top: 70, right: 70, bottom: hourLabelBand + 10, left: 70};
-            const chartWidth = width;
+
+            // --- CHANGED: Calculate chartWidth based on number of hours ---
+            // Cap the chart width to only what's needed for the data
+            const maxHourSpacing = 90;
+            const chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
+            // -------------------------------------------------------------
+
             const chartHeight = height - windBarbBand;
 
             // Adjust dx for wider charts - ensure elements don't get too stretched or squished
             let dx = chartWidth / (N - 1);
             // If the chart is very wide, adjust spacing so elements don't get too stretched
-            const hourSpacing = Math.min(dx, 45); // Cap the hour spacing at 45px
+            const hourSpacing = Math.min(dx, maxHourSpacing); // Cap the hour spacing at 45px
 
             // X scale - for wider charts, maintain reasonable hour spacing
             const x = d3.scaleLinear()
                 .domain([0, N - 1])
-                .range([0, Math.min(hourSpacing * (N - 1), chartWidth)]);
+                .range([0, chartWidth]);
 
             // Adjust the actual dx to what's being used by the scale
             dx = x(1) - x(0);
@@ -2405,6 +2464,7 @@ const runWhenLitLoaded = () => {
             setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
             setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
             setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
+            setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
         }
 
         render() {
@@ -2419,6 +2479,7 @@ const runWhenLitLoaded = () => {
             const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
             const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
             const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
+            const meteogramHours = this._config.meteogram_hours || "48h";
 
             const div = document.createElement('div');
             div.innerHTML = `
@@ -2481,7 +2542,6 @@ const runWhenLitLoaded = () => {
   </style>
   <ha-card>
     <h3>Meteogram Card Settings</h3>
-
     <div class="values">
       <div class="row">
         <ha-textfield
@@ -2568,6 +2628,18 @@ const runWhenLitLoaded = () => {
           ></ha-switch>
         </div>
       </div>
+
+      <div class="row">
+        <label for="meteogram-hours-select" style="margin-right:8px;">Meteogram Length</label>
+        <select id="meteogram-hours-select">
+          <option value="8h" ${meteogramHours === "8h" ? "selected" : ""}>8 hours</option>
+          <option value="12h" ${meteogramHours === "12h" ? "selected" : ""}>12 hours</option>
+          <option value="24h" ${meteogramHours === "24h" ? "selected" : ""}>24 hours</option>
+          <option value="48h" ${meteogramHours === "48h" ? "selected" : ""}>48 hours</option>
+          <option value="max" ${meteogramHours === "max" ? "selected" : ""}>Max available</option>
+        </select>
+      </div>
+      <p class="help-text">Choose how many hours to show in the meteogram</p>
     </div>
   </ha-card>
 `;
@@ -2643,6 +2715,13 @@ const runWhenLitLoaded = () => {
                     denseWeatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
                     this._elements.set('dense_weather_icons', denseWeatherIconsSwitch);
                 }
+
+                const meteogramHoursSelect = this.querySelector('#meteogram-hours-select') as ConfigurableHTMLElement;
+                if (meteogramHoursSelect) {
+                    meteogramHoursSelect.configValue = 'meteogram_hours';
+                    meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
+                    this._elements.set('meteogram_hours', meteogramHoursSelect);
+                }
             }, 0);
         }
 
@@ -2688,7 +2767,7 @@ const runWhenLitLoaded = () => {
     (window as any).customCards.push({
         type: "meteogram-card",
         name: CARD_NAME,
-        description: "A custom card showing a 48-hour meteogram with wind barbs.",
+        description: "A custom card showing a meteogram with wind barbs.",
         version: version
     });
 }

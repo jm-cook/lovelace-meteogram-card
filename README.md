@@ -46,7 +46,7 @@ show_wind: true
 dense_weather_icons: false
 ```
 
-## Options
+## Configuration Options
 
 | Name                 | Type    | Default | Description                                 |
 |----------------------|---------|---------|---------------------------------------------|
@@ -58,6 +58,7 @@ dense_weather_icons: false
 | show_weather_icons   | boolean | true    | Show/hide weather icons                     |
 | show_wind            | boolean | true    | Show/hide wind barbs section                |
 | dense_weather_icons  | boolean | false   | Show weather icons in a denser layout       |
+- `meteogram_length`: (optional) Length of the meteogram to display. Options: `8h`, `12h`, `24h`, `max`. Default: `24h`
 
 ## Weather Data
 
