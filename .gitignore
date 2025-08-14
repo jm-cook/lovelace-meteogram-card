@@ -1,5 +1,5 @@
 # Build and distribution
-# /dist
+/dist
 /build
 
 # Dependencies
@@ -27,5 +27,3 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 
-# Don't ignore dist directory for HACS compatibility
-# /dist

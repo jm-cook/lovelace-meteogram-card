@@ -47,15 +47,30 @@ const printVersionInfo = () => {
 // Clean up expired cached forecasts on startup
 const cleanupExpiredForecastCache = () => {
     try {
+        // Remove old location keys if present
+        localStorage.removeItem('meteogram-card-latitude');
+        localStorage.removeItem('meteogram-card-longitude');
+
         const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
         if (!cacheStr) return;
         const cacheObj = JSON.parse(cacheStr);
         let changed = false;
         const now = Date.now();
-        for (const key in cacheObj) {
-            if (cacheObj[key]?.expiresAt && now >= cacheObj[key].expiresAt) {
-                delete cacheObj[key];
-                changed = true;
+        if (cacheObj["forecast-data"]) {
+            // Remove expired keys
+            for (const key in cacheObj["forecast-data"]) {
+                const entry = cacheObj["forecast-data"][key];
+                // Remove if expired or not actively used (i.e., not an object with 'expiresAt' and 'data')
+                if (
+                    !entry ||
+                    typeof entry !== "object" ||
+                    !("expiresAt" in entry) ||
+                    !("data" in entry) ||
+                    (entry.expiresAt && now >= entry.expiresAt)
+                ) {
+                    delete cacheObj["forecast-data"][key];
+                    changed = true;
+                }
             }
         }
         if (changed) {
@@ -126,8 +141,8 @@ const runWhenLitLoaded = () => {
         @state() private lastErrorTime = 0;
 
         // Add storage keys for location caching
-        private static readonly STORAGE_KEY_LAT = 'meteogram-card-latitude';
-        private static readonly STORAGE_KEY_LON = 'meteogram-card-longitude';
+        // private static readonly STORAGE_KEY_LAT = 'meteogram-card-latitude';
+        // private static readonly STORAGE_KEY_LON = 'meteogram-card-longitude';
 
         private iconCache = new Map<string, string>();
         private iconBasePath = 'https://raw.githubusercontent.com/metno/weathericons/refs/heads/main/weather/svg/';
@@ -846,40 +861,60 @@ const runWhenLitLoaded = () => {
             this._updateDarkMode(); // Always check dark mode after update
         }
 
-        // Helper to get a truncated location key for caching
-        private getLocationKey(lat: number, lon: number): string {
-            // Always use 4 decimals for both lat and lon
-            return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+        // Helper to encode cache key as base64 of str(lat)+str(lon)
+        private static encodeCacheKey(lat: number, lon: number): string {
+            const keyStr = String(lat) + String(lon);
+            // btoa works for ASCII; for full Unicode use a more robust encoder if needed
+            return btoa(keyStr);
         }
 
-        // Save location to localStorage
+        // Helper to get a truncated location key for caching (now uses base64)
+        private getLocationKey(lat: number, lon: number): string {
+            // Always use 4 decimals for both lat and lon
+            return MeteogramCard.encodeCacheKey(Number(lat.toFixed(4)), Number(lon.toFixed(4)));
+        }
+
+        // Save location to localStorage under "default-location" in "meteogram-card-weather-cache"
         private _saveLocationToStorage(latitude: number | undefined, longitude: number | undefined) {
             try {
-                // Only save if both values are defined
                 if (latitude !== undefined && longitude !== undefined) {
-                    // Truncate to 4 decimals before saving
-                    localStorage.setItem(MeteogramCard.STORAGE_KEY_LAT, parseFloat(latitude.toFixed(4)).toString());
-                    localStorage.setItem(MeteogramCard.STORAGE_KEY_LON, parseFloat(longitude.toFixed(4)).toString());
+                    const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                    let cacheObj: { ["forecast-data"]?: any, ["default-location"]?: { latitude: number, longitude: number } } = {};
+                    if (cacheStr) {
+                        try {
+                            cacheObj = JSON.parse(cacheStr);
+                        } catch {
+                            cacheObj = {};
+                        }
+                    }
+                    cacheObj["default-location"] = {
+                        latitude: parseFloat(latitude.toFixed(4)),
+                        longitude: parseFloat(longitude.toFixed(4))
+                    };
+                    localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
                 }
             } catch (e) {
-                // Handle potential localStorage errors (e.g., private browsing mode)
                 console.debug('Failed to save location to localStorage:', e);
             }
         }
 
-        // Load location from localStorage
+        // Load location from localStorage under "default-location" in "meteogram-card-weather-cache"
         private _loadLocationFromStorage(): { latitude: number, longitude: number } | null {
             try {
-                const lat = localStorage.getItem(MeteogramCard.STORAGE_KEY_LAT);
-                const lon = localStorage.getItem(MeteogramCard.STORAGE_KEY_LON);
-
-                if (lat !== null && lon !== null) {
-                    // Parse and truncate to 4 decimals
-                    const latitude = parseFloat(parseFloat(lat).toFixed(4));
-                    const longitude = parseFloat(parseFloat(lon).toFixed(4));
-
-                    if (!isNaN(latitude) && !isNaN(longitude)) {
-                        return {latitude, longitude};
+                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                if (cacheStr) {
+                    let cacheObj: { ["forecast-data"]?: any, ["default-location"]?: { latitude: number, longitude: number } } = {};
+                    try {
+                        cacheObj = JSON.parse(cacheStr);
+                    } catch {
+                        cacheObj = {};
+                    }
+                    if (cacheObj["default-location"]) {
+                        const latitude = parseFloat(Number(cacheObj["default-location"].latitude).toFixed(4));
+                        const longitude = parseFloat(Number(cacheObj["default-location"].longitude).toFixed(4));
+                        if (!isNaN(latitude) && !isNaN(longitude)) {
+                            return { latitude, longitude };
+                        }
                     }
                 }
                 return null;
@@ -987,7 +1022,7 @@ const runWhenLitLoaded = () => {
             try {
                 if (this.cachedWeatherData && this.apiExpiresAt) {
                     const key = this.getLocationKey(lat, lon);
-                    let cacheObj: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> = {};
+                    let cacheObj: { ["forecast-data"]?: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> } = {};
                     const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
                     if (cacheStr) {
                         try {
@@ -996,7 +1031,8 @@ const runWhenLitLoaded = () => {
                             cacheObj = {};
                         }
                     }
-                    cacheObj[key] = {
+                    if (!cacheObj["forecast-data"]) cacheObj["forecast-data"] = {};
+                    cacheObj["forecast-data"][key] = {
                         expiresAt: this.apiExpiresAt,
                         lastModified: this.apiLastModified || undefined,
                         data: this.cachedWeatherData
@@ -1015,18 +1051,18 @@ const runWhenLitLoaded = () => {
                 const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
 
                 if (cacheStr) {
-                    let cacheObj: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> = {};
+                    let cacheObj: { ["forecast-data"]?: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> } = {};
                     try {
                         cacheObj = JSON.parse(cacheStr);
                     } catch {
                         cacheObj = {};
                     }
-                    const entry = cacheObj[key];
+                    const entry = cacheObj["forecast-data"]?.[key];
                     if (logEnabled) {
                         console.log(`[meteogram-card] Attempting to load cache for key: ${key}, entry:`, entry);
                     }
                     if (entry && entry.expiresAt && entry.data) {
-                        this.apiExpiresAt = entry.expiresAt; // <-- Ensure expiresAt is assigned from cache
+                        this.apiExpiresAt = entry.expiresAt;
                         this.apiLastModified = entry.lastModified || null;
                         if (Array.isArray(entry.data.time)) {
                             entry.data.time = entry.data.time.map((t: string | Date) =>
