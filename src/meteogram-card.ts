@@ -274,6 +274,7 @@ const runWhenLitLoaded = () => {
             }
 
             .card-content {
+                position: relative;
                 flex: 1 1 auto;
                 display: flex;
                 flex-direction: column;
@@ -463,6 +464,20 @@ const runWhenLitLoaded = () => {
 
             .wind-band-bg {
                 fill: transparent;
+            }
+
+            .attribution {
+                position: absolute;
+                top: 12px;
+                right: 24px;
+                font-size: 0.85em;
+                color: var(--secondary-text-color);
+                text-align: right;
+                z-index: 2;
+                background: rgba(255,255,255,0.7);
+                padding: 2px 8px;
+                border-radius: 6px;
+                pointer-events: auto;
             }
         `;
 
@@ -1579,13 +1594,16 @@ const runWhenLitLoaded = () => {
                 const availableWidth = parent ? parent.clientWidth : (chartDiv as HTMLElement).offsetWidth || 350;
                 const availableHeight = parent ? parent.clientHeight : (chartDiv as HTMLElement).offsetHeight || 180;
 
-                // Better horizontal stretching - use most of available width up to a reasonable maximum
-                const maxAllowedWidth = Math.min(window.innerWidth * 0.95, 1200); // Increased from 800 to 1200
+                const maxAllowedWidth = Math.min(window.innerWidth * 0.95, 1200);
                 const width = Math.max(Math.min(availableWidth, maxAllowedWidth), 300);
 
                 const maxAllowedHeight = Math.min(window.innerHeight * 0.7, 520);
-                const aspectRatioHeight = width * 0.5; // Slightly reduced aspect ratio (from 0.6 to 0.5) for wider displays
-                const height = Math.min(aspectRatioHeight, availableHeight, maxAllowedHeight);
+                const aspectRatioHeight = width * 0.5;
+                const windBarbBand = this.showWind ? 55 : 0;
+                // If wind band is shown, subtract its height; otherwise, use full available height
+                const height = this.showWind
+                    ? Math.min(aspectRatioHeight, availableHeight - windBarbBand, maxAllowedHeight)
+                    : Math.min(aspectRatioHeight, availableHeight, maxAllowedHeight);
 
                 // Store dimensions for resize detection
                 this._lastWidth = availableWidth;
@@ -1662,8 +1680,8 @@ const runWhenLitLoaded = () => {
             const N = time.length;
 
             // SVG and chart parameters
-            const windBarbBand = this.showWind ? 55 : 0; // Only allocate space for wind barbs if they're enabled
-            const bottomHourBand = 24;
+            const windBarbBand = this.showWind ? 55 : 0;
+            const bottomHourBand = this.showWind ? 8 : 0;
             const margin = {top: 70, right: 70, bottom: bottomHourBand + 10, left: 70};
             const chartWidth = width;
             const chartHeight = height;
@@ -2228,14 +2246,14 @@ const runWhenLitLoaded = () => {
                     ${this.title ? html`
                         <div class="card-header">${this.title}</div>` : ""}
                     <div class="card-content">
+                        <div class="attribution">
+                            Data from <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
+                        </div>
                         ${this.meteogramError
                                 ? html`
                                     <div class="error">${this.meteogramError}</div>`
                                 : html`
                                     <div id="chart"></div>`}
-                    </div>
-                    <div style="font-size: 0.85em; color: var(--secondary-text-color); text-align: right; padding: 0 16px 8px 0;">
-                        Data from <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
                     </div>
                 </ha-card>
             `;
