@@ -1419,6 +1419,7 @@ const runWhenLitLoaded = () => {
                     else if (this.meteogramHours === "12h") hours = 12;
                     else if (this.meteogramHours === "24h") hours = 24;
                     else if (this.meteogramHours === "48h") hours = 48;
+                    else if (this.meteogramHours === "54h") hours = 54; // Added 54h option
                     else if (this.meteogramHours === "max") hours = result.time.length;
 
                     // Only keep the first N hours
@@ -1664,6 +1665,7 @@ const runWhenLitLoaded = () => {
                         else if (this.meteogramHours === "12h") hours = 12;
                         else if (this.meteogramHours === "24h") hours = 24;
                         else if (this.meteogramHours === "48h") hours = 48;
+                        else if (this.meteogramHours === "54h") hours = 54; // Added 54h option
                         else if (this.meteogramHours === "max") hours = data.time.length;
 
                         // Slice all data arrays to the selected range
@@ -2636,6 +2638,7 @@ const runWhenLitLoaded = () => {
           <option value="12h" ${meteogramHours === "12h" ? "selected" : ""}>12 hours</option>
           <option value="24h" ${meteogramHours === "24h" ? "selected" : ""}>24 hours</option>
           <option value="48h" ${meteogramHours === "48h" ? "selected" : ""}>48 hours</option>
+          <option value="54h" ${meteogramHours === "54h" ? "selected" : ""}>54 hours</option>
           <option value="max" ${meteogramHours === "max" ? "selected" : ""}>Max available</option>
         </select>
       </div>
