@@ -56,11 +56,22 @@ const cleanupExpiredForecastCache = () => {
         const cacheObj = JSON.parse(cacheStr);
         let changed = false;
         const now = Date.now();
+
+        // Remove any top-level keys except "default-location" and "forecast-data"
+        for (const key of Object.keys(cacheObj)) {
+            if (key !== "default-location" && key !== "forecast-data") {
+                delete cacheObj[key];
+                if (logEnabled) {
+                    console.log(`[${CARD_NAME}] Removed unused cache key: ${key}`);
+                }
+                changed = true;
+            }
+        }
+
         if (cacheObj["forecast-data"]) {
-            // Remove expired keys
+            // Remove expired keys and any not actively used
             for (const key in cacheObj["forecast-data"]) {
                 const entry = cacheObj["forecast-data"][key];
-                // Remove if expired or not actively used (i.e., not an object with 'expiresAt' and 'data')
                 if (
                     !entry ||
                     typeof entry !== "object" ||
@@ -74,8 +85,12 @@ const cleanupExpiredForecastCache = () => {
             }
         }
         if (changed) {
+            if (logEnabled) {
+                console.log(`[${CARD_NAME}] Cleaned up expired forecast cache. cacheObj:`, cacheObj);
+            }
             localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
         }
+
     } catch (e) {
         // Ignore storage errors
     }
@@ -898,6 +913,28 @@ const runWhenLitLoaded = () => {
             }
         }
 
+        // Save HA location to localStorage under "default-location" in "meteogram-card-weather-cache"
+        private _saveDefaultLocationToStorage(latitude: number, longitude: number) {
+            try {
+                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                let cacheObj: { ["forecast-data"]?: any, ["default-location"]?: { latitude: number, longitude: number } } = {};
+                if (cacheStr) {
+                    try {
+                        cacheObj = JSON.parse(cacheStr);
+                    } catch {
+                        cacheObj = {};
+                    }
+                }
+                cacheObj["default-location"] = {
+                    latitude: parseFloat(latitude.toFixed(4)),
+                    longitude: parseFloat(longitude.toFixed(4))
+                };
+                localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
+            } catch (e) {
+                console.debug('Failed to save default location to localStorage:', e);
+            }
+        }
+
         // Load location from localStorage under "default-location" in "meteogram-card-weather-cache"
         private _loadLocationFromStorage(): { latitude: number, longitude: number } | null {
             try {
@@ -924,6 +961,32 @@ const runWhenLitLoaded = () => {
             }
         }
 
+        // Load location from localStorage under "default-location" in "meteogram-card-weather-cache"
+        private _loadDefaultLocationFromStorage(): { latitude: number, longitude: number } | null {
+            try {
+                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                if (cacheStr) {
+                    let cacheObj: { ["forecast-data"]?: any, ["default-location"]?: { latitude: number, longitude: number } } = {};
+                    try {
+                        cacheObj = JSON.parse(cacheStr);
+                    } catch {
+                        cacheObj = {};
+                    }
+                    if (cacheObj["default-location"]) {
+                        const latitude = parseFloat(Number(cacheObj["default-location"].latitude).toFixed(4));
+                        const longitude = parseFloat(Number(cacheObj["default-location"].longitude).toFixed(4));
+                        if (!isNaN(latitude) && !isNaN(longitude)) {
+                            return { latitude, longitude };
+                        }
+                    }
+                }
+                return null;
+            } catch (e) {
+                console.debug('Failed to load default location from localStorage:', e);
+                return null;
+            }
+        }
+
         // Check if we need to get location from HA
         private _checkAndUpdateLocation() {
             // Try to get location from config first
@@ -931,8 +994,7 @@ const runWhenLitLoaded = () => {
                 // Truncate to 4 decimals before using
                 this.latitude = parseFloat(Number(this.latitude).toFixed(4));
                 this.longitude = parseFloat(Number(this.longitude).toFixed(4));
-                // We have configured coordinates, save them to localStorage for future fallback
-                this._saveLocationToStorage(this.latitude, this.longitude);
+                // Do NOT update default-location here
                 return;
             }
 
@@ -943,22 +1005,31 @@ const runWhenLitLoaded = () => {
 
                 if (hassLocation) {
                     // Truncate to 4 decimals before using
-                    this.latitude = parseFloat(Number(hassConfig.latitude).toFixed(4));
-                    this.longitude = parseFloat(Number(hassConfig.longitude).toFixed(4));
-                    // Save successful HA location to localStorage
-                    this._saveLocationToStorage(this.latitude, this.longitude);
+                    const haLat = parseFloat(Number(hassConfig.latitude).toFixed(4));
+                    const haLon = parseFloat(Number(hassConfig.longitude).toFixed(4));
+                    // Only update default-location if it is different from cached value
+                    const cachedDefault = this._loadDefaultLocationFromStorage();
+                    if (
+                        !cachedDefault ||
+                        cachedDefault.latitude !== haLat ||
+                        cachedDefault.longitude !== haLon
+                    ) {
+                        this._saveDefaultLocationToStorage(haLat, haLon);
+                    }
+                    this.latitude = haLat;
+                    this.longitude = haLon;
                     console.debug(`Using HA location: ${this.latitude}, ${this.longitude}`);
                     return;
                 }
             }
 
-            // If we still don't have location, try to load from localStorage
+            // If we still don't have location, try to load from localStorage default-location
             if (this.latitude === undefined || this.longitude === undefined) {
-                const cachedLocation = this._loadLocationFromStorage();
+                const cachedLocation = this._loadDefaultLocationFromStorage();
                 if (cachedLocation) {
                     this.latitude = cachedLocation.latitude;
                     this.longitude = cachedLocation.longitude;
-                    console.debug(`Using cached location: ${this.latitude}, ${this.longitude}`);
+                    console.debug(`Using cached default-location: ${this.latitude}, ${this.longitude}`);
                 } else {
                     // Last resort - use a default location if nothing else is available
                     // London coordinates as a reasonable default
@@ -1059,7 +1130,7 @@ const runWhenLitLoaded = () => {
                     }
                     const entry = cacheObj["forecast-data"]?.[key];
                     if (logEnabled) {
-                        console.log(`[meteogram-card] Attempting to load cache for key: ${key}, entry:`, entry);
+                        console.log(`[meteogram-card] Attempting to load cache for (lat: ${lat}, lon: ${lon}), key: ${key}, entry:`, entry);
                     }
                     if (entry && entry.expiresAt && entry.data) {
                         this.apiExpiresAt = entry.expiresAt;
@@ -1097,10 +1168,6 @@ const runWhenLitLoaded = () => {
             // Load cache for this location
             if (lat !== undefined && lon !== undefined) {
                 // Load cache from localStorage if available
-                if (logEnabled) {
-                    console.log(`[meteogram-card] Attempting to load cache for lat=${lat.toFixed(4)}, lon=${lon.toFixed(4)}`);
-                }
-
                 this.loadCacheFromStorage(lat, lon);
             }
 
