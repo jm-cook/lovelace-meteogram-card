@@ -1811,7 +1811,15 @@ const runWhenLitLoaded = () => {
                 .enter()
                 .append("text")
                 .attr("class", "top-date-label")
-                .attr("x", (d: number) => margin.left + x(d))
+                .attr("x", (d: number, i: number) => {
+                    // Ensure last label does not go outside chart area
+                    const rawX = margin.left + x(d);
+                    if (i === dayStarts.length - 1) {
+                        // Cap to chart right edge minus a small margin
+                        return Math.min(rawX, margin.left + chartWidth - 80);
+                    }
+                    return rawX;
+                })
                 .attr("y", dateLabelY)
                 .attr("text-anchor", "start")
                 .attr("opacity", (d: number, i: number) => {
