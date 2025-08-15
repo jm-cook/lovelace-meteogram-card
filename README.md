@@ -19,14 +19,15 @@ A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API
 - Barometric pressure trend
 - Automatically uses Home Assistant's configured location
 
-## Installation
+## Installation (HACS)
 
-### HACS Installation
-1. In Home Assistant, go to HACS > Frontend
-2. Click the three dots in the top right corner and select "Custom repositories"
-3. Add the URL of this repository (`https://github.com/jm-cook/lovelace-meteogram-card`) and select "Dashboard" as the category
-4. Click "Add"
-5. Find and install "Meteogram Card"
+1. Open Home Assistant and go to **HACS** > **Frontend**.
+2. Click the "+" button to add a new integration.
+3. Search for **Meteogram Card**.
+4. Click **Install**.
+5. Restart Home Assistant if prompted.
+
+You no longer need to add a custom repository. The card is available directly in HACS.
 
 ## Usage
 
