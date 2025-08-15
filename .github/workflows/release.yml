@@ -39,5 +39,5 @@ jobs:
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: meteogram-card.js
+          files: dist/meteogram-card.js
           tag_name: ${{ github.ref_name }}
