@@ -7,7 +7,7 @@
 
 A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API.
 
-![Meteogram Card](https://raw.githubusercontent.com/jm-cook/ha-meteogram-card/main/images/meteogram-card.png)
+![Meteogram Card](https://raw.githubusercontent.com/jm-cook/lovelace-meteogram-card/main/images/meteogram-card.png)
 
 ## Features
 
@@ -24,7 +24,7 @@ A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API
 ### HACS Installation
 1. In Home Assistant, go to HACS > Frontend
 2. Click the three dots in the top right corner and select "Custom repositories"
-3. Add the URL of this repository (`https://github.com/jm-cook/ha-meteogram-card`) and select "Dashboard" as the category
+3. Add the URL of this repository (`https://github.com/jm-cook/lovelace-meteogram-card`) and select "Dashboard" as the category
 4. Click "Add"
 5. Find and install "Meteogram Card"
 
@@ -110,13 +110,13 @@ If not set, the default value is **48h**.
 
 **Example:**
 ```yaml
-type: 'custom:ha-meteogram-card'
+type: 'custom:meteogram-card'
 meteogram_length: 24h  # Shows 24 hours in the meteogram
 ```
 
 **Example (max available):**
 ```yaml
-type: 'custom:ha-meteogram-card'
+type: 'custom:meteogram-card'
 meteogram_length: max  # Shows the maximum available hours from Met.no
 ```
 
@@ -133,9 +133,9 @@ The card uses the "complete" API endpoint to retrieve precipitation probability 
 
 <!-- Badges -->
 [hacs-badge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square
-[release-badge]: https://img.shields.io/github/v/release/jm-cook/ha-meteogram-card?style=flat-square
-[downloads-badge]: https://img.shields.io/github/downloads/jm-cook/ha-meteogram-card/total?style=flat-square
+[release-badge]: https://img.shields.io/github/v/release/jm-cook/lovelace-meteogram-card?style=flat-square
+[downloads-badge]: https://img.shields.io/github/downloads/jm-cook/lovelace-meteogram-card/total?style=flat-square
 [hacs-url]: https://github.com/hacs/integration
 
 [maintenance-badge]: https://img.shields.io/maintenance/yes/2025.svg?style=flat-square
-[release-url]: https://github.com/jm-cook/ha-meteogram-card/releases
+[release-url]: https://github.com/jm-cook/lovelace-meteogram-card/releases
