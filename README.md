@@ -92,7 +92,7 @@ The meteogram retrieves weather data from the Met.no API and displays it in a vi
 
 | Name | Type | Default | Description |
 | ---- | ---- | ------- | ----------- |
-| title | string | | Optional title for the card |
+| title | string | Weather Forecast | Optional title for the card |
 | latitude | string | HA's default | Latitude for weather data |
 | longitude | string | HA's default | Longitude for weather data |
 | show_cloud_cover | boolean | true | Show/hide cloud cover visualization |

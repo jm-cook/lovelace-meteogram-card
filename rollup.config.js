@@ -8,7 +8,7 @@ const dev = process.env.ROLLUP_WATCH;
 export default {
   input: 'src/meteogram-card.ts',
   output: {
-    file: 'meteogram-card.js',
+    file: 'dist/meteogram-card.js',
     format: 'es',
     sourcemap: dev ? true : false,
     // Fix the imports to avoid variable naming conflicts

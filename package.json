@@ -3,7 +3,7 @@
   "version": "1.0.5-beta0",
   "description": "A custom card showing a 48-hour meteogram with wind barbs for Home Assistant",
   "type": "module",
-  "main": "meteogram-card.js",
+  "main": "dist/meteogram-card.js",
   "scripts": {
     "build": "rollup -c --bundleConfigAsCjs",
     "watch": "rollup -c --watch --bundleConfigAsCjs",
