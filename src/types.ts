@@ -10,6 +10,7 @@ export interface MeteogramCardConfig {
     show_wind?: boolean;
     dense_weather_icons?: boolean; // Add this line
     meteogram_hours?: string; // "8h", "12h", "24h", "48h", "54h", "max"
+    fill_container?: boolean; // <-- Add this line
 }
 
 export interface MeteogramData {

@@ -150,6 +150,7 @@ const runWhenLitLoaded = () => {
         @property({type: Boolean}) showWind = true;
         @property({type: Boolean}) denseWeatherIcons = true; // NEW: icon density config
         @property({type: String}) meteogramHours: string = "48h"; // Default is now 48h
+        @property({type: Boolean}) fillContainer = false; // NEW: fill container option
 
         @state() private chartLoaded = false;
         @state() private meteogramError = "";
@@ -505,6 +506,7 @@ const runWhenLitLoaded = () => {
             this.showWind = config.show_wind !== undefined ? config.show_wind : true;
             this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
             this.meteogramHours = config.meteogram_hours || "48h";
+            this.fillContainer = config.fill_container !== undefined ? config.fill_container : false;
 
             // if (latChanged || lonChanged) {
             //     MeteogramCard.apiExpiresAt = null;
@@ -532,7 +534,8 @@ const runWhenLitLoaded = () => {
                 show_weather_icons: true,
                 show_wind: true,
                 dense_weather_icons: true,
-                meteogram_hours: "48h"
+                meteogram_hours: "48h",
+                fill_container: false
             });
             return editor;
         }
@@ -547,7 +550,8 @@ const runWhenLitLoaded = () => {
                 show_weather_icons: true,
                 show_wind: true,
                 dense_weather_icons: true,
-                meteogram_hours: "48h"
+                meteogram_hours: "48h",
+                fill_container: false
                 // Coordinates will be fetched from HA configuration
             };
         }
@@ -854,6 +858,7 @@ const runWhenLitLoaded = () => {
                 changedProps.has('showWind') ||
                 changedProps.has('denseWeatherIcons') ||
                 changedProps.has('meteogramHours') ||
+                changedProps.has('fillContainer') ||
                 !this.hasRendered;
 
             if (this.chartLoaded && needsRedraw) {
@@ -1491,7 +1496,7 @@ const runWhenLitLoaded = () => {
             }
 
             // Create a fingerprint of current location and display settings
-            const settingsFingerprint = `${this.latitude},${this.longitude},${this.showCloudCover},${this.showPressure},${this.showWeatherIcons},${this.showWind},${this.meteogramHours}`;
+            const settingsFingerprint = `${this.latitude},${this.longitude},${this.showCloudCover},${this.showPressure},${this.showWeatherIcons},${this.showWind},${this.meteogramHours},${this.fillContainer}`;
 
             // If nothing has changed and we already have a rendered chart, don't redraw
             if (this._lastRenderedData === settingsFingerprint && this.svg && this.chartLoaded) {
@@ -1615,19 +1620,33 @@ const runWhenLitLoaded = () => {
 
                 // Responsive sizing based on parent
                 const parent = chartDiv.parentElement;
-                const availableWidth = parent ? parent.clientWidth : (chartDiv as HTMLElement).offsetWidth || 350;
-                const availableHeight = parent ? parent.clientHeight : (chartDiv as HTMLElement).offsetHeight || 180;
+                let availableWidth = parent ? parent.clientWidth : (chartDiv as HTMLElement).offsetWidth || 350;
+                let availableHeight = parent ? parent.clientHeight : (chartDiv as HTMLElement).offsetHeight || 180;
 
-                const maxAllowedWidth = Math.min(window.innerWidth * 0.95, 1200);
-                const width = Math.max(Math.min(availableWidth, maxAllowedWidth), 300);
-
+                let width: number;
+                let height: number;
                 const maxAllowedHeight = Math.min(window.innerHeight * 0.7, 520);
-                const aspectRatioHeight = width * 0.5;
+
+                if (this.fillContainer) {
+                    // Use all available space, no aspect ratio or max width restriction
+                    width = (chartDiv as HTMLElement).offsetWidth > 0
+                        ? (chartDiv as HTMLElement).offsetWidth
+                        : availableWidth;
+                    height = (chartDiv as HTMLElement).offsetHeight > 0
+                        ? (chartDiv as HTMLElement).offsetHeight
+                        : availableHeight;
+                } else {
+                    const maxAllowedWidth = Math.min(window.innerWidth * 0.95, 1200);
+                    width = Math.max(Math.min(availableWidth, maxAllowedWidth), 300);
+
+                    const aspectRatioHeight = width * 0.5;
+                    height = Math.min(aspectRatioHeight, availableHeight, maxAllowedHeight);
+                }
+                // ----------------------------------------------------------------------
+
                 const windBarbBand = this.showWind ? 55 : 0;
-                // Always reserve space for hour labels (24px) at the bottom
                 const hourLabelBand = 24;
-                // If wind is shown, reserve space for windBarbBand, otherwise use all available height for chart + hour labels
-                const height = Math.min(aspectRatioHeight, availableHeight, maxAllowedHeight);
+                const chartHeight = Math.min(height, availableHeight, maxAllowedHeight);
 
                 // Store dimensions for resize detection
                 this._lastWidth = availableWidth;
@@ -2475,6 +2494,7 @@ const runWhenLitLoaded = () => {
             setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
             setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
             setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
+            setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
         }
 
         render() {
@@ -2490,6 +2510,7 @@ const runWhenLitLoaded = () => {
             const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
             const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
             const meteogramHours = this._config.meteogram_hours || "48h";
+            const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
 
             const div = document.createElement('div');
             div.innerHTML = `
@@ -2637,6 +2658,14 @@ const runWhenLitLoaded = () => {
             .checked="${denseWeatherIcons}"
           ></ha-switch>
         </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Fill Container</div>
+          <ha-switch
+            id="fill-container"
+            .checked="${fillContainer}"
+          ></ha-switch>
+        </div>
       </div>
 
       <div class="row">
@@ -2733,6 +2762,13 @@ const runWhenLitLoaded = () => {
                     meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
                     this._elements.set('meteogram_hours', meteogramHoursSelect);
                 }
+
+                const fillContainerSwitch = this.querySelector('#fill-container') as ConfigurableHTMLElement;
+                if (fillContainerSwitch) {
+                    fillContainerSwitch.configValue = 'fill_container';
+                    fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
+                    this._elements.set('fill_container', fillContainerSwitch);
+                }
             }, 0);
         }
 
@@ -2779,7 +2815,9 @@ const runWhenLitLoaded = () => {
         type: "meteogram-card",
         name: CARD_NAME,
         description: "A custom card showing a meteogram with wind barbs.",
-        version: version
+        version: version,
+        preview: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/images/meteogram-card.png",
+        documentationURL: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/README.md"
     });
 }
 // Wait for Lit modules to be loaded before running the code
