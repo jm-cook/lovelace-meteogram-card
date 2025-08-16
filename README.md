@@ -7,6 +7,8 @@
 
 A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API.
 
+**[Developer Documentation (DEV.md)](./DEV.md)**
+
 ![Meteogram Card](https://raw.githubusercontent.com/jm-cook/lovelace-meteogram-card/main/images/meteogram-card.png)
 
 ## Features
