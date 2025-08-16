@@ -99,7 +99,7 @@ const cleanupExpiredForecastCache = () => {
 // This wrapper ensures modules are loaded before code execution
 const runWhenLitLoaded = () => {
     // Clean up expired cache entries before anything else
-    cleanupExpiredForecastCache();
+    // cleanupExpiredForecastCache();
 
     // Print version info on startup
     printVersionInfo();
@@ -120,6 +120,7 @@ const runWhenLitLoaded = () => {
         windSpeed: number[];
         windDirection: number[];
         symbolCode: string[];
+        fetchTimestamp?: string; // Add this property
     }
 
 // For day boundary shading
@@ -245,6 +246,13 @@ const runWhenLitLoaded = () => {
                 this._redrawScheduled = false;
             }, 50);
         }
+
+        // Status panel properties
+        @state() private _statusExpiresAt: string = "";
+        @state() private _statusLastRender: string = "";
+        @state() private _statusLastFingerprintMiss: string = "";
+        @state() private _statusLastFetch: string = "";
+        @state() private _statusApiSuccess: boolean = false;
 
         static styles = css`
             :host {
@@ -439,6 +447,13 @@ const runWhenLitLoaded = () => {
                 fill: #fff;
             }
 
+            /* Tone down grid color in dark mode */
+            :host([dark]) .grid line,
+            :host([dark]) .xgrid line,
+            :host([dark]) .wind-band-grid {
+                stroke: #3a4a5a;
+            }
+
             .top-date-label {
                 font: 16px sans-serif;
                 fill: var(--primary-text-color, #222);
@@ -456,6 +471,13 @@ const runWhenLitLoaded = () => {
                 text-anchor: middle;
                 font-weight: bold;
                 fill: #0058a3;
+            }
+
+            :host([dark]) .rain-label {
+                fill: #a3d8ff; /* Light blue tint for dark mode */
+                /* Add a white base with blue tint */
+                /* Optionally, use a drop-shadow for better contrast */
+                filter: drop-shadow(0 0 2px #fff);
             }
 
             .day-bg {
@@ -1132,6 +1154,7 @@ const runWhenLitLoaded = () => {
                         expiresAt: this.apiExpiresAt,
                         lastModified: this.apiLastModified || undefined,
                         data: this.cachedWeatherData
+                        // fetchTimestamp is part of cachedWeatherData
                     };
                     localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
                 }
@@ -1160,12 +1183,14 @@ const runWhenLitLoaded = () => {
                     if (entry && entry.expiresAt && entry.data) {
                         this.apiExpiresAt = entry.expiresAt;
                         this.apiLastModified = entry.lastModified || null;
+
                         if (Array.isArray(entry.data.time)) {
                             entry.data.time = entry.data.time.map((t: string | Date) =>
                                 typeof t === "string" ? new Date(t) : t
                             );
                         }
                         this.cachedWeatherData = entry.data;
+                        // fetchTimestamp is loaded as part of cachedWeatherData
 
                     } else {
                         if (logEnabled) {
@@ -1231,8 +1256,17 @@ const runWhenLitLoaded = () => {
                 if (msUntilRefresh > 0) {
                     this._weatherRefreshTimeout = window.setTimeout(() => {
                         this._weatherRefreshTimeout = null;
-                        // Call fetchWeatherData to update the cache
-                        this.fetchWeatherData().catch(() => {});
+                        // Call fetchWeatherData to update the cache and redraw if changed
+                        this.fetchWeatherData().then((newData) => {
+                            // Only redraw if data has changed
+                            if (JSON.stringify(newData) !== JSON.stringify(this.cachedWeatherData)) {
+                                this.cachedWeatherData = newData;
+                                this._scheduleDrawMeteogram();
+                            }
+                        }).catch(() => {
+                            // If fetch fails, keep showing cached data
+                            this._scheduleDrawMeteogram();
+                        });
                     }, msUntilRefresh);
                 }
                 if (logEnabled) {
@@ -1251,6 +1285,8 @@ const runWhenLitLoaded = () => {
 
             this.weatherDataPromise = (async () => {
                 try {
+                    this._statusLastFetch = new Date().toISOString();
+
                     const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
                     const headers: Record<string, string> = {};
                     // Remove If-Modified-Since header usage
@@ -1289,10 +1325,18 @@ const runWhenLitLoaded = () => {
                         const expiresDate = new Date(expiresHeader);
                         if (!isNaN(expiresDate.getTime())) {
                             this.apiExpiresAt = expiresDate.getTime();
+                            this._statusExpiresAt = expiresDate.toISOString();
                             if (logEnabled) {
                                 console.log(`[meteogram-card] API response Expires at ${expiresDate.toISOString()}`);
                             }
                         }
+                        // For testing: set expiresAt to now + 3 minutes
+                        // const expiresDate = new Date(Date.now() + 3 * 60 * 1000);
+                        // this.apiExpiresAt = expiresDate.getTime();
+                        // this._statusExpiresAt = expiresDate.toISOString();
+                        // if (logEnabled) {
+                        //     console.log(`[meteogram-card] API response Expires overridden for testing: ${expiresDate.toISOString()}`);
+                        // }
                     }
 
                     // Cache Last-Modified header if present
@@ -1315,6 +1359,10 @@ const runWhenLitLoaded = () => {
                             throw new Error("API returned 304 but no cached data is available.");
                         }
                     }
+                    // Set API success status
+
+                    this._statusApiSuccess = response.ok;
+
 
                     if (!response.ok) {
                         const errorText = await response.text();
@@ -1363,6 +1411,7 @@ const runWhenLitLoaded = () => {
                         symbolCode: [],
                         pressure: []
                     };
+                    result.fetchTimestamp = new Date().toISOString(); // Set fetch timestamp
 
                     filtered.forEach((item: any) => {
                         const time = new Date(item.time);
@@ -1433,12 +1482,15 @@ const runWhenLitLoaded = () => {
                             (result as any)[key] = (result as any)[key].slice(0, hours);
                         });
                     }
+                    this._scheduleDrawMeteogram();
 
                     return result;
                 } catch (error: unknown) {
-                    // If there is cached weather data, use it instead of throwing
+                    // On error, set API success to false
+                    this._statusApiSuccess = false;
+                    // Always fallback to cached weather data, even if expired
                     if (this.cachedWeatherData) {
-                        console.warn('Error fetching weather data, using cached data instead:', error);
+                        console.warn('Error fetching weather data, using cached data (may be expired):', error);
                         return this.cachedWeatherData;
                     }
                     // Log error and provide more info for troubleshooting
@@ -1475,8 +1527,7 @@ const runWhenLitLoaded = () => {
         }
 
         async _drawMeteogram() {
-            // Removed stack trace log
-
+            this._statusLastRender = new Date().toISOString();
             // Limit excessive error messages
             const now = Date.now();
             if (this.meteogramError && now - this.lastErrorTime < 60000) {
@@ -1495,8 +1546,17 @@ const runWhenLitLoaded = () => {
                 return;
             }
 
-            // Create a fingerprint of current location and display settings
-            const settingsFingerprint = `${this.latitude},${this.longitude},${this.showCloudCover},${this.showPressure},${this.showWeatherIcons},${this.showWind},${this.meteogramHours},${this.fillContainer}`;
+            // Always fetch weather data before deciding to skip redraw
+            let data: MeteogramData | null = null;
+            try {
+                data = await this.fetchWeatherData();
+            } catch (err) {
+                this.setError("Weather data not available.");
+                return;
+            }
+
+            // Create a fingerprint of current location, display settings, and data
+            const settingsFingerprint = `${this.latitude},${this.longitude},${this.showCloudCover},${this.showPressure},${this.showWeatherIcons},${this.showWind},${this.meteogramHours},${this.fillContainer},${JSON.stringify(data)}}`;
 
             // If nothing has changed and we already have a rendered chart, don't redraw
             if (this._lastRenderedData === settingsFingerprint && this.svg && this.chartLoaded) {
@@ -1506,6 +1566,8 @@ const runWhenLitLoaded = () => {
                     return;
                 }
             }
+            this._statusLastFingerprintMiss = new Date().toISOString();
+
 
             // Store the current settings fingerprint
             this._lastRenderedData = settingsFingerprint;
@@ -1546,9 +1608,7 @@ const runWhenLitLoaded = () => {
             // Ensure we have a clean update cycle before accessing the DOM again
             await new Promise(resolve => setTimeout(resolve, 10));
 
-            // Get chart container after cleanup and another update cycle
             const chartDiv = this.shadowRoot?.querySelector("#chart");
-
             if (!chartDiv) {
                 console.error("Chart container not found in DOM");
                 if (this.isConnected) {
@@ -1577,11 +1637,11 @@ const runWhenLitLoaded = () => {
                 return;
             }
 
-            // Call a separate method to handle the actual chart rendering
+            // Pass only chartDiv to _renderChart (remove data argument)
             this._renderChart(chartDiv);
         }
 
-        // Separate chart rendering logic for better organization
+        // Update _renderChart to remove unused data parameter
         private _renderChart(chartDiv: Element) {
             // If a render is already in progress, skip this call
             if (this._chartRenderInProgress) {
@@ -1871,6 +1931,7 @@ const runWhenLitLoaded = () => {
                 .attr("stroke-width", 3)
                 .attr("opacity", 0.6);
 
+            // --- Move grid drawing BEFORE chart data rendering ---
             const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
             // Temperature Y scale, handling null values
@@ -1898,10 +1959,10 @@ const runWhenLitLoaded = () => {
                     .range([chartHeight, 0]);
             }
 
+
             // Add vertical gridlines
-            svg.append("g")
+            chart.append("g")
                 .attr("class", "xgrid")
-                .attr("transform", `translate(${margin.left},${margin.top})`)
                 .selectAll("line")
                 .data(d3.range(N))
                 .enter().append("line")
@@ -1912,21 +1973,57 @@ const runWhenLitLoaded = () => {
                 .attr("stroke", "#b8c4d9")
                 .attr("stroke-width", 1);
 
-            // Day change vertical lines (midnights)
-            const dayChangeIdx = dayStarts.slice(1);
-            svg.append("g")
-                .attr("transform", `translate(${margin.left},${margin.top})`)
-                .selectAll(".twentyfourh-line")
-                .data(dayChangeIdx)
+            // Temperature axis and grid
+            chart.append("g").attr("class", "grid")
+                .call(d3.axisLeft(yTemp).tickSize(-chartWidth).tickFormat(""));
+
+            chart.append("line")
+                .attr("x1", 0).attr("x2", chartWidth)
+                .attr("y1", chartHeight).attr("y2", chartHeight)
+                .attr("stroke", "#333");
+
+            // Wind band grid lines (if wind band is enabled)
+            if (this.showWind) {
+                const windBandYOffset = margin.top + chartHeight;
+                const windBand = svg.append('g')
+                    .attr('transform', `translate(${margin.left},${windBandYOffset})`);
+
+                const windBandHeight = windBarbBand - 10;
+                // Even hour grid lines
+                const twoHourIdx: number[] = [];
+                for (let i = 0; i < N; i++) {
+                    if (time[i].getHours() % 2 === 0) twoHourIdx.push(i);
+                }
+
+                windBand.selectAll(".wind-band-grid")
+                    .data(twoHourIdx)
+                    .enter()
+                    .append("line")
+                    .attr("class", "wind-band-grid")
+                    .attr("x1", (i: number) => x(i))
+                    .attr("x2", (i: number) => x(i))
+                    .attr("y1", 0)
+                    .attr("y2", windBandHeight)
+                    .attr("stroke", "#b8c4d9")
+                    .attr("stroke-width", 1);
+            }
+
+            // --- Restore vertical day divider lines ---
+            chart.selectAll(".twentyfourh-line")
+                .data(dayStarts.slice(1)) // skip first, draw at each new day
                 .enter()
                 .append("line")
                 .attr("class", "twentyfourh-line")
-                .attr("x1", (i: number) => x(i))
-                .attr("x2", (i: number) => x(i))
+                .attr("x1", (d: number) => x(d))
+                .attr("x2", (d: number) => x(d))
                 .attr("y1", 0)
                 .attr("y2", chartHeight)
-                .lower();
+                .attr("stroke", "#ffb300")
+                .attr("stroke-width", 3)
+                .attr("stroke-dasharray", "6,5")
+                .attr("opacity", 0.7);
 
+            // Chart data rendering...
             // Cloud cover band - only if enabled
             if (this.showCloudCover) {
                 const bandTop = chartHeight * 0.05;
@@ -1947,17 +2044,6 @@ const runWhenLitLoaded = () => {
                         .y((d: [number, number]) => d[1])
                         .curve(d3.curveLinearClosed)(cloudBandPoints));
             }
-
-            // Temperature axis and grid
-            chart.append("g").attr("class", "grid")
-                .call(d3.axisLeft(yTemp).tickSize(-chartWidth).tickFormat(""));
-
-            chart.append("line")
-                .attr("x1", 0).attr("x2", chartWidth)
-                .attr("y1", chartHeight).attr("y2", chartHeight)
-                .attr("stroke", "#333");
-
-            chart.append("g").call(d3.axisLeft(yTemp));
 
             // Pressure axis (right side) - only if enabled
             if (this.showPressure && yPressure) {
@@ -2356,7 +2442,25 @@ const runWhenLitLoaded = () => {
                                 ? html`
                                     <div class="error">${this.meteogramError}</div>`
                                 : html`
-                                    <div id="chart"></div>`}
+                                    <div id="chart"></div>
+                                    ${logEnabled ? html`
+                                        <div id="meteogram-status-panel" style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;">
+                                            <b>Status Panel</b>
+                                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
+                                                <div>
+                                                    <span>Expires At: ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
+                                                    <span>Last Render: ${this._statusLastRender || "unknown"}</span><br>
+                                                    <span>Last Fingerprint fail: ${this._statusLastFingerprintMiss || "unknown"}</span><br>
+                                                    <span>Last Data Fetch: ${this._statusLastFetch || "unknown"}</span>
+                                                </div>
+                                                <div>
+                                                    <span>Last cached: ${this.cachedWeatherData?.fetchTimestamp || "unknown"}</span><br>
+                                                    <span>API Success: ${this._statusApiSuccess ? "✅" : "❌"}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ` : ""}
+                                `}
                     </div>
                 </ha-card>
             `;

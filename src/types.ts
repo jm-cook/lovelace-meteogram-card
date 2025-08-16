@@ -25,6 +25,7 @@ export interface MeteogramData {
   windDirection: number[];
   symbolCode: string[];
   pressure: number[];
+  fetchTimestamp?: string; // Add this property
 }
 
 export interface WeatherDataPoint {
