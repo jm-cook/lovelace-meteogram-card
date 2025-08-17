@@ -1982,6 +1982,8 @@ const runWhenLitLoaded = () => {
                 .attr("y1", chartHeight).attr("y2", chartHeight)
                 .attr("stroke", "#333");
 
+            chart.append("g").call(d3.axisLeft(yTemp));
+
             // Wind band grid lines (if wind band is enabled)
             if (this.showWind) {
                 const windBandYOffset = margin.top + chartHeight;
@@ -2066,7 +2068,12 @@ const runWhenLitLoaded = () => {
                     .text("Pressure (hPa)");
             }
 
-            // Axis labels and legend
+            // --- Add temperature Y axis (left side) ---
+            chart.append("g")
+                .attr("class", "temperature-axis")
+                .call(window.d3.axisLeft(yTemp)
+                    .tickFormat((d: any) => `${d}`));
+
             chart.append("text")
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
