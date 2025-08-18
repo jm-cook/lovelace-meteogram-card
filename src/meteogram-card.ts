@@ -2047,7 +2047,7 @@ const runWhenLitLoaded = () => {
                 }
                 // For the bottom band, use cloudCover[i] / 100
                 for (let i = N - 1; i >= 0; i--) {
-                    cloudBandPoints.push([x(i), bandTop + (bandHeight/2) + (bandHeight/2) * (cloudCover[i] / 100)]);
+                    cloudBandPoints.push([x(i), bandTop + (bandHeight/2) * (1 + cloudCover[i] / 100)]);
                 }
 
                 chart.append("path")

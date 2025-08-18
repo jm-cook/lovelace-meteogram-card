@@ -1,6 +1,6 @@
 {
   "name": "ha-meteogram-card",
-  "version": "1.0.6-beta0",
+  "version": "1.0.9-0",
   "description": "A custom card showing a 48-hour meteogram with wind barbs for Home Assistant",
   "type": "module",
   "main": "dist/meteogram-card.js",
