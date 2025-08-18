@@ -143,7 +143,7 @@ For developers, the Meteogram Card is built with TypeScript and uses modern web 
 - Weather data provided by [MET Norway Weather API](https://api.met.no/)
 - Weather icons from [Met.no Weather Icons](https://github.com/metno/weathericons)
 
-<!-- Badges -->
+<!-- Badges and links -->
 [hacs-badge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square
 [release-badge]: https://img.shields.io/github/v/release/jm-cook/lovelace-meteogram-card?style=flat-square
 [downloads-badge]: https://img.shields.io/github/downloads/jm-cook/lovelace-meteogram-card/total?style=flat-square
