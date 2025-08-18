@@ -151,5 +151,5 @@ For developers, the Meteogram Card is built with TypeScript and uses modern web 
 
 [maintenance-badge]: https://img.shields.io/maintenance/yes/2025.svg?style=flat-square
 [release-url]: https://github.com/jm-cook/lovelace-meteogram-card/releases
-[devdoc-url]: https://github.com/jm-cook/lovelace-meteogram-card/blob/main/DEV.md
+[devdoc-url]: https://github.com/jm-cook/lovelace-meteogram-card/blob/main/doc/DEV.md
 
