@@ -1,19 +1,18 @@
 {
-  "name": "ha-meteogram-card",
+  "name": "meteogram-card",
   "version": "1.0.9-0",
-  "description": "A custom card showing a 48-hour meteogram with wind barbs for Home Assistant",
+  "description": "A custom card showing a meteogram with wind barbs, cloud cover, atmospheric pressure, and precipitation for Home Assistant",
   "type": "module",
   "main": "dist/meteogram-card.js",
   "scripts": {
     "build": "rollup -c --bundleConfigAsCjs",
     "watch": "rollup -c --watch --bundleConfigAsCjs",
-    "download-icons": "node scripts/download-icons.cjs",
     "lint": "eslint --ext .ts --ext .js --fix src",
     "start": "npm run build && serve"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jm-cook/ha-meteogram-card.git"
+    "url": "git+https://github.com/jm-cook/lovelace-meteogram-card.git"
   },
   "keywords": [
     "home-assistant",
