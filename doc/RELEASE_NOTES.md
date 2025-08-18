@@ -1,3 +1,11 @@
+# Meteogram Card v1.0.9 Release Notes
+
+
+- Added custom CSS variables for rain labels, rain bars, temperature line, pressure line, and wind barbs/arrows for improved theming and customization.
+- Ensured all grid lines consistently use the correct color variable in dark mode.
+- Improved style variable naming conventions for better maintainability and conflict avoidance.
+- Documentation updates and minor code cleanups.
+
 # Meteogram Card v1.0.8 Release Notes
 
 ## Features & Improvements
