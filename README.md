@@ -7,7 +7,9 @@
 
 A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API.
 
-**[Developer Documentation (DEV.md)](./DEV.md)**
+
+
+
 
 ![Meteogram Card](https://raw.githubusercontent.com/jm-cook/lovelace-meteogram-card/main/images/meteogram-card.png)
 
@@ -129,6 +131,13 @@ This card fetches weather data directly from the Met.no API using the provided c
 
 The card uses the "complete" API endpoint to retrieve precipitation probability data, which allows visualization of rain/snow uncertainty.
 
+## Development
+
+
+For developers, the Meteogram Card is built with TypeScript and uses modern web technologies. 
+
+[Developer Documentation][devdoc-url]
+
 ## Credits
 
 - Weather data provided by [MET Norway Weather API](https://api.met.no/)
@@ -142,3 +151,5 @@ The card uses the "complete" API endpoint to retrieve precipitation probability 
 
 [maintenance-badge]: https://img.shields.io/maintenance/yes/2025.svg?style=flat-square
 [release-url]: https://github.com/jm-cook/lovelace-meteogram-card/releases
+[devdoc-url]: https://github.com/jm-cook/lovelace-meteogram-card/blob/main/DEV.md
+
