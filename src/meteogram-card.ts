@@ -252,7 +252,7 @@ const runWhenLitLoaded = () => {
         @state() private _statusLastRender: string = "";
         @state() private _statusLastFingerprintMiss: string = "";
         @state() private _statusLastFetch: string = "";
-        @state() private _statusApiSuccess: boolean = false;
+        @state() private _statusApiSuccess: boolean | null = null; // CHANGED: allow null for "not called"
 
         static styles = css`
             :host {
@@ -1361,8 +1361,8 @@ const runWhenLitLoaded = () => {
                     }
                     // Set API success status
 
-                    this._statusApiSuccess = response.ok;
-
+                    this._statusApiSuccess = null; // CHANGED: set to null before API call
+                    this._statusApiSuccess = response.ok; // true/false after API call
 
                     if (!response.ok) {
                         const errorText = await response.text();
@@ -1487,7 +1487,7 @@ const runWhenLitLoaded = () => {
                     return result;
                 } catch (error: unknown) {
                     // On error, set API success to false
-                    this._statusApiSuccess = false;
+                    this._statusApiSuccess = false; // CHANGED: set to false on error
                     // Always fallback to cached weather data, even if expired
                     if (this.cachedWeatherData) {
                         console.warn('Error fetching weather data, using cached data (may be expired):', error);
@@ -2455,6 +2455,22 @@ const runWhenLitLoaded = () => {
                     <div class="card-content">
                         <div class="attribution">
                             Data from <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
+                            <span
+                                style="margin-left:8px; vertical-align:middle;"
+                                title="${
+                                    this._statusApiSuccess === null
+                                        ? "cached"
+                                        : this._statusApiSuccess === true
+                                            ? "success"
+                                            : "failed"
+                                }"
+                            >${
+                                this._statusApiSuccess === null
+                                    ? "❎"
+                                    : this._statusApiSuccess === true
+                                        ? "✅"
+                                        : "❌"
+                            }</span>
                         </div>
                         ${this.meteogramError
                                 ? html`
@@ -2468,12 +2484,28 @@ const runWhenLitLoaded = () => {
                                                 <div>
                                                     <span>Expires At: ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
                                                     <span>Last Render: ${this._statusLastRender || "unknown"}</span><br>
-                                                    <span>Last Fingerprint fail: ${this._statusLastFingerprintMiss || "unknown"}</span><br>
+                                                    <span>Last Fingerprint Miss: ${this._statusLastFingerprintMiss || "unknown"}</span><br>
                                                     <span>Last Data Fetch: ${this._statusLastFetch || "unknown"}</span>
                                                 </div>
                                                 <div>
                                                     <span>Last cached: ${this.cachedWeatherData?.fetchTimestamp || "unknown"}</span><br>
-                                                    <span>API Success: ${this._statusApiSuccess ? "✅" : "❌"}</span>
+                                                    <span
+                                                        title="${
+                                                            this._statusApiSuccess === null
+                                                                ? "cached"
+                                                                : this._statusApiSuccess === true
+                                                                    ? "success"
+                                                                    : "failed"
+                                                        }"
+                                                    >
+                                                        API Success: ${
+                                                            this._statusApiSuccess === null
+                                                                ? "❎"
+                                                                : this._statusApiSuccess === true
+                                                                    ? "✅"
+                                                                    : "❌"
+                                                        }
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
