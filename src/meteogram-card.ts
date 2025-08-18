@@ -2028,15 +2028,21 @@ const runWhenLitLoaded = () => {
             // Chart data rendering...
             // Cloud cover band - only if enabled
             if (this.showCloudCover) {
-                const bandTop = chartHeight * 0.05;
+                const bandTop = chartHeight * 0.01;
                 const bandHeight = chartHeight * 0.20;
                 const cloudBandPoints: [number, number][] = [];
 
+                // Calculate cloud cover band points (override: cloudCover from 100.0 down to 0.0 for testing)
+                // const testCloudCover = Array.from({ length: cloudCover.length }, (_, i) =>
+                //     100.0 - (100.0 * i) / (cloudCover.length - 1)
+                // );
+                // FIX: Use 1 - cloudCover[i] / 100 for the top band so higher cloud cover means more shading
                 for (let i = 0; i < N; i++) {
-                    cloudBandPoints.push([x(i), bandTop + bandHeight * (cloudCover[i] / 100)]);
+                    cloudBandPoints.push([x(i), bandTop + (bandHeight/2) * (1 - cloudCover[i] / 100)]);
                 }
+                // For the bottom band, use cloudCover[i] / 100
                 for (let i = N - 1; i >= 0; i--) {
-                    cloudBandPoints.push([x(i), bandTop + bandHeight * (1 - cloudCover[i] / 100)]);
+                    cloudBandPoints.push([x(i), bandTop + (bandHeight/2) + (bandHeight/2) * (cloudCover[i] / 100)]);
                 }
 
                 chart.append("path")
