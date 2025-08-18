@@ -315,45 +315,91 @@ const runWhenLitLoaded = () => {
             }
 
             .temp-line {
-                stroke: orange;
+                stroke: var(--meteogram-temp-line-color, orange);
                 stroke-width: 3;
                 fill: none;
             }
+            :host([dark]) .temp-line {
+                stroke: var(--meteogram-temp-line-color-dark, #ffb300);
+            }
 
             .pressure-line {
-                stroke: var(--meteogram-pressure-color, #90caf9);
-                stroke-width: 4; /* Increased thickness */
+                stroke: var(--meteogram-pressure-line-color, var(--meteogram-pressure-color, #90caf9));
+                stroke-width: 4;
                 stroke-dasharray: 3, 3;
                 fill: none;
             }
-
-            .rain-bar {
-                fill: deepskyblue;
-                opacity: 0.8;
+            :host([dark]) .pressure-line {
+                stroke: var(--meteogram-pressure-line-color-dark, #90caf9);
             }
 
-            .rain-min-bar {
-                fill: #0074d9;
-                opacity: 0.95;
+            .rain-bar {
+                fill: var(--meteogram-rain-bar-color, deepskyblue);
+                opacity: 0.8;
+            }
+            :host([dark]) .rain-bar {
+                fill: var(--meteogram-rain-bar-color-dark, #2196f3);
             }
 
             .rain-max-bar {
-                fill: #7fdbff;
+                fill: var(--meteogram-rain-max-bar-color, #7fdbff);
                 opacity: 0.5;
             }
+            :host([dark]) .rain-max-bar {
+                fill: var(--meteogram-rain-max-bar-color-dark, #90caf9);
+            }
 
-            .rain-min-label {
+            .rain-label {
                 font: var(--meteogram-label-font-size, 13px) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: #0058a3;
+                fill: var(--meteogram-rain-label-color, #0058a3);
+            }
+            :host([dark]) .rain-label {
+                fill: var(--meteogram-rain-label-color-dark, #a3d8ff);
+                filter: drop-shadow(0 0 2px #fff);
             }
 
             .rain-max-label {
                 font: var(--meteogram-label-font-size, 13px) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: #2693e6;
+                fill: var(--meteogram-rain-max-label-color, #2693e6);
+            }
+            :host([dark]) .rain-max-label {
+                fill: var(--meteogram-rain-max-label-color-dark, #1976d2);
+            }
+
+            .legend {
+                font: var(--meteogram-legend-font-size, 14px) sans-serif;
+                fill: var(--primary-text-color, #222);
+            }
+            :host([dark]) .legend {
+                fill: var(--meteogram-legend-text-color-dark, #fff);
+            }
+
+            .rain-bar {
+                fill: var(--meteogram-rain-bar-color, deepskyblue);
+                opacity: 0.8;
+            }
+
+            .rain-max-bar {
+                fill: var(--meteogram-rain-max-bar-color, #7fdbff);
+                opacity: 0.5;
+            }
+
+            .rain-label {
+                font: var(--meteogram-label-font-size, 13px) sans-serif;
+                text-anchor: middle;
+                font-weight: bold;
+                fill: var(--meteogram-rain-label-color, #0058a3);
+            }
+
+            .rain-max-label {
+                font: var(--meteogram-label-font-size, 13px) sans-serif;
+                text-anchor: middle;
+                font-weight: bold;
+                fill: var(--meteogram-rain-max-label-color, #2693e6);
             }
 
             .snow-bar {
@@ -386,10 +432,14 @@ const runWhenLitLoaded = () => {
                 stroke-width: 1;
             }
 
-            /* Use --meteogram-grid-color-dark for dark mode grid lines */
+            /* Use --meteogram-grid-color-dark for dark mode grid lines and outline */
             :host([dark]) .grid line,
             :host([dark]) .xgrid line,
-            :host([dark]) .wind-band-grid {
+            :host([dark]) .wind-band-grid,
+            :host([dark]) .wind-band-outline,
+            :host([dark]) .twentyfourh-line,
+            :host([dark]) .twentyfourh-line-wind,
+            :host([dark]) .day-tic {
                 stroke: var(--meteogram-grid-color-dark, #3a4a5a);
             }
 
@@ -418,28 +468,28 @@ const runWhenLitLoaded = () => {
             }
 
             .wind-barb {
-                stroke: #1976d2;
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
                 stroke-width: 2;
                 fill: none;
             }
 
             .wind-barb-feather {
-                stroke: #1976d2;
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
                 stroke-width: 1.4;
             }
 
             .wind-barb-half {
-                stroke: #1976d2;
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
                 stroke-width: 0.8;
             }
 
             .wind-barb-calm {
-                stroke: #1976d2;
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
                 fill: none;
             }
 
             .wind-barb-dot {
-                fill: #1976d2;
+                fill: var(--meteogram-wind-barb-color, #1976d2);
             }
 
             /* Improve wind barb contrast in dark mode */
@@ -448,11 +498,11 @@ const runWhenLitLoaded = () => {
             :host([dark]) .wind-barb-feather,
             :host([dark]) .wind-barb-half,
             :host([dark]) .wind-barb-calm {
-                stroke: #fff;
+                stroke: var(--meteogram-wind-barb-color-dark, #fff);
             }
 
             :host([dark]) .wind-barb-dot {
-                fill: #fff;
+                fill: var(--meteogram-wind-barb-color-dark, #fff);
             }
 
             .top-date-label {
@@ -471,7 +521,7 @@ const runWhenLitLoaded = () => {
                 font: var(--meteogram-label-font-size, 13px) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: #0058a3;
+                fill: var(--meteogram-rain-label-color, #0058a3);
             }
 
             :host([dark]) .rain-label {
@@ -503,6 +553,13 @@ const runWhenLitLoaded = () => {
                 padding: 2px 8px;
                 border-radius: 6px;
                 pointer-events: auto;
+            }
+
+            /* Tick text font size for axes */
+            .temperature-axis .tick text,
+            .pressure-axis .tick text {
+                font-size: var(--meteogram-tick-font-size, 13px);
+                fill: var(--primary-text-color, #222);
             }
         `;
 
@@ -2130,7 +2187,8 @@ const runWhenLitLoaded = () => {
             chart.append("path")
                 .datum(temperatureConverted)
                 .attr("class", "temp-line")
-                .attr("d", line);
+                .attr("d", line)
+                .attr("stroke", "currentColor");
 
             // Pressure line - only if enabled
             if (this.showPressure && yPressure) {
@@ -2142,7 +2200,8 @@ const runWhenLitLoaded = () => {
                 chart.append("path")
                     .datum(pressure)
                     .attr("class", "pressure-line")
-                    .attr("d", pressureLine);
+                    .attr("d", pressureLine)
+                    .attr("stroke", "currentColor");
             }
 
             // Weather icons along temperature curve - only if enabled
@@ -2210,7 +2269,8 @@ const runWhenLitLoaded = () => {
                     .attr("height", (d: number) => {
                         const h = chartHeight - yPrecip(d);
                         return h < 2 && d > 0 ? 2 : h * 0.7;
-                    });
+                    })
+                    .attr("fill", "currentColor");
 
                 // Draw main rain bars (foreground, deeper blue)
                 chart.selectAll(".rain-bar")
@@ -2227,7 +2287,8 @@ const runWhenLitLoaded = () => {
                     .attr("height", (d: number) => {
                         const h = chartHeight - yPrecip(d);
                         return h < 2 && d > 0 ? 2 : h * 0.7;
-                    });
+                    })
+                    .attr("fill", "currentColor");
 
                 // Add main rain labels (show if rain > 0)
                 chart.selectAll(".rain-label")

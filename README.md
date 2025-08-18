@@ -149,12 +149,34 @@ styles:
   --meteogram-grid-color-dark: "#444"   # Dark mode grid color
 ```
 
-**Example: Change font size for labels and legends**
+**Example: Change font size for labels, legends, and axis ticks**
 ```yaml
 type: custom:meteogram-card
 styles:
   --meteogram-label-font-size: "18px"      # Axis labels, date/hour/rain labels
   --meteogram-legend-font-size: "16px"     # Legend text
+  --meteogram-tick-font-size: "15px"       # Y axis tick text
+```
+
+**Example: Customize rain bar, temperature line, pressure line, wind barb colors, and rain label text**
+```yaml
+type: custom:meteogram-card
+styles:
+  --meteogram-rain-bar-color: "#2196f3"
+  --meteogram-rain-bar-color-dark: "#1565c0"
+  --meteogram-rain-max-bar-color: "#90caf9"
+  --meteogram-rain-max-bar-color-dark: "#1976d2"
+  --meteogram-temp-line-color: "#ff9800"
+  --meteogram-temp-line-color-dark: "#ffd54f"
+  --meteogram-pressure-line-color: "#1976d2"
+  --meteogram-pressure-line-color-dark: "#90caf9"
+  --meteogram-wind-barb-color: "#388e3c"
+  --meteogram-wind-barb-color-dark: "#c8e6c9"
+  --meteogram-rain-label-color: "#d32f2f"
+  --meteogram-rain-label-color-dark: "#ffebee"
+  --meteogram-rain-max-label-color: "#1976d2"
+  --meteogram-rain-max-label-color-dark: "#90caf9"
+  --meteogram-legend-text-color-dark: "#fff"
 ```
 
 **Usage notes:**
@@ -177,8 +199,24 @@ You can override the following CSS variables via the `styles` option:
 - `--meteogram-grid-color-dark`
 - `--meteogram-pressure-color`
 - `--meteogram-timescale-color`
-- `--meteogram-label-font-size` *(font size for axis labels, date/hour/rain labels, default: 14px/16px/13px)*
-- `--meteogram-legend-font-size` *(font size for legend text, default: 14px)*
+- `--meteogram-label-font-size`
+- `--meteogram-legend-font-size`
+- `--meteogram-tick-font-size`
+- `--meteogram-rain-bar-color`
+- `--meteogram-rain-bar-color-dark`
+- `--meteogram-rain-max-bar-color`
+- `--meteogram-rain-max-bar-color-dark`
+- `--meteogram-temp-line-color`
+- `--meteogram-temp-line-color-dark`
+- `--meteogram-pressure-line-color`
+- `--meteogram-pressure-line-color-dark`
+- `--meteogram-wind-barb-color`
+- `--meteogram-wind-barb-color-dark`
+- `--meteogram-rain-label-color`
+- `--meteogram-rain-label-color-dark`
+- `--meteogram-rain-max-label-color`
+- `--meteogram-rain-max-label-color-dark`
+- `--meteogram-legend-text-color-dark`
 
 For details and more variables, see [doc/STYLES.md](doc/STYLES.md).
 

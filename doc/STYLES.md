@@ -54,37 +54,29 @@ This document describes the CSS styles used in the Meteogram Card, including how
 ## Chart Elements
 
 - `.temp-line`  
-  Orange temperature line.
+  Temperature line color:  
+  `--meteogram-temp-line-color` (light), `--meteogram-temp-line-color-dark` (dark)
 - `.pressure-line`  
-  Blue dashed pressure line.
-- `.rain-bar`, `.rain-min-bar`, `.rain-max-bar`  
-  Various blue shades for rain bars.
-- `.snow-bar`  
-  Light blue for snow.
-- `.cloud-area`  
-  Shaded area for cloud cover.
-
-## Grid and Axes
-
-- `.grid`, `.xgrid`, `.wind-band-grid`  
-  Grid lines, color adapts to theme.
-- `.axis-label`, `.legend`  
-  Axis and legend text.
-
-## Wind Barbs
-
+  Pressure line color:  
+  `--meteogram-pressure-line-color` (light), `--meteogram-pressure-line-color-dark` (dark)
+- `.rain-bar`  
+  Rain bar color:  
+  `--meteogram-rain-bar-color` (light), `--meteogram-rain-bar-color-dark` (dark)
+- `.rain-max-bar`  
+  Max rain bar color:  
+  `--meteogram-rain-max-bar-color` (light), `--meteogram-rain-max-bar-color-dark` (dark)
+- `.rain-label`  
+  Rain label text color:  
+  `--meteogram-rain-label-color` (light), `--meteogram-rain-label-color-dark` (dark)
+- `.rain-max-label`  
+  Max rain label text color:  
+  `--meteogram-rain-max-label-color` (light), `--meteogram-rain-max-label-color-dark` (dark)
+- `.legend`  
+  Legend text color:  
+  `--primary-text-color` (light), `--meteogram-legend-text-color-dark` (dark)
 - `.wind-barb`, `.wind-barb-feather`, `.wind-barb-half`, `.wind-barb-calm`, `.wind-barb-dot`  
-  Blue wind barb lines and dots.
-
-## Labels
-
-- `.top-date-label`, `.bottom-hour-label`, `.rain-label`, `.rain-max-label`, `.rain-min-label`  
-  Various font sizes and colors for date, hour, and precipitation labels.
-
-## Attribution
-
-- `.attribution`  
-  Attribution box at the top right, with background and rounded corners.
+  Wind barb color:  
+  `--meteogram-wind-barb-color` (light mode), `--meteogram-wind-barb-color-dark` (dark mode)
 
 ---
 
@@ -143,6 +135,22 @@ The card uses Home Assistant theme variables where possible:
 - Custom variables for chart elements (e.g. `--meteogram-cloud-color`, `--meteogram-grid-color`, `--meteogram-grid-color-dark`).
 - `--meteogram-label-font-size` (font size for axis labels, date/hour/rain labels, default: 14px/16px/13px)
 - `--meteogram-legend-font-size` (font size for legend text, default: 14px)
+- `--meteogram-tick-font-size` (font size for y axis tick text, default: 13px)
+- `--meteogram-rain-bar-color` (rain bar color, light)
+- `--meteogram-rain-bar-color-dark` (rain bar color, dark)
+- `--meteogram-rain-max-bar-color` (max rain bar color, light)
+- `--meteogram-rain-max-bar-color-dark` (max rain bar color, dark)
+- `--meteogram-temp-line-color` (temperature line color, light)
+- `--meteogram-temp-line-color-dark` (temperature line color, dark)
+- `--meteogram-pressure-line-color` (pressure line color, light)
+- `--meteogram-pressure-line-color-dark` (pressure line color, dark)
+- `--meteogram-wind-barb-color` (wind barb color, light mode)
+- `--meteogram-wind-barb-color-dark` (wind barb color, dark mode)
+- `--meteogram-rain-label-color` (rain label text color, light)
+- `--meteogram-rain-label-color-dark` (rain label text color, dark)
+- `--meteogram-rain-max-label-color` (max rain label text color, light)
+- `--meteogram-rain-max-label-color-dark` (max rain label text color, dark)
+- `--meteogram-legend-text-color-dark` (legend text color, dark)
 
 ---
 
@@ -157,4 +165,27 @@ type: custom:meteogram-card
 styles:
   --meteogram-label-font-size: "18px"
   --meteogram-legend-font-size: "16px"
+  --meteogram-tick-font-size: "15px"
+```
+
+### Example: Custom rain bar, line, and wind barb colors
+
+```yaml
+type: custom:meteogram-card
+styles:
+  --meteogram-rain-bar-color: "#2196f3"
+  --meteogram-rain-bar-color-dark: "#1565c0"
+  --meteogram-rain-max-bar-color: "#90caf9"
+  --meteogram-rain-max-bar-color-dark: "#1976d2"
+  --meteogram-temp-line-color: "#ff9800"
+  --meteogram-temp-line-color-dark: "#ffd54f"
+  --meteogram-pressure-line-color: "#1976d2"
+  --meteogram-pressure-line-color-dark: "#90caf9"
+  --meteogram-wind-barb-color: "#388e3c"
+  --meteogram-wind-barb-color-dark: "#c8e6c9"
+  --meteogram-rain-label-color: "#d32f2f"
+  --meteogram-rain-label-color-dark: "#ffebee"
+  --meteogram-rain-max-label-color: "#1976d2"
+  --meteogram-rain-max-label-color-dark: "#90caf9"
+  --meteogram-legend-text-color-dark: "#fff"
 ```
