@@ -106,6 +106,7 @@ The meteogram retrieves weather data from the Met.no API and displays it in a vi
 | show_wind | boolean | true | Show/hide wind barbs section |
 | show_rain | boolean | true | Show/hide precipitation visualization |
 | meteogram_length | string | 48h | Number of hours to display in the meteogram (`12h`, `24h`, `48h`, `54h`, or `max`) |
+| styles | object | {} | Custom CSS variables for card styling |
 
 ### meteogram_length
 
@@ -124,6 +125,62 @@ meteogram_length: 24h  # Shows 24 hours in the meteogram
 type: 'custom:meteogram-card'
 meteogram_length: max  # Shows the maximum available hours from Met.no
 ```
+
+### styles
+
+The `styles` option allows you to override CSS variables for the card, enabling custom colors and appearance.  
+You can set any supported CSS variable (see [STYLES.md](doc/STYLES.md) for details).
+
+**Example: Change background and text color**
+```yaml
+type: custom:meteogram-card
+styles:
+  --card-background-color: "#222"
+  --primary-text-color: "#fff"
+```
+
+**Example: Customize chart colors**
+```yaml
+type: custom:meteogram-card
+styles:
+  --meteogram-cloud-color: "#ffb300"
+  --meteogram-grid-color: "#1976d2"
+  --meteogram-cloud-color-dark: "#333"
+  --meteogram-grid-color-dark: "#444"   # Dark mode grid color
+```
+
+**Example: Change font size for labels and legends**
+```yaml
+type: custom:meteogram-card
+styles:
+  --meteogram-label-font-size: "18px"      # Axis labels, date/hour/rain labels
+  --meteogram-legend-font-size: "16px"     # Legend text
+```
+
+**Usage notes:**
+- All values must be strings.
+- You can override any CSS variable used by the card.
+- For a full list of variables, see [doc/STYLES.md](doc/STYLES.md).
+
+#### List of Customizable CSS Variables
+
+You can override the following CSS variables via the `styles` option:
+
+- `--card-background-color`
+- `--primary-text-color`
+- `--secondary-text-color`
+- `--error-color`
+- `--divider-color`
+- `--meteogram-cloud-color`
+- `--meteogram-cloud-color-dark`
+- `--meteogram-grid-color`
+- `--meteogram-grid-color-dark`
+- `--meteogram-pressure-color`
+- `--meteogram-timescale-color`
+- `--meteogram-label-font-size` *(font size for axis labels, date/hour/rain labels, default: 14px/16px/13px)*
+- `--meteogram-legend-font-size` *(font size for legend text, default: 14px)*
+
+For details and more variables, see [doc/STYLES.md](doc/STYLES.md).
 
 ## Weather Data
 
@@ -152,4 +209,3 @@ For developers, the Meteogram Card is built with TypeScript and uses modern web 
 [maintenance-badge]: https://img.shields.io/maintenance/yes/2025.svg?style=flat-square
 [release-url]: https://github.com/jm-cook/lovelace-meteogram-card/releases
 [devdoc-url]: https://github.com/jm-cook/lovelace-meteogram-card/blob/main/doc/DEV.md
-

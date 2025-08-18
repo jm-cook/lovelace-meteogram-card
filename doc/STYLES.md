@@ -120,8 +120,9 @@ Styles for dark mode use the selector `:host([dark]) ...`.
 - Grid color:
   ```css
   .grid line { stroke: var(--meteogram-grid-color, #90caf9); }
-  :host([dark]) .grid line { stroke: #3a4a5a; }
+  :host([dark]) .grid line { stroke: var(--meteogram-grid-color-dark, #3a4a5a); }
   ```
+  *You can override `--meteogram-grid-color` for light mode and `--meteogram-grid-color-dark` for dark mode.*
 
 - Rain label color:
   ```css
@@ -139,7 +140,9 @@ The card uses Home Assistant theme variables where possible:
 - `--secondary-text-color`
 - `--error-color`
 - `--divider-color`
-- Custom variables for chart elements (e.g. `--meteogram-cloud-color`, `--meteogram-grid-color`).
+- Custom variables for chart elements (e.g. `--meteogram-cloud-color`, `--meteogram-grid-color`, `--meteogram-grid-color-dark`).
+- `--meteogram-label-font-size` (font size for axis labels, date/hour/rain labels, default: 14px/16px/13px)
+- `--meteogram-legend-font-size` (font size for legend text, default: 14px)
 
 ---
 
@@ -147,4 +150,11 @@ The card uses Home Assistant theme variables where possible:
 
 You can override these CSS variables in your Home Assistant theme for further customization.
 
+### Font Size Example
 
+```yaml
+type: custom:meteogram-card
+styles:
+  --meteogram-label-font-size: "18px"
+  --meteogram-legend-font-size: "16px"
+```

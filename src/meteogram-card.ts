@@ -152,6 +152,7 @@ const runWhenLitLoaded = () => {
         @property({type: Boolean}) denseWeatherIcons = true; // NEW: icon density config
         @property({type: String}) meteogramHours: string = "48h"; // Default is now 48h
         @property({type: Boolean}) fillContainer = false; // NEW: fill container option
+        @property({type: Object}) styles: Record<string, string> = {}; // NEW: styles override
 
         @state() private chartLoaded = false;
         @state() private meteogramError = "";
@@ -342,14 +343,14 @@ const runWhenLitLoaded = () => {
             }
 
             .rain-min-label {
-                font: 13px sans-serif;
+                font: var(--meteogram-label-font-size, 13px) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
                 fill: #0058a3;
             }
 
             .rain-max-label {
-                font: 13px sans-serif;
+                font: var(--meteogram-label-font-size, 13px) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
                 fill: #2693e6;
@@ -385,6 +386,13 @@ const runWhenLitLoaded = () => {
                 stroke-width: 1;
             }
 
+            /* Use --meteogram-grid-color-dark for dark mode grid lines */
+            :host([dark]) .grid line,
+            :host([dark]) .xgrid line,
+            :host([dark]) .wind-band-grid {
+                stroke: var(--meteogram-grid-color-dark, #3a4a5a);
+            }
+
             .twentyfourh-line, .day-tic {
                 stroke: var(--meteogram-timescale-color, #ffb300);
                 stroke-width: 3;
@@ -400,12 +408,12 @@ const runWhenLitLoaded = () => {
             }
 
             .axis-label {
-                font: 14px sans-serif;
+                font: var(--meteogram-label-font-size, 14px) sans-serif;
                 fill: var(--primary-text-color, #222);
             }
 
             .legend {
-                font: 14px sans-serif;
+                font: var(--meteogram-legend-font-size, 14px) sans-serif;
                 fill: var(--primary-text-color, #222);
             }
 
@@ -447,27 +455,20 @@ const runWhenLitLoaded = () => {
                 fill: #fff;
             }
 
-            /* Tone down grid color in dark mode */
-            :host([dark]) .grid line,
-            :host([dark]) .xgrid line,
-            :host([dark]) .wind-band-grid {
-                stroke: #3a4a5a;
-            }
-
             .top-date-label {
-                font: 16px sans-serif;
+                font: var(--meteogram-label-font-size, 16px) sans-serif;
                 fill: var(--primary-text-color, #222);
                 font-weight: bold;
                 dominant-baseline: hanging;
             }
 
             .bottom-hour-label {
-                font: 13px sans-serif;
+                font: var(--meteogram-label-font-size, 13px) sans-serif;
                 fill: var(--meteogram-timescale-color, #ffb300);
             }
 
             .rain-label {
-                font: 13px sans-serif;
+                font: var(--meteogram-label-font-size, 13px) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
                 fill: #0058a3;
@@ -529,6 +530,9 @@ const runWhenLitLoaded = () => {
             this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
             this.meteogramHours = config.meteogram_hours || "48h";
             this.fillContainer = config.fill_container !== undefined ? config.fill_container : false;
+
+            // Add styles override from config
+            this.styles = config.styles || {};
 
             // if (latChanged || lonChanged) {
             //     MeteogramCard.apiExpiresAt = null;
@@ -1804,7 +1808,7 @@ const runWhenLitLoaded = () => {
             }
         }
 
-        // Add windBarbBand and hourLabelBand as arguments so chartHeight calculation can be correct
+        // Update renderMeteogram to add windBarbBand and hourLabelBand as arguments
         renderMeteogram(
             svg: any,
             data: MeteogramData,
@@ -2448,8 +2452,14 @@ const runWhenLitLoaded = () => {
         render() {
             this._updateDarkMode(); // Ensure dark mode is set before rendering
             const {html} = window.litElementModules;
+
+            // Build inline style string from styles property
+            const styleVars = Object.entries(this.styles || {})
+                .map(([k, v]) => `${k}: ${v};`)
+                .join(" ");
+
             return html`
-                <ha-card>
+                <ha-card style="${styleVars}">
                     ${this.title ? html`
                         <div class="card-header">${this.title}</div>` : ""}
                     <div class="card-content">
