@@ -1829,6 +1829,11 @@ const runWhenLitLoaded = () => {
             } = data;
             const N = time.length;
 
+            // --- CHANGED: Get system temperature unit and convert values ---
+            const tempUnit = this.getSystemTemperatureUnit();
+            const temperatureConverted = temperature.map(t => this.convertTemperature(t));
+            // -------------------------------------------------------------
+
             // SVG and chart parameters
             // Always reserve space for hour labels (24px) at the bottom
             const margin = {top: 70, right: 70, bottom: hourLabelBand + 10, left: 70};
@@ -1935,7 +1940,7 @@ const runWhenLitLoaded = () => {
             const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
             // Temperature Y scale, handling null values
-            const tempValues = temperature.filter((t): t is number => t !== null);
+            const tempValues = temperatureConverted.filter((t): t is number => t !== null);
             const yTemp = d3.scaleLinear()
                 .domain([Math.floor(d3.min(tempValues) - 2), Math.ceil(d3.max(tempValues) + 2)])
                 .range([chartHeight, 0]);
@@ -2084,7 +2089,7 @@ const runWhenLitLoaded = () => {
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
                 .attr("transform", `translate(-50,${chartHeight / 2}) rotate(-90)`)
-                .text("Temperature (°C)");
+                .text(`Temperature (${tempUnit})`);
 
             // Only add cloud cover legend if enabled
             if (this.showCloudCover) {
@@ -2098,7 +2103,7 @@ const runWhenLitLoaded = () => {
                 .attr("class", "legend")
                 .attr("x", 200).attr("y", -45)
                 .style("fill", "orange")
-                .text("Temperature (°C)");
+                .text(`Temperature (${tempUnit})`);
 
             chart.append("text")
                 .attr("class", "legend")
@@ -2116,10 +2121,10 @@ const runWhenLitLoaded = () => {
             const line = d3.line()
                 .defined((d: number | null) => d !== null)
                 .x((_: number | null, i: number) => x(i))
-                .y((d: number | null) => d !== null ? yTemp(d) : 0);
+                .y((_: number | null, i: number) => temperatureConverted[i] !== null ? yTemp(temperatureConverted[i]) : 0);
 
             chart.append("path")
-                .datum(temperature)
+                .datum(temperatureConverted)
                 .attr("class", "temp-line")
                 .attr("d", line);
 
@@ -2148,13 +2153,13 @@ const runWhenLitLoaded = () => {
                     .attr("class", "weather-icon")
                     .attr("x", (_: string, i: number) => x(i) - 20)
                     .attr("y", (_: string, i: number) => {
-                        const temp = temperature[i];
+                        const temp = temperatureConverted[i];
                         return temp !== null ? yTemp(temp) - 40 : -999;
                     })
                     .attr("width", 40)
                     .attr("height", 40)
                     .attr("opacity", (_: string, i: number) =>
-                        (temperature[i] !== null && i % iconInterval === 0) ? 1 : 0)
+                        (temperatureConverted[i] !== null && i % iconInterval === 0) ? 1 : 0)
                     .each((d: string, i: number, nodes: any) => {
                         if (i % iconInterval !== 0) return;
 
@@ -2535,6 +2540,30 @@ const runWhenLitLoaded = () => {
             } else {
                 this.removeAttribute('dark');
             }
+        }
+
+        // Add a helper to get the system temperature unit from Home Assistant
+        private getSystemTemperatureUnit(): "°C" | "°F" {
+            // Try to get from hass.config.unit_system.temperature
+            if (this.hass && this.hass.config && this.hass.config.unit_system && this.hass.config.unit_system.temperature) {
+                const unit = this.hass.config.unit_system.temperature;
+                if (unit === "°F" || unit === "°C") return unit;
+                // Some installations may use "F" or "C"
+                if (unit === "F") return "°F";
+                if (unit === "C") return "°C";
+            }
+            // Default to Celsius
+            return "°C";
+        }
+
+        // Add a helper to convert Celsius to Fahrenheit if needed
+        private convertTemperature(tempC: number | null): number | null {
+            if (tempC === null || tempC === undefined) return tempC;
+            const unit = this.getSystemTemperatureUnit();
+            if (unit === "°F") {
+                return tempC * 9 / 5 + 32;
+            }
+            return tempC;
         }
     }
 
