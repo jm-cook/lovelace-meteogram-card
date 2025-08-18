@@ -320,7 +320,7 @@ const runWhenLitLoaded = () => {
                 fill: none;
             }
             :host([dark]) .temp-line {
-                stroke: var(--meteogram-temp-line-color-dark, #ffb300);
+                stroke: var(--meteogram-temp-line-color-dark, var(--meteogram-temp-line-color, orange));
             }
 
             .pressure-line {
@@ -330,7 +330,7 @@ const runWhenLitLoaded = () => {
                 fill: none;
             }
             :host([dark]) .pressure-line {
-                stroke: var(--meteogram-pressure-line-color-dark, #90caf9);
+                stroke: var(--meteogram-pressure-line-color-dark, var(--meteogram-pressure-line-color, var(--meteogram-pressure-color, #90caf9)));
             }
 
             .rain-bar {
@@ -338,7 +338,7 @@ const runWhenLitLoaded = () => {
                 opacity: 0.8;
             }
             :host([dark]) .rain-bar {
-                fill: var(--meteogram-rain-bar-color-dark, #2196f3);
+                fill: var(--meteogram-rain-bar-color-dark, var(--meteogram-rain-bar-color, deepskyblue));
             }
 
             .rain-max-bar {
@@ -346,7 +346,7 @@ const runWhenLitLoaded = () => {
                 opacity: 0.5;
             }
             :host([dark]) .rain-max-bar {
-                fill: var(--meteogram-rain-max-bar-color-dark, #90caf9);
+                fill: var(--meteogram-rain-max-bar-color-dark, var(--meteogram-rain-max-bar-color, #7fdbff));
             }
 
             .rain-label {
@@ -356,7 +356,7 @@ const runWhenLitLoaded = () => {
                 fill: var(--meteogram-rain-label-color, #0058a3);
             }
             :host([dark]) .rain-label {
-                fill: var(--meteogram-rain-label-color-dark, #a3d8ff);
+                fill: var(--meteogram-rain-label-color-dark, var(--meteogram-rain-label-color, #0058a3));
                 filter: drop-shadow(0 0 2px #fff);
             }
 
@@ -367,7 +367,7 @@ const runWhenLitLoaded = () => {
                 fill: var(--meteogram-rain-max-label-color, #2693e6);
             }
             :host([dark]) .rain-max-label {
-                fill: var(--meteogram-rain-max-label-color-dark, #1976d2);
+                fill: var(--meteogram-rain-max-label-color-dark, var(--meteogram-rain-max-label-color, #2693e6));
             }
 
             .legend {
@@ -375,96 +375,7 @@ const runWhenLitLoaded = () => {
                 fill: var(--primary-text-color, #222);
             }
             :host([dark]) .legend {
-                fill: var(--meteogram-legend-text-color-dark, #fff);
-            }
-
-            .rain-bar {
-                fill: var(--meteogram-rain-bar-color, deepskyblue);
-                opacity: 0.8;
-            }
-
-            .rain-max-bar {
-                fill: var(--meteogram-rain-max-bar-color, #7fdbff);
-                opacity: 0.5;
-            }
-
-            .rain-label {
-                font: var(--meteogram-label-font-size, 13px) sans-serif;
-                text-anchor: middle;
-                font-weight: bold;
-                fill: var(--meteogram-rain-label-color, #0058a3);
-            }
-
-            .rain-max-label {
-                font: var(--meteogram-label-font-size, 13px) sans-serif;
-                text-anchor: middle;
-                font-weight: bold;
-                fill: var(--meteogram-rain-max-label-color, #2693e6);
-            }
-
-            .snow-bar {
-                fill: #b3e6ff;
-                opacity: 0.8;
-            }
-
-            .cloud-area {
-                fill: var(--meteogram-cloud-color, #b0bec5);
-                opacity: 0.42;
-            }
-
-            /* Use host attribute for dark mode */
-
-            :host([dark]) .cloud-area {
-                fill: var(--meteogram-cloud-color-dark, #eceff1);
-                opacity: 0.55;
-            }
-
-            .grid line {
-                stroke: var(--meteogram-grid-color, #90caf9);
-            }
-
-            .xgrid line {
-                stroke: var(--meteogram-grid-color, #90caf9);
-            }
-
-            .wind-band-grid {
-                stroke: var(--meteogram-grid-color, #90caf9);
-                stroke-width: 1;
-            }
-
-            /* Use --meteogram-grid-color-dark for dark mode grid lines and outline */
-            :host([dark]) .grid line,
-            :host([dark]) .xgrid line,
-            :host([dark]) .wind-band-grid,
-            :host([dark]) .wind-band-outline,
-            :host([dark]) .twentyfourh-line,
-            :host([dark]) .twentyfourh-line-wind,
-            :host([dark]) .day-tic {
-                stroke: var(--meteogram-grid-color-dark, #3a4a5a);
-            }
-
-            .twentyfourh-line, .day-tic {
-                stroke: var(--meteogram-timescale-color, #ffb300);
-                stroke-width: 3;
-                stroke-dasharray: 6, 5;
-                opacity: 0.7;
-            }
-
-            .twentyfourh-line-wind {
-                stroke: var(--meteogram-timescale-color, #ffb300);
-                stroke-width: 2.5;
-                stroke-dasharray: 6, 5;
-                opacity: 0.5;
-            }
-
-            .axis-label {
-                font: var(--meteogram-label-font-size, 14px) sans-serif;
-                fill: var(--primary-text-color, #222);
-            }
-
-            .legend {
-                font: var(--meteogram-legend-font-size, 14px) sans-serif;
-                fill: var(--primary-text-color, #222);
+                fill: var(--meteogram-legend-text-color-dark, var(--primary-text-color, #222));
             }
 
             .wind-barb {
@@ -498,11 +409,11 @@ const runWhenLitLoaded = () => {
             :host([dark]) .wind-barb-feather,
             :host([dark]) .wind-barb-half,
             :host([dark]) .wind-barb-calm {
-                stroke: var(--meteogram-wind-barb-color-dark, #fff);
+                stroke: var(--meteogram-wind-barb-color-dark, var(--meteogram-wind-barb-color, #1976d2));
             }
 
             :host([dark]) .wind-barb-dot {
-                fill: var(--meteogram-wind-barb-color-dark, #fff);
+                fill: var(--meteogram-wind-barb-color-dark, var(--meteogram-wind-barb-color, #1976d2));
             }
 
             .top-date-label {

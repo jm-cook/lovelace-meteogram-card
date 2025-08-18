@@ -89,6 +89,8 @@ Dark mode is detected by:
 When dark mode is active, the card sets the `dark` attribute on the host element.  
 Styles for dark mode use the selector `:host([dark]) ...`.
 
+If a `-dark` CSS variable is not set, the card will automatically fall back to the corresponding non-dark variable.
+
 ### Examples
 
 - Cloud area fill:

@@ -182,6 +182,7 @@ styles:
 **Usage notes:**
 - All values must be strings.
 - You can override any CSS variable used by the card.
+- For dark mode, if a `-dark` variable is not set, the card will use the corresponding non-dark variable as a fallback.
 - For a full list of variables, see [doc/STYLES.md](doc/STYLES.md).
 
 #### List of Customizable CSS Variables
