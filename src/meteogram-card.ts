@@ -472,6 +472,15 @@ const runWhenLitLoaded = () => {
                 font-size: var(--meteogram-tick-font-size, 13px);
                 fill: var(--primary-text-color, #222);
             }
+
+            .cloud-area {
+                fill: var(--meteogram-cloud-color, #b0bec5);
+                opacity: 0.42;
+            }
+            :host([dark]) .cloud-area {
+                fill: var(--meteogram-cloud-color-dark, var(--meteogram-cloud-color, #eceff1));
+                opacity: 0.55;
+            }
         `;
 
         // Required for Home Assistant
