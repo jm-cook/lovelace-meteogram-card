@@ -176,7 +176,22 @@ styles:
   --meteogram-rain-label-color-dark: "#ffebee"
   --meteogram-rain-max-label-color: "#1976d2"
   --meteogram-rain-max-label-color-dark: "#90caf9"
+  --meteogram-cloud-color: red
 ```
+
+![img.png](images/meteogram-example2.png)
+
+
+**Example: Customizing Snow Bar Color**
+
+```yaml
+type: custom:meteogram-card
+styles:
+  --meteogram-snow-bar-color: "lightblue"
+  --meteogram-snow-bar-color-dark: "white"
+```
+
+
 
 **Usage notes:**
 - All values must be strings.
@@ -215,9 +230,11 @@ You can override the following CSS variables via the `styles` option:
 - `--meteogram-wind-barb-color-dark`
 - `--meteogram-rain-label-color-dark`
 - `--meteogram-rain-max-label-color-dark`
+- `--meteogram-snow-bar-color`
+- `--meteogram-snow-bar-color-dark`
 
 
-For details and more variables, see [doc/STYLES.md](doc/STYLES.md).
+For more details and examples, see [doc/STYLES.md][styledoc-url].
 
 ## Weather Data
 
@@ -246,3 +263,4 @@ For developers, the Meteogram Card is built with TypeScript and uses modern web 
 [maintenance-badge]: https://img.shields.io/maintenance/yes/2025.svg?style=flat-square
 [release-url]: https://github.com/jm-cook/lovelace-meteogram-card/releases
 [devdoc-url]: https://github.com/jm-cook/lovelace-meteogram-card/blob/main/doc/DEV.md
+[styledoc-url]: https://github.com/jm-cook/lovelace-meteogram-card/blob/main/doc/STYLES.md

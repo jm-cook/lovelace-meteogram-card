@@ -259,6 +259,31 @@ const runWhenLitLoaded = () => {
             :host {
                 --meteogram-grid-color: #b8c4d9;
                 --meteogram-grid-color-dark: #b8c4d9;
+                --meteogram-temp-line-color: orange;
+                --meteogram-temp-line-color-dark: orange;
+                --meteogram-pressure-line-color: #90caf9;
+                --meteogram-pressure-line-color-dark: #90caf9;
+                --meteogram-rain-bar-color: deepskyblue;
+                --meteogram-rain-bar-color-dark: deepskyblue;
+                --meteogram-rain-max-bar-color: #7fdbff;
+                --meteogram-rain-max-bar-color-dark: #7fdbff;
+                --meteogram-rain-label-color: #0058a3;
+                --meteogram-rain-label-color-dark: #a3d8ff;
+                --meteogram-rain-max-label-color: #2693e6;
+                --meteogram-rain-max-label-color-dark: #2693e6;
+                --meteogram-cloud-color: #b0bec5;
+                --meteogram-cloud-color-dark: #eceff1;
+                --meteogram-wind-barb-color: #1976d2;
+                --meteogram-wind-barb-color-dark: #1976d2;
+                --meteogram-label-font-size: var(--mdc-typography-body2-font-size, 0.875rem);
+                --meteogram-legend-font-size: var(--mdc-typography-body1-font-size, 1rem);
+                --meteogram-tick-font-size: var(--mdc-typography-body2-font-size, 0.875rem);
+                --meteogram-axis-label-color: #000;
+                --meteogram-axis-label-color-dark: #fff;
+                --meteogram-timescale-color: #ffb300;
+                --meteogram-timescale-color-dark: #ffd54f;
+                --meteogram-snow-bar-color: #b3e6ff;
+                --meteogram-snow-bar-color-dark: #e0f7fa;
                 display: block;
                 box-sizing: border-box;
                 height: 100%;
@@ -317,63 +342,63 @@ const runWhenLitLoaded = () => {
             }
 
             .temp-line {
-                stroke: var(--meteogram-temp-line-color, var(--accent-color, orange));
+                stroke: var(--meteogram-temp-line-color);
                 stroke-width: 3;
                 fill: none;
             }
             :host([dark]) .temp-line {
-                stroke: var(--meteogram-temp-line-color-dark, var(--meteogram-temp-line-color, var(--accent-color, orange)));
+                stroke: var(--meteogram-temp-line-color-dark);
             }
 
             .pressure-line {
-                stroke: var(--meteogram-pressure-line-color, #90caf9);
+                stroke: var(--meteogram-pressure-line-color);
                 stroke-width: 4;
                 stroke-dasharray: 3, 3;
                 fill: none;
             }
             :host([dark]) .pressure-line {
-                stroke: var(--meteogram-pressure-line-color-dark, var(--meteogram-pressure-line-color, #90caf9));
+                stroke: var(--meteogram-pressure-line-color-dark);
             }
 
             .rain-bar {
-                fill: var(--meteogram-rain-bar-color, deepskyblue);
+                fill: var(--meteogram-rain-bar-color);
                 opacity: 0.8;
             }
             :host([dark]) .rain-bar {
-                fill: var(--meteogram-rain-bar-color-dark, var(--meteogram-rain-bar-color, deepskyblue));
+                fill: var(--meteogram-rain-bar-color-dark);
             }
 
             .rain-max-bar {
-                fill: var(--meteogram-rain-max-bar-color, #7fdbff);
+                fill: var(--meteogram-rain-max-bar-color);
                 opacity: 0.5;
             }
             :host([dark]) .rain-max-bar {
-                fill: var(--meteogram-rain-max-bar-color-dark, var(--meteogram-rain-max-bar-color, #7fdbff));
+                fill: var(--meteogram-rain-max-bar-color-dark);
             }
 
             .rain-label {
-                font: var(--meteogram-label-font-size, 13px) sans-serif;
+                font: var(--meteogram-label-font-size) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: var(--meteogram-rain-label-color, #0058a3);
+                fill: var(--meteogram-rain-label-color);
             }
             :host([dark]) .rain-label {
-                fill: var(--meteogram-rain-label-color-dark, var(--meteogram-rain-label-color, #0058a3));
+                fill: var(--meteogram-rain-label-color-dark);
                 filter: drop-shadow(0 0 2px #fff);
             }
 
             .rain-max-label {
-                font: var(--meteogram-label-font-size, 13px) sans-serif;
+                font: var(--meteogram-label-font-size) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: var(--meteogram-rain-max-label-color, #2693e6);
+                fill: var(--meteogram-rain-max-label-color);
             }
             :host([dark]) .rain-max-label {
-                fill: var(--meteogram-rain-max-label-color-dark, var(--meteogram-rain-max-label-color, #2693e6));
+                fill: var(--meteogram-rain-max-label-color-dark);
             }
 
             .legend {
-                font: var(--meteogram-legend-font-size, 14px) sans-serif;
+                font: var(--meteogram-legend-font-size) sans-serif;
                 fill: var(--primary-text-color, #222);
             }
             :host([dark]) .legend {
@@ -381,31 +406,31 @@ const runWhenLitLoaded = () => {
             }
 
             .legend-temp {
-                fill: var(--meteogram-temp-line-color, var(--accent-color, orange));
+                fill: var(--meteogram-temp-line-color);
             }
             :host([dark]) .legend-temp {
-                fill: var(--meteogram-temp-line-color-dark, var(--meteogram-temp-line-color, var(--accent-color, orange)));
+                fill: var(--meteogram-temp-line-color-dark);
             }
 
             .legend-pressure {
-                fill: var(--meteogram-pressure-line-color, #90caf9);
+                fill: var(--meteogram-pressure-line-color);
             }
             :host([dark]) .legend-pressure {
-                fill: var(--meteogram-pressure-line-color-dark, var(--meteogram-pressure-line-color, #90caf9));
+                fill: var(--meteogram-pressure-line-color-dark);
             }
 
             .legend-rain {
-                fill: var(--meteogram-rain-bar-color, deepskyblue);
+                fill: var(--meteogram-rain-bar-color);
             }
             :host([dark]) .legend-rain {
-                fill: var(--meteogram-rain-bar-color-dark, var(--meteogram-rain-bar-color, deepskyblue));
+                fill: var(--meteogram-rain-bar-color-dark);
             }
 
             .legend-rain-max {
-                fill: var(--meteogram-rain-max-bar-color, #7fdbff);
+                fill: var(--meteogram-rain-max-bar-color);
             }
             :host([dark]) .legend-rain-max {
-                fill: var(--meteogram-rain-max-bar-color-dark, var(--meteogram-rain-max-bar-color, #7fdbff));
+                fill: var(--meteogram-rain-max-bar-color-dark);
             }
 
             .legend-snow {
@@ -413,48 +438,46 @@ const runWhenLitLoaded = () => {
             }
 
             .legend-cloud {
-                fill: var(--meteogram-cloud-color, #b0bec5);
+                fill: var(--meteogram-cloud-color);
             }
             :host([dark]) .legend-cloud {
-                fill: var(--meteogram-cloud-color-dark, var(--meteogram-cloud-color, #eceff1));
+                fill: var(--meteogram-cloud-color-dark);
             }
 
             .wind-barb {
-                stroke: var(--meteogram-wind-barb-color, #1976d2);
+                stroke: var(--meteogram-wind-barb-color);
                 stroke-width: 2;
                 fill: none;
             }
 
             .wind-barb-feather {
-                stroke: var(--meteogram-wind-barb-color, #1976d2);
+                stroke: var(--meteogram-wind-barb-color);
                 stroke-width: 1.4;
             }
 
             .wind-barb-half {
-                stroke: var(--meteogram-wind-barb-color, #1976d2);
+                stroke: var(--meteogram-wind-barb-color);
                 stroke-width: 0.8;
             }
 
             .wind-barb-calm {
-                stroke: var(--meteogram-wind-barb-color, #1976d2);
+                stroke: var(--meteogram-wind-barb-color);
                 fill: none;
             }
 
             .wind-barb-dot {
-                fill: var(--meteogram-wind-barb-color, #1976d2);
+                fill: var(--meteogram-wind-barb-color);
             }
-
-            /* Improve wind barb contrast in dark mode */
 
             :host([dark]) .wind-barb,
             :host([dark]) .wind-barb-feather,
             :host([dark]) .wind-barb-half,
             :host([dark]) .wind-barb-calm {
-                stroke: var(--meteogram-wind-barb-color-dark, var(--meteogram-wind-barb-color, #1976d2));
+                stroke: var(--meteogram-wind-barb-color-dark);
             }
 
             :host([dark]) .wind-barb-dot {
-                fill: var(--meteogram-wind-barb-color-dark, var(--meteogram-wind-barb-color, #1976d2));
+                fill: var(--meteogram-wind-barb-color-dark);
             }
 
             .top-date-label {
@@ -465,22 +488,11 @@ const runWhenLitLoaded = () => {
             }
 
             .bottom-hour-label {
-                font: var(--meteogram-label-font-size, 13px) sans-serif;
-                fill: var(--meteogram-timescale-color, #ffb300);
+                font: var(--meteogram-label-font-size) sans-serif;
+                fill: var(--meteogram-timescale-color);
             }
-
-            .rain-label {
-                font: var(--meteogram-label-font-size, 13px) sans-serif;
-                text-anchor: middle;
-                font-weight: bold;
-                fill: var(--meteogram-rain-label-color, #0058a3);
-            }
-
-            :host([dark]) .rain-label {
-                fill: #a3d8ff; /* Light blue tint for dark mode */
-                /* Add a white base with blue tint */
-                /* Optionally, use a drop-shadow for better contrast */
-                filter: drop-shadow(0 0 2px #fff);
+            :host([dark]) .bottom-hour-label {
+                fill: var(--meteogram-timescale-color-dark);
             }
 
             .day-bg {
@@ -510,45 +522,92 @@ const runWhenLitLoaded = () => {
             /* Tick text font size for axes */
             .temperature-axis .tick text,
             .pressure-axis .tick text {
-                font-size: var(--meteogram-tick-font-size, 13px);
+                font-size: var(--meteogram-tick-font-size);
                 fill: var(--primary-text-color, #222);
             }
 
             .cloud-area {
-                fill: var(--meteogram-cloud-color, #b0bec5);
+                fill: var(--meteogram-cloud-color);
                 opacity: 0.42;
             }
             :host([dark]) .cloud-area {
-                fill: var(--meteogram-cloud-color-dark, var(--meteogram-cloud-color, #eceff1));
+                fill: var(--meteogram-cloud-color-dark);
                 opacity: 0.55;
             }
 
             .axis-label {
                 font: var(--meteogram-label-font-size, 14px) sans-serif;
-                fill: var(--meteogram-axis-label-color, #000);
+                fill: var(--meteogram-axis-label-color);
             }
             :host([dark]) .axis-label {
-                fill: var(--meteogram-axis-label-color-dark, #fff);
+                fill: var(--meteogram-axis-label-color-dark);
+            }
+
+            .grid line,
+            .xgrid line,
+            .wind-band-grid,
+            .twentyfourh-line,
+            .twentyfourh-line-wind,
+            .day-tic,
+            .temperature-axis path,
+            .pressure-axis path,
+            .wind-band-outline {
+                stroke: var(--meteogram-grid-color);
+            }
+            :host([dark]) .grid line,
+            :host([dark]) .xgrid line,
+            :host([dark]) .wind-band-grid,
+            :host([dark]) .twentyfourh-line,
+            :host([dark]) .twentyfourh-line-wind,
+            :host([dark]) .day-tic,
+            :host([dark]) .temperature-axis path,
+            :host([dark]) .pressure-axis path,
+            :host([dark]) .wind-band-outline {
+                stroke: var(--meteogram-grid-color-dark);
+            }
+
+            /* Tick text font size for axes */
+            .temperature-axis .tick text,
+            .pressure-axis .tick text {
+                font-size: var(--meteogram-tick-font-size);
+                fill: var(--primary-text-color, #222);
+            }
+
+            .cloud-area {
+                fill: var(--meteogram-cloud-color);
+                opacity: 0.42;
+            }
+            :host([dark]) .cloud-area {
+                fill: var(--meteogram-cloud-color-dark);
+                opacity: 0.55;
+            }
+
+            .axis-label {
+                font: var(--meteogram-label-font-size, 14px) sans-serif;
+                fill: var(--meteogram-axis-label-color);
+            }
+            :host([dark]) .axis-label {
+                fill: var(--meteogram-axis-label-color-dark);
             }
 
             .grid line {
-                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke: var(--meteogram-grid-color);
             }
             .xgrid line {
-                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke: var(--meteogram-grid-color);
             }
             .wind-band-grid {
-                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke: var(--meteogram-grid-color);
                 stroke-width: 1;
             }
             .twentyfourh-line, .day-tic {
-                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke: var(--meteogram-grid-color);
                 stroke-width: 3;
                 stroke-dasharray: 6, 5;
                 opacity: 0.7;
             }
             .twentyfourh-line-wind {
-                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke: var(--meteogram-grid-color);
                 stroke-width: 2.5;
                 stroke-dasharray: 6, 5;
                 opacity: 0.5;
@@ -559,25 +618,25 @@ const runWhenLitLoaded = () => {
             :host([dark]) .twentyfourh-line,
             :host([dark]) .twentyfourh-line-wind,
             :host([dark]) .day-tic {
-                stroke: var(--meteogram-grid-color-dark, var(--meteogram-grid-color, #b8c4d9));
+                stroke: var(--meteogram-grid-color-dark);
             }
 
             .temperature-axis path,
             .pressure-axis path {
-                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke: var(--meteogram-grid-color);
             }
             :host([dark]) .temperature-axis path,
             :host([dark]) .pressure-axis path {
-                stroke: var(--meteogram-grid-color-dark, var(--meteogram-grid-color, #b8c4d9));
+                stroke: var(--meteogram-grid-color-dark);
             }
 
             .wind-band-outline {
-                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke: var(--meteogram-grid-color);
                 stroke-width: 2;
                 fill: none;
             }
             :host([dark]) .wind-band-outline {
-                stroke: var(--meteogram-grid-color-dark, var(--meteogram-grid-color, #b8c4d9));
+                stroke: var(--meteogram-grid-color-dark);
             }
         `;
 
@@ -2399,7 +2458,8 @@ const runWhenLitLoaded = () => {
                     .attr("height", (d: number) => {
                         const h = chartHeight - yPrecip(d);
                         return h < 2 && d > 0 ? 2 : h * 0.7;
-                    });
+                    })
+                    .attr("fill", "currentColor");
             }
 
             // Wind band - only if enabled
