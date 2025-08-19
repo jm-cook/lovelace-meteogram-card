@@ -1,3 +1,37 @@
+## v2.0.0 – Introducing Fully Themeable Chart with Light & Dark Mode Support
+
+Meteogram Card v2.0.0 brings a major upgrade: every chart element is now fully themeable using CSS variables, with dedicated support for both light and dark mode.  
+Customize colors for temperature, pressure, rain, snow, wind barbs, gridlines, axis labels, timescale, and more—directly from your Home Assistant theme or card config.
+
+**Highlights:**
+- All chart elements use CSS variables for color and style.
+- Each variable has a dark mode counterpart (e.g. `--meteogram-temp-line-color-dark`).
+- Snow bars are now themeable (`--meteogram-snow-bar-color`, `--meteogram-snow-bar-color-dark`).
+- No more repeated fallback colors—everything is centralized and easy to override.
+- See [STYLES.md](STYLES.md) for the full list of variables.
+
+**Example: Customizing the chart for light and dark mode**
+```yaml
+type: custom:meteogram-card
+styles:
+  --meteogram-temp-line-color: "#ff9800"
+  --meteogram-temp-line-color-dark: "#ffd54f"
+  --meteogram-pressure-line-color: "#1976d2"
+  --meteogram-pressure-line-color-dark: "#90caf9"
+  --meteogram-rain-bar-color: "#2196f3"
+  --meteogram-rain-bar-color-dark: "#1565c0"
+  --meteogram-snow-bar-color: "lightblue"
+  --meteogram-snow-bar-color-dark: "white"
+  --meteogram-grid-color: "#b8c4d9"
+  --meteogram-grid-color-dark: "#444"
+  --meteogram-axis-label-color: "#222"
+  --meteogram-axis-label-color-dark: "#fff"
+  --meteogram-timescale-color: "#ffb300"
+  --meteogram-timescale-color-dark: "#ffd54f"
+```
+
+**Try it out and make your meteogram match your dashboard perfectly!**
+
 # Meteogram Card v1.0.9 Release Notes
 
 
