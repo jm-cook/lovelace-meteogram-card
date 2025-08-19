@@ -176,7 +176,6 @@ styles:
   --meteogram-rain-label-color-dark: "#ffebee"
   --meteogram-rain-max-label-color: "#1976d2"
   --meteogram-rain-max-label-color-dark: "#90caf9"
-  --meteogram-legend-text-color-dark: "#fff"
 ```
 
 **Usage notes:**
@@ -194,30 +193,29 @@ You can override the following CSS variables via the `styles` option:
 - `--secondary-text-color`
 - `--error-color`
 - `--divider-color`
-- `--meteogram-cloud-color`
-- `--meteogram-cloud-color-dark`
-- `--meteogram-grid-color`
-- `--meteogram-grid-color-dark`
-- `--meteogram-pressure-color`
-- `--meteogram-timescale-color`
 - `--meteogram-label-font-size`
 - `--meteogram-legend-font-size`
 - `--meteogram-tick-font-size`
-- `--meteogram-rain-bar-color`
-- `--meteogram-rain-bar-color-dark`
-- `--meteogram-rain-max-bar-color`
-- `--meteogram-rain-max-bar-color-dark`
-- `--meteogram-temp-line-color`
-- `--meteogram-temp-line-color-dark`
+- `--meteogram-cloud-color`
+- `--meteogram-grid-color`
 - `--meteogram-pressure-line-color`
-- `--meteogram-pressure-line-color-dark`
+- `--meteogram-timescale-color`
+- `--meteogram-rain-bar-color`
+- `--meteogram-rain-max-bar-color`
+- `--meteogram-temp-line-color`
 - `--meteogram-wind-barb-color`
-- `--meteogram-wind-barb-color-dark`
 - `--meteogram-rain-label-color`
-- `--meteogram-rain-label-color-dark`
 - `--meteogram-rain-max-label-color`
+- `--meteogram-cloud-color-dark`
+- `--meteogram-grid-color-dark`
+- `--meteogram-pressure-line-color-dark`
+- `--meteogram-rain-bar-color-dark`
+- `--meteogram-rain-max-bar-color-dark`
+- `--meteogram-temp-line-color-dark`
+- `--meteogram-wind-barb-color-dark`
+- `--meteogram-rain-label-color-dark`
 - `--meteogram-rain-max-label-color-dark`
-- `--meteogram-legend-text-color-dark`
+
 
 For details and more variables, see [doc/STYLES.md](doc/STYLES.md).
 

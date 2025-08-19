@@ -257,6 +257,8 @@ const runWhenLitLoaded = () => {
 
         static styles = css`
             :host {
+                --meteogram-grid-color: #b8c4d9;
+                --meteogram-grid-color-dark: #b8c4d9;
                 display: block;
                 box-sizing: border-box;
                 height: 100%;
@@ -315,22 +317,22 @@ const runWhenLitLoaded = () => {
             }
 
             .temp-line {
-                stroke: var(--meteogram-temp-line-color, orange);
+                stroke: var(--meteogram-temp-line-color, var(--accent-color, orange));
                 stroke-width: 3;
                 fill: none;
             }
             :host([dark]) .temp-line {
-                stroke: var(--meteogram-temp-line-color-dark, var(--meteogram-temp-line-color, orange));
+                stroke: var(--meteogram-temp-line-color-dark, var(--meteogram-temp-line-color, var(--accent-color, orange)));
             }
 
             .pressure-line {
-                stroke: var(--meteogram-pressure-line-color, var(--meteogram-pressure-color, #90caf9));
+                stroke: var(--meteogram-pressure-line-color, #90caf9);
                 stroke-width: 4;
                 stroke-dasharray: 3, 3;
                 fill: none;
             }
             :host([dark]) .pressure-line {
-                stroke: var(--meteogram-pressure-line-color-dark, var(--meteogram-pressure-line-color, var(--meteogram-pressure-color, #90caf9)));
+                stroke: var(--meteogram-pressure-line-color-dark, var(--meteogram-pressure-line-color, #90caf9));
             }
 
             .rain-bar {
@@ -375,7 +377,46 @@ const runWhenLitLoaded = () => {
                 fill: var(--primary-text-color, #222);
             }
             :host([dark]) .legend {
-                fill: var(--meteogram-legend-text-color-dark, var(--primary-text-color, #222));
+                fill: var(--primary-text-color, #fff);
+            }
+
+            .legend-temp {
+                fill: var(--meteogram-temp-line-color, var(--accent-color, orange));
+            }
+            :host([dark]) .legend-temp {
+                fill: var(--meteogram-temp-line-color-dark, var(--meteogram-temp-line-color, var(--accent-color, orange)));
+            }
+
+            .legend-pressure {
+                fill: var(--meteogram-pressure-line-color, #90caf9);
+            }
+            :host([dark]) .legend-pressure {
+                fill: var(--meteogram-pressure-line-color-dark, var(--meteogram-pressure-line-color, #90caf9));
+            }
+
+            .legend-rain {
+                fill: var(--meteogram-rain-bar-color, deepskyblue);
+            }
+            :host([dark]) .legend-rain {
+                fill: var(--meteogram-rain-bar-color-dark, var(--meteogram-rain-bar-color, deepskyblue));
+            }
+
+            .legend-rain-max {
+                fill: var(--meteogram-rain-max-bar-color, #7fdbff);
+            }
+            :host([dark]) .legend-rain-max {
+                fill: var(--meteogram-rain-max-bar-color-dark, var(--meteogram-rain-max-bar-color, #7fdbff));
+            }
+
+            .legend-snow {
+                fill: #b3e6ff;
+            }
+
+            .legend-cloud {
+                fill: var(--meteogram-cloud-color, #b0bec5);
+            }
+            :host([dark]) .legend-cloud {
+                fill: var(--meteogram-cloud-color-dark, var(--meteogram-cloud-color, #eceff1));
             }
 
             .wind-barb {
@@ -480,6 +521,63 @@ const runWhenLitLoaded = () => {
             :host([dark]) .cloud-area {
                 fill: var(--meteogram-cloud-color-dark, var(--meteogram-cloud-color, #eceff1));
                 opacity: 0.55;
+            }
+
+            .axis-label {
+                font: var(--meteogram-label-font-size, 14px) sans-serif;
+                fill: var(--meteogram-axis-label-color, #000);
+            }
+            :host([dark]) .axis-label {
+                fill: var(--meteogram-axis-label-color-dark, #fff);
+            }
+
+            .grid line {
+                stroke: var(--meteogram-grid-color, #b8c4d9);
+            }
+            .xgrid line {
+                stroke: var(--meteogram-grid-color, #b8c4d9);
+            }
+            .wind-band-grid {
+                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke-width: 1;
+            }
+            .twentyfourh-line, .day-tic {
+                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke-width: 3;
+                stroke-dasharray: 6, 5;
+                opacity: 0.7;
+            }
+            .twentyfourh-line-wind {
+                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke-width: 2.5;
+                stroke-dasharray: 6, 5;
+                opacity: 0.5;
+            }
+            :host([dark]) .grid line,
+            :host([dark]) .xgrid line,
+            :host([dark]) .wind-band-grid,
+            :host([dark]) .twentyfourh-line,
+            :host([dark]) .twentyfourh-line-wind,
+            :host([dark]) .day-tic {
+                stroke: var(--meteogram-grid-color-dark, var(--meteogram-grid-color, #b8c4d9));
+            }
+
+            .temperature-axis path,
+            .pressure-axis path {
+                stroke: var(--meteogram-grid-color, #b8c4d9);
+            }
+            :host([dark]) .temperature-axis path,
+            :host([dark]) .pressure-axis path {
+                stroke: var(--meteogram-grid-color-dark, var(--meteogram-grid-color, #b8c4d9));
+            }
+
+            .wind-band-outline {
+                stroke: var(--meteogram-grid-color, #b8c4d9);
+                stroke-width: 2;
+                fill: none;
+            }
+            :host([dark]) .wind-band-outline {
+                stroke: var(--meteogram-grid-color-dark, var(--meteogram-grid-color, #b8c4d9));
             }
         `;
 
@@ -1809,6 +1907,7 @@ const runWhenLitLoaded = () => {
                 pressure
             } = data;
             const N = time.length;
+            // declare windBand here
 
             // --- CHANGED: Get system temperature unit and convert values ---
             const tempUnit = this.getSystemTemperatureUnit();
@@ -1889,7 +1988,7 @@ const runWhenLitLoaded = () => {
                 .attr("text-anchor", "start")
                 .attr("opacity", (d: number, i: number) => {
                     // Check if there's enough space for this label
-                    if (i === dayStarts.length - 1) return 1; // Always show the last day
+                    if ( i === dayStarts.length - 1) return 1; // Always show the last day
 
                     const thisLabelPos = margin.left + x(d);
                     const nextLabelPos = margin.left + x(dayStarts[i + 1]);
@@ -1956,21 +2055,10 @@ const runWhenLitLoaded = () => {
                 .attr("x2", (i: number) => x(i))
                 .attr("y1", 0)
                 .attr("y2", chartHeight)
-                .attr("stroke", "#b8c4d9")
+                .attr("stroke", "currentColor")
                 .attr("stroke-width", 1);
 
-            // Temperature axis and grid
-            chart.append("g").attr("class", "grid")
-                .call(d3.axisLeft(yTemp).tickSize(-chartWidth).tickFormat(""));
-
-            chart.append("line")
-                .attr("x1", 0).attr("x2", chartWidth)
-                .attr("y1", chartHeight).attr("y2", chartHeight)
-                .attr("stroke", "#333");
-
-            chart.append("g").call(d3.axisLeft(yTemp));
-
-            // Wind band grid lines (if wind band is enabled)
+           // Wind band grid lines (if wind band is enabled)
             if (this.showWind) {
                 const windBandYOffset = margin.top + chartHeight;
                 const windBand = svg.append('g')
@@ -1992,9 +2080,22 @@ const runWhenLitLoaded = () => {
                     .attr("x2", (i: number) => x(i))
                     .attr("y1", 0)
                     .attr("y2", windBandHeight)
-                    .attr("stroke", "#b8c4d9")
+                    .attr("stroke", "currentColor")
                     .attr("stroke-width", 1);
+
+                // Wind band border (outline)
+                windBand.append("rect")
+                    .attr("class", "wind-band-outline")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("width", chartWidth)
+                    .attr("height", windBandHeight)
+                    .attr("stroke", "currentColor")
+                    .attr("stroke-width", 2)
+                    .attr("fill", "none");
             }
+
+
 
             // --- Restore vertical day divider lines ---
             chart.selectAll(".twentyfourh-line")
@@ -2006,7 +2107,7 @@ const runWhenLitLoaded = () => {
                 .attr("x2", (d: number) => x(d))
                 .attr("y1", 0)
                 .attr("y2", chartHeight)
-                .attr("stroke", "#ffb300")
+                .attr("stroke", "var(--meteogram-grid-color, #b8c4d9)")
                 .attr("stroke-width", 3)
                 .attr("stroke-dasharray", "6,5")
                 .attr("opacity", 0.7);
@@ -2054,48 +2155,85 @@ const runWhenLitLoaded = () => {
                     .text("Pressure (hPa)");
 
                 chart.append("text")
-                    .attr("class", "legend")
+                    .attr("class", "legend legend-pressure")
                     .attr("x", 340).attr("y", -45)
-                    .style("fill", "#1976d2")
                     .text("Pressure (hPa)");
             }
 
-            // --- Add temperature Y axis (left side) ---
+            // --- Add temperature Y axis (left side) with ticks and numbers ---
             chart.append("g")
                 .attr("class", "temperature-axis")
                 .call(window.d3.axisLeft(yTemp)
                     .tickFormat((d: any) => `${d}`));
 
+            // --- Add temperature Y axis again for horizontal grid lines (no numbers) ---
+            chart.append("g")
+                .attr("class", "grid")
+                .call(window.d3.axisLeft(yTemp)
+                    .tickSize(-chartWidth)
+                    .tickFormat(() => ""));
+
+            // Restore temperature axis label text
             chart.append("text")
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
                 .attr("transform", `translate(-50,${chartHeight / 2}) rotate(-90)`)
                 .text(`Temperature (${tempUnit})`);
 
+            // Top horizontal solid line (thicker, uses grid color)
+            chart.append("line")
+                .attr("class", "line")
+                .attr("x1", 0).attr("x2", chartWidth)
+                .attr("y1", 0).attr("y2", 0)
+                .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
+                .attr("stroke-width", 3);
+
+            // Bottom solid line (uses grid color)
+            chart.append("line")
+                .attr("class", "line")
+                .attr("x1", 0).attr("x2", chartWidth)
+                .attr("y1", chartHeight).attr("y2", chartHeight)
+                .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)");
+
+            // Right vertical solid line (always drawn, slightly thicker)
+            chart.append("line")
+                .attr("class", "line")
+                .attr("x1", chartWidth).attr("x2", chartWidth)
+                .attr("y1", 0).attr("y2", chartHeight)
+                .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
+                .attr("stroke-width", 3);
+
+            // Left vertical solid line (always drawn, slightly thicker)
+            chart.append("line")
+                .attr("class", "line")
+                .attr("x1", 0).attr("x2", 0)
+                .attr("y1", 0).attr("y2", chartHeight)
+                .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
+                .attr("stroke-width", 3);
+
+
+
             // Only add cloud cover legend if enabled
             if (this.showCloudCover) {
                 chart.append("text")
-                    .attr("class", "legend")
+                    .attr("class", "legend legend-cloud")
                     .attr("x", 0).attr("y", -45)
                     .text("Cloud Cover (%)");
             }
 
             chart.append("text")
-                .attr("class", "legend")
+                .attr("class", "legend legend-temp")
                 .attr("x", 200).attr("y", -45)
-                .style("fill", "orange")
                 .text(`Temperature (${tempUnit})`);
 
             chart.append("text")
-                .attr("class", "legend")
+                .attr("class", "legend legend-rain")
                 .attr("x", 480).attr("y", -45)
-                .style("fill", "deepskyblue")
                 .text("Rain (mm)");
 
             chart.append("text")
-                .attr("class", "legend")
+                .attr("class", "legend legend-snow")
                 .attr("x", 630).attr("y", -45)
-                .style("fill", "#b3e6ff")
                 .text("Snow (mm)");
 
             // Temperature line
@@ -2295,7 +2433,7 @@ const runWhenLitLoaded = () => {
                     .attr("x2", (i: number) => x(i))
                     .attr("y1", 0)
                     .attr("y2", windBandHeight)
-                    .attr("stroke", "#b8c4d9")
+                    .attr("stroke", "currentColor")
                     .attr("stroke-width", 1);
 
                 const dayChangeIdx = dayStarts.slice(1);
@@ -2350,7 +2488,7 @@ const runWhenLitLoaded = () => {
                     .attr("y", 0)
                     .attr("width", chartWidth)
                     .attr("height", windBandHeight)
-                    .attr("stroke", "var(--meteogram-grid-color, #90caf9)") // Match axis/grid color
+                    .attr("stroke", "currentColor") // Match axis/grid color
                     .attr("stroke-width", 1)
                     .attr("fill", "none");
             }

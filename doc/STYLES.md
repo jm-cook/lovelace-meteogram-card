@@ -73,7 +73,7 @@ This document describes the CSS styles used in the Meteogram Card, including how
   `--meteogram-rain-max-label-color` (light), `--meteogram-rain-max-label-color-dark` (dark)
 - `.legend`  
   Legend text color:  
-  `--primary-text-color` (light), `--meteogram-legend-text-color-dark` (dark)
+  `--primary-text-color` (light and dark mode)
 - `.wind-barb`, `.wind-barb-feather`, `.wind-barb-half`, `.wind-barb-calm`, `.wind-barb-dot`  
   Wind barb color:  
   `--meteogram-wind-barb-color` (light mode), `--meteogram-wind-barb-color-dark` (dark mode)
@@ -113,10 +113,10 @@ If a `-dark` CSS variable is not set, the card will automatically fall back to t
 
 - Grid color:
   ```css
-  .grid line { stroke: var(--meteogram-grid-color, #90caf9); }
-  :host([dark]) .grid line { stroke: var(--meteogram-grid-color-dark, #3a4a5a); }
+  .grid line { stroke: var(--meteogram-grid-color, #e0e0e0); }
+  :host([dark]) .grid line { stroke: var(--meteogram-grid-color-dark, var(--meteogram-grid-color, #e0e0e0)); }
   ```
-  *You can override `--meteogram-grid-color` for light mode and `--meteogram-grid-color-dark` for dark mode.*
+  *You can override `--meteogram-grid-color` for light mode and `--meteogram-grid-color-dark` for dark mode. Default is a light grey.*
 
 - Rain label color:
   ```css
@@ -152,7 +152,7 @@ The card uses Home Assistant theme variables where possible:
 - `--meteogram-rain-label-color-dark` (rain label text color, dark)
 - `--meteogram-rain-max-label-color` (max rain label text color, light)
 - `--meteogram-rain-max-label-color-dark` (max rain label text color, dark)
-- `--meteogram-legend-text-color-dark` (legend text color, dark)
+- `--primary-text-color` (legend text color, light and dark)
 
 ---
 
@@ -189,5 +189,4 @@ styles:
   --meteogram-rain-label-color-dark: "chartreuse"
   --meteogram-rain-max-label-color: "navy"
   --meteogram-rain-max-label-color-dark: "fuchsia"
-  --meteogram-legend-text-color-dark: "orangered"
 ```
