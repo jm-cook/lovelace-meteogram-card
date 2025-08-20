@@ -1942,6 +1942,23 @@ const runWhenLitLoaded = () => {
             }
         }
 
+        // Translation helper
+        private trnslt = (key: string, fallback?: string): string => {
+            // Try hass.localize (used by HA frontend)
+            if (this.hass && typeof this.hass.localize === "function") {
+                const result = this.hass.localize(key);
+                if (result && result !== key) return result;
+            }
+            // Try hass.resources (used by HA backend)
+            if (this.hass && this.hass.resources && typeof this.hass.resources === "object") {
+                const lang = this.hass.language || "en";
+                const res = this.hass.resources[lang]?.[key];
+                if (res) return res;
+            }
+            // Return fallback if provided, otherwise the key
+            return fallback !== undefined ? fallback : key;
+        };
+
         // Update renderMeteogram to add windBarbBand and hourLabelBand as arguments
         renderMeteogram(
             svg: any,
@@ -1951,6 +1968,8 @@ const runWhenLitLoaded = () => {
             windBarbBand: number = 0,
             hourLabelBand: number = 24
         ): void {
+
+
             const d3 = window.d3;
             const {
                 time,
@@ -1966,6 +1985,7 @@ const runWhenLitLoaded = () => {
                 pressure
             } = data;
             const N = time.length;
+
             // declare windBand here
 
             // --- CHANGED: Get system temperature unit and convert values ---
@@ -2211,12 +2231,12 @@ const runWhenLitLoaded = () => {
                     .attr("class", "axis-label")
                     .attr("text-anchor", "middle")
                     .attr("transform", `translate(${chartWidth + 50},${chartHeight / 2}) rotate(90)`)
-                    .text("Pressure (hPa)");
+                    .text(this.trnslt("ui.card.weather.attributes.air_pressure", "Pressure") + " (hPa)");
 
                 chart.append("text")
                     .attr("class", "legend legend-pressure")
                     .attr("x", 340).attr("y", -45)
-                    .text("Pressure (hPa)");
+                    .text(this.trnslt("ui.card.weather.attributes.air_pressure", "Pressure") + " (hPa)");
             }
 
             // --- Add temperature Y axis (left side) with ticks and numbers ---
@@ -2237,7 +2257,7 @@ const runWhenLitLoaded = () => {
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
                 .attr("transform", `translate(-50,${chartHeight / 2}) rotate(-90)`)
-                .text(`Temperature (${tempUnit})`);
+                .text(this.trnslt("ui.card.weather.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
 
             // Top horizontal solid line (thicker, uses grid color)
             chart.append("line")
@@ -2277,23 +2297,23 @@ const runWhenLitLoaded = () => {
                 chart.append("text")
                     .attr("class", "legend legend-cloud")
                     .attr("x", 0).attr("y", -45)
-                    .text("Cloud Cover (%)");
+                    .text(this.trnslt("component.weather.entity_component._.state_attributes.cloud_coverage.name", "Cloud Cover")+ ` (%)`);
             }
 
             chart.append("text")
                 .attr("class", "legend legend-temp")
                 .attr("x", 200).attr("y", -45)
-                .text(`Temperature (${tempUnit})`);
+                .text(this.trnslt("ui.card.weather.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
 
             chart.append("text")
                 .attr("class", "legend legend-rain")
                 .attr("x", 480).attr("y", -45)
-                .text("Rain (mm)");
+                .text(this.trnslt("ui.card.weather.attributes.precipitation", "Rain") + ` (mm)`);
 
             chart.append("text")
                 .attr("class", "legend legend-snow")
                 .attr("x", 630).attr("y", -45)
-                .text("Snow (mm)");
+                .text(this.trnslt("ui.card.weather.attributes.snow", "Snow") +  ' (mm)');
 
             // Temperature line
             const line = d3.line()
@@ -2643,15 +2663,15 @@ const runWhenLitLoaded = () => {
                         <div class="card-header">${this.title}</div>` : ""}
                     <div class="card-content">
                         <div class="attribution">
-                            Data from <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
+                            ${this.trnslt("ui.card.weather.attribution", "Data from")} <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
                             <span
                                 style="margin-left:8px; vertical-align:middle;"
                                 title="${
                                     this._statusApiSuccess === null
-                                        ? "cached"
+                                        ? this.trnslt("ui.card.weather.status.cached", "cached")
                                         : this._statusApiSuccess === true
-                                            ? "success"
-                                            : "failed"
+                                            ? this.trnslt("ui.card.weather.status.success", "success")
+                                            : this.trnslt("ui.card.weather.status.failed", "failed")
                                 }"
                             >${
                                 this._statusApiSuccess === null
@@ -2663,38 +2683,41 @@ const runWhenLitLoaded = () => {
                         </div>
                         ${this.meteogramError
                                 ? html`
-                                    <div class="error">${this.meteogramError}</div>`
+                                    <div class="error">${this.trnslt("ui.card.weather.error", this.meteogramError)}</div>`
                                 : html`
                                     <div id="chart"></div>
                                     ${logEnabled ? html`
-                                        <div id="meteogram-status-panel" style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;">
-                                            <b>Status Panel</b>
+                                        <div id="meteogram-status-panel"
+                                             style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
+                                             xmlns="http://www.w3.org/1999/html">
+                                            <b>${this.trnslt("ui.card.weather.status_panel", "Status Panel")}</b>
                                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
                                                 <div>
-                                                    <span>Expires At: ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
-                                                    <span>Last Render: ${this._statusLastRender || "unknown"}</span><br>
-                                                    <span>Last Fingerprint Miss: ${this._statusLastFingerprintMiss || "unknown"}</span><br>
-                                                    <span>Last Data Fetch: ${this._statusLastFetch || "unknown"}</span>
+                                                    <span>${this.trnslt("ui.card.weather.status.expires_at", "Expires At")}: ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
+                                                    <span>${this.trnslt("ui.card.weather.status.last_render", "Last Render")}: ${this._statusLastRender || "unknown"}</span><br>
+                                                    <span>${this.trnslt("ui.card.weather.status.last_fingerprint_miss", "Last Fingerprint Miss")}: ${this._statusLastFingerprintMiss || "unknown"}</span><br>
+                                                    <span>${this.trnslt("ui.card.weather.status.last_data_fetch", "Last Data Fetch")}: ${this._statusLastFetch || "unknown"}</span>
                                                 </div>
                                                 <div>
-                                                    <span>Last cached: ${this.cachedWeatherData?.fetchTimestamp || "unknown"}</span><br>
+                                                    <span>${this.trnslt("ui.card.weather.status.last_cached", "Last cached")}: ${this.cachedWeatherData?.fetchTimestamp || "unknown"}</span><br>
                                                     <span
                                                         title="${
                                                             this._statusApiSuccess === null
-                                                                ? "cached"
+                                                                ? this.trnslt("ui.card.weather.status.cached", "cached")
                                                                 : this._statusApiSuccess === true
-                                                                    ? "success"
-                                                                    : "failed"
+                                                                    ? this.trnslt("ui.card.weather.status.success", "success")
+                                                                    : this.trnslt("ui.card.weather.status.failed", "failed")
                                                         }"
                                                     >
-                                                        API Success: ${
+                                                        ${this.trnslt("ui.card.weather.status.api_success", "API Success")}: ${
                                                             this._statusApiSuccess === null
                                                                 ? "❎"
                                                                 : this._statusApiSuccess === true
                                                                     ? "✅"
                                                                     : "❌"
                                                         }
-                                                    </span>
+                                                    </span></br>
+                                                    <span>${this.trnslt("ui.card.weather.attributes.temperature", "Temperature translated")}</span>
                                                 </div>
                                             </div>
                                         </div>
