@@ -437,7 +437,6 @@ const runWhenLitLoaded = () => {
             }
             :host([dark]) .rain-label {
                 fill: var(--meteogram-rain-label-color-dark);
-                filter: drop-shadow(0 0 2px #fff);
             }
 
             .rain-max-label {
