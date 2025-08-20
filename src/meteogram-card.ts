@@ -5,10 +5,52 @@ import {MeteogramCardConfig, MeteogramCardEditorElement} from "./types";
 // Version info - update this when releasing new versions
 import {version} from "../package.json";
 
+// Import localization files
+import enLocale from "./translations/en.json";
+import nbLocale from "./translations/nb.json";
+import esLocale from "./translations/es.json";
+import itLocale from "./translations/it.json";
+import deLocale from "./translations/de.json";
+import frLocale from "./translations/fr.json";
+
 // Add logEnabled boolean at the outer scope
 const logEnabled = version.includes("beta");
 
 const CARD_NAME = "Meteogram Card";
+
+// Shared translation helper function
+function trnslt(hass: any, key: string, fallback?: string): string {
+    // Try hass.localize (used by HA frontend)
+    if (hass && typeof hass.localize === "function") {
+        const result = hass.localize(key);
+        if (result && result !== key) return result;
+    }
+    // Try hass.resources (used by HA backend)
+    if (hass && hass.resources && typeof hass.resources === "object") {
+        const lang = hass.language || "en";
+        const res = hass.resources[lang]?.[key];
+        if (res) return res;
+    }
+    // Try local translation files
+    const lang = (hass && hass.language) ? hass.language : "en";
+    let localRes: string | undefined;
+    if (lang.startsWith("nb")) {
+        localRes = (nbLocale as Record<string, string>)[key];
+    } else if (lang.startsWith("es")) {
+        localRes = (esLocale as Record<string, string>)[key];
+    } else if (lang.startsWith("it")) {
+        localRes = (itLocale as Record<string, string>)[key];
+    } else if (lang.startsWith("de")) {
+        localRes = (deLocale as Record<string, string>)[key];
+    } else if (lang.startsWith("fr")) {
+        localRes = (frLocale as Record<string, string>)[key];
+    } else {
+        localRes = (enLocale as Record<string, string>)[key];
+    }
+    if (localRes) return localRes;
+    // Return fallback if provided, otherwise the key
+    return fallback !== undefined ? fallback : key;
+}
 
 // Declare litModulesPromise to avoid TypeScript error
 // This will be defined in the banner added by rollup
@@ -1955,6 +1997,15 @@ const runWhenLitLoaded = () => {
                 const res = this.hass.resources[lang]?.[key];
                 if (res) return res;
             }
+            // Try local translation files
+            const lang = (this.hass && this.hass.language) ? this.hass.language : "en";
+            let localRes: string | undefined;
+            if (lang.startsWith("nb")) {
+                localRes = (nbLocale as Record<string, string>)[key];
+            } else {
+                localRes = (enLocale as Record<string, string>)[key];
+            }
+            if (localRes) return localRes;
             // Return fallback if provided, otherwise the key
             return fallback !== undefined ? fallback : key;
         };
@@ -2231,12 +2282,12 @@ const runWhenLitLoaded = () => {
                     .attr("class", "axis-label")
                     .attr("text-anchor", "middle")
                     .attr("transform", `translate(${chartWidth + 50},${chartHeight / 2}) rotate(90)`)
-                    .text(this.trnslt("ui.card.weather.attributes.air_pressure", "Pressure") + " (hPa)");
+                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)");
 
                 chart.append("text")
                     .attr("class", "legend legend-pressure")
                     .attr("x", 340).attr("y", -45)
-                    .text(this.trnslt("ui.card.weather.attributes.air_pressure", "Pressure") + " (hPa)");
+                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)");
             }
 
             // --- Add temperature Y axis (left side) with ticks and numbers ---
@@ -2257,7 +2308,7 @@ const runWhenLitLoaded = () => {
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
                 .attr("transform", `translate(-50,${chartHeight / 2}) rotate(-90)`)
-                .text(this.trnslt("ui.card.weather.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
+                .text(trnslt(this.hass, "ui.card.weather.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
 
             // Top horizontal solid line (thicker, uses grid color)
             chart.append("line")
@@ -2297,23 +2348,23 @@ const runWhenLitLoaded = () => {
                 chart.append("text")
                     .attr("class", "legend legend-cloud")
                     .attr("x", 0).attr("y", -45)
-                    .text(this.trnslt("component.weather.entity_component._.state_attributes.cloud_coverage.name", "Cloud Cover")+ ` (%)`);
+                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + ` (%)`);
             }
 
             chart.append("text")
                 .attr("class", "legend legend-temp")
                 .attr("x", 200).attr("y", -45)
-                .text(this.trnslt("ui.card.weather.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
+                .text(trnslt(this.hass, "ui.card.meteogram.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
 
             chart.append("text")
                 .attr("class", "legend legend-rain")
                 .attr("x", 480).attr("y", -45)
-                .text(this.trnslt("ui.card.weather.attributes.precipitation", "Rain") + ` (mm)`);
+                .text(trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Rain") + ` (mm)`);
 
             chart.append("text")
                 .attr("class", "legend legend-snow")
                 .attr("x", 630).attr("y", -45)
-                .text(this.trnslt("ui.card.weather.attributes.snow", "Snow") +  ' (mm)');
+                .text(trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") +  ' (mm)');
 
             // Temperature line
             const line = d3.line()
@@ -2663,15 +2714,15 @@ const runWhenLitLoaded = () => {
                         <div class="card-header">${this.title}</div>` : ""}
                     <div class="card-content">
                         <div class="attribution">
-                            ${this.trnslt("ui.card.weather.attribution", "Data from")} <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
+                            ${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
                             <span
                                 style="margin-left:8px; vertical-align:middle;"
                                 title="${
                                     this._statusApiSuccess === null
-                                        ? this.trnslt("ui.card.weather.status.cached", "cached")
+                                        ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached")
                                         : this._statusApiSuccess === true
-                                            ? this.trnslt("ui.card.weather.status.success", "success")
-                                            : this.trnslt("ui.card.weather.status.failed", "failed")
+                                            ? trnslt(this.hass, "ui.card.meteogram.status.success", "success")
+                                            : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed")
                                 }"
                             >${
                                 this._statusApiSuccess === null
@@ -2683,33 +2734,33 @@ const runWhenLitLoaded = () => {
                         </div>
                         ${this.meteogramError
                                 ? html`
-                                    <div class="error">${this.trnslt("ui.card.weather.error", this.meteogramError)}</div>`
+                                    <div class="error">${trnslt(this.hass, "ui.card.meteogram.error", this.meteogramError)}</div>`
                                 : html`
                                     <div id="chart"></div>
                                     ${logEnabled ? html`
                                         <div id="meteogram-status-panel"
                                              style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
                                              xmlns="http://www.w3.org/1999/html">
-                                            <b>${this.trnslt("ui.card.weather.status_panel", "Status Panel")}</b>
+                                            <b>${trnslt(this.hass, "ui.card.meteogram.status_panel", "Status Panel")}</b>
                                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
                                                 <div>
-                                                    <span>${this.trnslt("ui.card.weather.status.expires_at", "Expires At")}: ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
-                                                    <span>${this.trnslt("ui.card.weather.status.last_render", "Last Render")}: ${this._statusLastRender || "unknown"}</span><br>
-                                                    <span>${this.trnslt("ui.card.weather.status.last_fingerprint_miss", "Last Fingerprint Miss")}: ${this._statusLastFingerprintMiss || "unknown"}</span><br>
-                                                    <span>${this.trnslt("ui.card.weather.status.last_data_fetch", "Last Data Fetch")}: ${this._statusLastFetch || "unknown"}</span>
+                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.expires_at", "Expires At")}: ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
+                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.last_render", "Last Render")}: ${this._statusLastRender || "unknown"}</span><br>
+                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.last_fingerprint_miss", "Last Fingerprint Miss")}: ${this._statusLastFingerprintMiss || "unknown"}</span><br>
+                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}: ${this._statusLastFetch || "unknown"}</span>
                                                 </div>
                                                 <div>
-                                                    <span>${this.trnslt("ui.card.weather.status.last_cached", "Last cached")}: ${this.cachedWeatherData?.fetchTimestamp || "unknown"}</span><br>
+                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.last_cached", "Last cached")}: ${this.cachedWeatherData?.fetchTimestamp || "unknown"}</span><br>
                                                     <span
                                                         title="${
                                                             this._statusApiSuccess === null
-                                                                ? this.trnslt("ui.card.weather.status.cached", "cached")
+                                                                ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached")
                                                                 : this._statusApiSuccess === true
-                                                                    ? this.trnslt("ui.card.weather.status.success", "success")
-                                                                    : this.trnslt("ui.card.weather.status.failed", "failed")
+                                                                    ? trnslt(this.hass, "ui.card.meteogram.status.success", "success")
+                                                                    : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed")
                                                         }"
                                                     >
-                                                        ${this.trnslt("ui.card.weather.status.api_success", "API Success")}: ${
+                                                        ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}: ${
                                                             this._statusApiSuccess === null
                                                                 ? "❎"
                                                                 : this._statusApiSuccess === true
@@ -2717,7 +2768,7 @@ const runWhenLitLoaded = () => {
                                                                     : "❌"
                                                         }
                                                     </span></br>
-                                                    <span>${this.trnslt("ui.card.weather.attributes.temperature", "Temperature translated")}</span>
+                                                    <span>${trnslt(this.hass, "ui.card.meteogram.attributes.temperature", "Temperature translated")}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -2823,11 +2874,13 @@ const runWhenLitLoaded = () => {
         private _elements: Map<string, ConfigurableHTMLElement> = new Map();
         private _hass: any;
 
+
         set hass(hass: any) {
             this._hass = hass;
-            if (this._initialized) {
-                this._updateValues();
-            }
+            // Remove this to prevent unnecessary rerendering/blinking:
+            // if (this._initialized) {
+            //     this.render();
+            // }
         }
 
         get hass() {
@@ -2888,9 +2941,19 @@ const runWhenLitLoaded = () => {
         }
 
         render() {
+            const hass = this.hass;
+            const config = this._config;
+
+            // Wait for both hass and config to be set before rendering
+            if (!hass || !config) {
+                this.innerHTML = '<ha-card><div style="padding:16px;">Loading Home Assistant context...</div></ha-card>';
+                setTimeout(() => this.render(), 300); // Retry every 300ms until both are set
+                return;
+            }
+
             // Get default coordinates from Home Assistant config if available
-            const defaultLat = this._hass?.config?.latitude ?? '';
-            const defaultLon = this._hass?.config?.longitude ?? '';
+            const defaultLat = hass?.config?.latitude ?? '';
+            const defaultLon = hass?.config?.longitude ?? '';
 
             // Get current toggle values or default to true
             const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
@@ -2901,8 +2964,8 @@ const runWhenLitLoaded = () => {
             const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
             const meteogramHours = this._config.meteogram_hours || "48h";
             const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
-
             const div = document.createElement('div');
+
             div.innerHTML = `
   <style>
     ha-card {
@@ -2962,47 +3025,47 @@ const runWhenLitLoaded = () => {
     }
   </style>
   <ha-card>
-    <h3>Meteogram Card Settings</h3>
+    <h3>${this._hass?.localize ? this._hass.localize("ui.editor.meteogram.title") : "Meteogram Card Settings"}</h3>
     <div class="values">
       <div class="row">
         <ha-textfield
-          label="Title"
+          label="${this._hass?.localize ? this._hass.localize("ui.editor.meteogram.title_label") : "Title"}"
           id="title-input"
           .value="${this._config.title || ''}"
         ></ha-textfield>
       </div>
 
       <p class="info-text">
-        Location coordinates will be used to fetch weather data directly from Met.no API.
-        ${defaultLat ? "Using Home Assistant's location by default." : ""}
+        ${this._hass?.localize ? this._hass.localize("ui.editor.meteogram.location_info") : "Location coordinates will be used to fetch weather data directly from Met.no API."}
+        ${defaultLat ? trnslt(this._hass, "ui.editor.meteogram.using_ha_location", "Using Home Assistant's location by default.") : ""}
       </p>
 
       <div class="side-by-side">
         <ha-textfield
-          label="Latitude"
+          label="${trnslt(this._hass, "ui.editor.meteogram.latitude", "Latitude")}"
           id="latitude-input"
           type="number"
           step="any"
           .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
-          placeholder="${defaultLat ? `Default: ${defaultLat}` : ""}"
+          placeholder="${defaultLat ? `${trnslt(this._hass, "ui.editor.meteogram.default", "Default")}: ${defaultLat}` : ""}"
         ></ha-textfield>
 
         <ha-textfield
-          label="Longitude"
+          label="${trnslt(this._hass, "ui.editor.meteogram.longitude", "Longitude")}"
           id="longitude-input"
           type="number"
           step="any"
           .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
-          placeholder="${defaultLon ? `Default: ${defaultLon}` : ""}"
+          placeholder="${defaultLon ? `${trnslt(this._hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : ""}"
         ></ha-textfield>
       </div>
-      <p class="help-text">Leave empty to use Home Assistant's configured location</p>
+      <p class="help-text">${trnslt(this._hass, "ui.editor.meteogram.leave_empty", "Leave empty to use Home Assistant's configured location")}</p>
 
       <div class="toggle-section">
-        <h3>Display Options</h3>
+        <h3>${trnslt(this._hass, "ui.editor.meteogram.display_options", "Display Options")}</h3>
 
         <div class="toggle-row">
-          <div class="toggle-label">Show Cloud Cover</div>
+          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.cloud_coverage", "Show Cloud Cover")}</div>
           <ha-switch
             id="show-cloud-cover"
             .checked="${showCloudCover}"
@@ -3010,7 +3073,7 @@ const runWhenLitLoaded = () => {
         </div>
 
         <div class="toggle-row">
-          <div class="toggle-label">Show Pressure</div>
+          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.air_pressure", "Show Pressure")}</div>
           <ha-switch
             id="show-pressure"
             .checked="${showPressure}"
@@ -3018,7 +3081,7 @@ const runWhenLitLoaded = () => {
         </div>
 
         <div class="toggle-row">
-          <div class="toggle-label">Show Rain</div>
+          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.precipitation", "Show Rain")}</div>
           <ha-switch
             id="show-rain"
             .checked="${showRain}"
@@ -3026,7 +3089,7 @@ const runWhenLitLoaded = () => {
         </div>
 
         <div class="toggle-row">
-          <div class="toggle-label">Show Weather Icons</div>
+          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.weather_icons", "Show Weather Icons")}</div>
           <ha-switch
             id="show-weather-icons"
             .checked="${showWeatherIcons}"
@@ -3034,7 +3097,7 @@ const runWhenLitLoaded = () => {
         </div>
 
         <div class="toggle-row">
-          <div class="toggle-label">Show Wind</div>
+          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.wind", "Show Wind")}</div>
           <ha-switch
             id="show-wind"
             .checked="${showWind}"
@@ -3042,7 +3105,7 @@ const runWhenLitLoaded = () => {
         </div>
 
         <div class="toggle-row">
-          <div class="toggle-label">Dense Weather Icons (every hour)</div>
+          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.dense_icons", "Dense Weather Icons (every hour)")}</div>
           <ha-switch
             id="dense-weather-icons"
             .checked="${denseWeatherIcons}"
@@ -3050,7 +3113,7 @@ const runWhenLitLoaded = () => {
         </div>
 
         <div class="toggle-row">
-          <div class="toggle-label">Fill Container</div>
+          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.fill_container", "Fill Container")}</div>
           <ha-switch
             id="fill-container"
             .checked="${fillContainer}"
@@ -3059,17 +3122,17 @@ const runWhenLitLoaded = () => {
       </div>
 
       <div class="row">
-        <label for="meteogram-hours-select" style="margin-right:8px;">Meteogram Length</label>
+        <label for="meteogram-hours-select" style="margin-right:8px;">${trnslt(this._hass, "ui.editor.meteogram.meteogram_length", "Meteogram Length")}</label>
         <select id="meteogram-hours-select">
-          <option value="8h" ${meteogramHours === "8h" ? "selected" : ""}>8 hours</option>
-          <option value="12h" ${meteogramHours === "12h" ? "selected" : ""}>12 hours</option>
-          <option value="24h" ${meteogramHours === "24h" ? "selected" : ""}>24 hours</option>
-          <option value="48h" ${meteogramHours === "48h" ? "selected" : ""}>48 hours</option>
-          <option value="54h" ${meteogramHours === "54h" ? "selected" : ""}>54 hours</option>
-          <option value="max" ${meteogramHours === "max" ? "selected" : ""}>Max available</option>
+          <option value="8h" ${meteogramHours === "8h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_8", "8 hours")}</option>
+          <option value="12h" ${meteogramHours === "12h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_12", "12 hours")}</option>
+          <option value="24h" ${meteogramHours === "24h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_24", "24 hours")}</option>
+          <option value="48h" ${meteogramHours === "48h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_48", "48 hours")}</option>
+          <option value="54h" ${meteogramHours === "54h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_54", "54 hours")}</option>
+          <option value="max" ${meteogramHours === "max" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_max", "Max available")}</option>
         </select>
       </div>
-      <p class="help-text">Choose how many hours to show in the meteogram</p>
+      <p class="help-text">${trnslt(this._hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
     </div>
   </ha-card>
 `;
@@ -3159,6 +3222,9 @@ const runWhenLitLoaded = () => {
                     fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
                     this._elements.set('fill_container', fillContainerSwitch);
                 }
+
+                // Update values after setting up elements and listeners
+                this._updateValues();
             }, 0);
         }
 
