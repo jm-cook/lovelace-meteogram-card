@@ -21,16 +21,20 @@ const CARD_NAME = "Meteogram Card";
 // Shared translation helper function
 function trnslt(hass: any, key: string, fallback?: string): string {
     // Try hass.localize (used by HA frontend)
+    if (logEnabled) console.debug("trnslt: using hass.localize for key:", key);
     if (hass && typeof hass.localize === "function") {
         const result = hass.localize(key);
         if (result && result !== key) return result;
     }
+    if (logEnabled) console.debug("trnslt: 2nd attempt for key:", key);
+
     // Try hass.resources (used by HA backend)
     if (hass && hass.resources && typeof hass.resources === "object") {
         const lang = hass.language || "en";
         const res = hass.resources[lang]?.[key];
         if (res) return res;
     }
+    if (logEnabled) console.debug("trnslt: 3rd attempt for key:", key);
     // Try local translation files
     const lang = (hass && hass.language) ? hass.language : "en";
     let localRes: string | undefined;
@@ -49,6 +53,7 @@ function trnslt(hass: any, key: string, fallback?: string): string {
     }
     if (localRes) return localRes;
     // Return fallback if provided, otherwise the key
+    if (logEnabled) console.debug("trnslt: returning fallback for key:", key);
     return fallback !== undefined ? fallback : key;
 }
 
@@ -295,7 +300,13 @@ const runWhenLitLoaded = () => {
         @state() private _statusLastRender: string = "";
         @state() private _statusLastFingerprintMiss: string = "";
         @state() private _statusLastFetch: string = "";
-        @state() private _statusApiSuccess: boolean | null = null; // CHANGED: allow null for "not called"
+        @state() private _statusApiSuccess: boolean | null = null;
+
+        // Add startup time and API call counter
+        private _startupTime: Date = new Date(); // Track startup time
+        private _apiCallCount: number = 0;       // Total API calls since startup
+        private _apiSuccessCount: number = 0;    // Successful API calls since startup
+        private _lastApiSuccess: boolean = false;
 
         static styles = css`
             :host {
@@ -1452,6 +1463,8 @@ const runWhenLitLoaded = () => {
                 if (logEnabled) {
                     console.log(`[meteogram-card] Returning cached weather data (expires at ${expiresStr}), will refresh in ${Math.round(msUntilRefresh/1000)}s`);
                 }
+                // Do NOT change _statusApiSuccess here
+                // Return cached data, but keep _lastApiSuccess as is
                 return Promise.resolve(this.cachedWeatherData);
             }
 
@@ -1541,8 +1554,12 @@ const runWhenLitLoaded = () => {
                     }
                     // Set API success status
 
-                    this._statusApiSuccess = null; // CHANGED: set to null before API call
+                    this._statusApiSuccess = null; // set to null before API call
                     this._statusApiSuccess = response.ok; // true/false after API call
+                    if (response.ok) {
+                        this._lastApiSuccess = true; // <-- Track last successful API call
+                        this._apiSuccessCount++; // Count successful API call
+                    }
 
                     if (!response.ok) {
                         const errorText = await response.text();
@@ -1667,7 +1684,7 @@ const runWhenLitLoaded = () => {
                     return result;
                 } catch (error: unknown) {
                     // On error, set API success to false
-                    this._statusApiSuccess = false; // CHANGED: set to false on error
+                    this._statusApiSuccess = false;
                     // Always fallback to cached weather data, even if expired
                     if (this.cachedWeatherData) {
                         console.warn('Error fetching weather data, using cached data (may be expired):', error);
@@ -2708,6 +2725,11 @@ const runWhenLitLoaded = () => {
                 .map(([k, v]) => `${k}: ${v};`)
                 .join(" ");
 
+            const successRate = this._apiCallCount > 0
+                ? Math.round(100 * this._apiSuccessCount / this._apiCallCount)
+                : 0;
+            const successTooltip = `API Success Rate: ${this._apiSuccessCount}/${this._apiCallCount} (${successRate}%) since ${this._startupTime.toISOString()}`;
+
             return html`
                 <ha-card style="${styleVars}">
                     ${this.title ? html`
@@ -2717,18 +2739,16 @@ const runWhenLitLoaded = () => {
                             ${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
                             <span
                                 style="margin-left:8px; vertical-align:middle;"
-                                title="${
-                                    this._statusApiSuccess === null
-                                        ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached")
-                                        : this._statusApiSuccess === true
-                                            ? trnslt(this.hass, "ui.card.meteogram.status.success", "success")
-                                            : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed")
-                                }"
+                                title="${this._lastApiSuccess
+                                    ? trnslt(this.hass, 'ui.card.meteogram.status.success', 'success') + ` : ${successTooltip}`
+                                    : this._statusApiSuccess === null
+                                        ? trnslt(this.hass, 'ui.card.meteogram.status.cached', 'cached') + ` : ${successTooltip}`
+                                        : trnslt(this.hass, 'ui.card.meteogram.status.failed', 'failed') + ` : ${successTooltip}`}"
                             >${
-                                this._statusApiSuccess === null
-                                    ? "❎"
-                                    : this._statusApiSuccess === true
-                                        ? "✅"
+                                this._lastApiSuccess
+                                    ? "✅"
+                                    : this._statusApiSuccess === null
+                                        ? "❎"
                                         : "❌"
                             }</span>
                         </div>
@@ -2750,25 +2770,23 @@ const runWhenLitLoaded = () => {
                                                     <span>${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}: ${this._statusLastFetch || "unknown"}</span>
                                                 </div>
                                                 <div>
-                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.last_cached", "Last cached")}: ${this.cachedWeatherData?.fetchTimestamp || "unknown"}</span><br>
                                                     <span
-                                                        title="${
-                                                            this._statusApiSuccess === null
-                                                                ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached")
-                                                                : this._statusApiSuccess === true
-                                                                    ? trnslt(this.hass, "ui.card.meteogram.status.success", "success")
-                                                                    : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed")
-                                                        }"
+                                                            title="${
+                                                                this._lastApiSuccess
+                                                                    ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
+                                                                    : this._statusApiSuccess === null
+                                                                        ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
+                                                                        : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
+                                                            }"
                                                     >
                                                         ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}: ${
-                                                            this._statusApiSuccess === null
-                                                                ? "❎"
-                                                                : this._statusApiSuccess === true
-                                                                    ? "✅"
+                                                            this._lastApiSuccess
+                                                                ? "✅"
+                                                                : this._statusApiSuccess === null
+                                                                    ? "❎"
                                                                     : "❌"
                                                         }
                                                     </span></br>
-                                                    <span>${trnslt(this.hass, "ui.card.meteogram.attributes.temperature", "Temperature translated")}</span>
                                                 </div>
                                             </div>
                                         </div>

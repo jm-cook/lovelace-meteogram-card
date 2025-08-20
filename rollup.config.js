@@ -47,11 +47,11 @@ const litModulesPromise = Promise.all([
       },
       ecma: 2020,
       compress: true,
-      mangle: {
-        properties: {
-          regex: /^_/,
-        },
-      },
+      // mangle: {
+      //   properties: {
+      //     regex: /^_/,
+      //   },
+      // },
     }),
   ],
   // Add these modules as externals
