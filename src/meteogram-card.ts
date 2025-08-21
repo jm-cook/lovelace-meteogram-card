@@ -4,6 +4,8 @@ import {PropertyValues} from "lit";
 import {MeteogramCardConfig, MeteogramCardEditorElement} from "./types";
 // Version info - update this when releasing new versions
 import {version} from "../package.json";
+// Add diagnostics helpers
+import {formatDiagnosticError, getClientName, getVersion} from "./diagnostics";
 
 // Import localization files
 import enLocale from "./translations/en.json";
@@ -13,20 +15,19 @@ import itLocale from "./translations/it.json";
 import deLocale from "./translations/de.json";
 import frLocale from "./translations/fr.json";
 
-// Add logEnabled boolean at the outer scope
-const logEnabled = version.includes("beta");
+// Add diagnostics config option and logEnabled setter
+let logEnabled = false;
+const DIAGNOSTICS_DEFAULT = version.includes("beta"); // true if version contains "beta"
 
 const CARD_NAME = "Meteogram Card";
 
 // Shared translation helper function
 function trnslt(hass: any, key: string, fallback?: string): string {
     // Try hass.localize (used by HA frontend)
-    if (logEnabled) console.debug("trnslt: using hass.localize for key:", key);
     if (hass && typeof hass.localize === "function") {
         const result = hass.localize(key);
         if (result && result !== key) return result;
     }
-    if (logEnabled) console.debug("trnslt: 2nd attempt for key:", key);
 
     // Try hass.resources (used by HA backend)
     if (hass && hass.resources && typeof hass.resources === "object") {
@@ -34,7 +35,6 @@ function trnslt(hass: any, key: string, fallback?: string): string {
         const res = hass.resources[lang]?.[key];
         if (res) return res;
     }
-    if (logEnabled) console.debug("trnslt: 3rd attempt for key:", key);
     // Try local translation files
     const lang = (hass && hass.language) ? hass.language : "en";
     let localRes: string | undefined;
@@ -53,7 +53,6 @@ function trnslt(hass: any, key: string, fallback?: string): string {
     }
     if (localRes) return localRes;
     // Return fallback if provided, otherwise the key
-    if (logEnabled) console.debug("trnslt: returning fallback for key:", key);
     return fallback !== undefined ? fallback : key;
 }
 
@@ -150,6 +149,8 @@ const runWhenLitLoaded = () => {
 
     // Print version info on startup
     printVersionInfo();
+    // logEnabled is now controlled by diagnostics option
+    logEnabled = DIAGNOSTICS_DEFAULT; // Always reset to default on startup
 
     // Get Lit modules from the global variable set in the banner
     const {LitElement, css, customElement, property, state} = (window as any).litElementModules;
@@ -200,6 +201,7 @@ const runWhenLitLoaded = () => {
         @property({type: String}) meteogramHours: string = "48h"; // Default is now 48h
         @property({type: Boolean}) fillContainer = false; // NEW: fill container option
         @property({type: Object}) styles: Record<string, string> = {}; // NEW: styles override
+        @property({type: Boolean}) diagnostics = DIAGNOSTICS_DEFAULT; // diagnostics option
 
         @state() private chartLoaded = false;
         @state() private meteogramError = "";
@@ -399,6 +401,7 @@ const runWhenLitLoaded = () => {
                 stroke-width: 3;
                 fill: none;
             }
+
             :host([dark]) .temp-line {
                 stroke: var(--meteogram-temp-line-color-dark);
             }
@@ -409,6 +412,7 @@ const runWhenLitLoaded = () => {
                 stroke-dasharray: 3, 3;
                 fill: none;
             }
+
             :host([dark]) .pressure-line {
                 stroke: var(--meteogram-pressure-line-color-dark);
             }
@@ -417,6 +421,7 @@ const runWhenLitLoaded = () => {
                 fill: var(--meteogram-rain-bar-color);
                 opacity: 0.8;
             }
+
             :host([dark]) .rain-bar {
                 fill: var(--meteogram-rain-bar-color-dark);
             }
@@ -425,6 +430,7 @@ const runWhenLitLoaded = () => {
                 fill: var(--meteogram-rain-max-bar-color);
                 opacity: 0.5;
             }
+
             :host([dark]) .rain-max-bar {
                 fill: var(--meteogram-rain-max-bar-color-dark);
             }
@@ -435,6 +441,7 @@ const runWhenLitLoaded = () => {
                 font-weight: bold;
                 fill: var(--meteogram-rain-label-color);
             }
+
             :host([dark]) .rain-label {
                 fill: var(--meteogram-rain-label-color-dark);
             }
@@ -445,6 +452,7 @@ const runWhenLitLoaded = () => {
                 font-weight: bold;
                 fill: var(--meteogram-rain-max-label-color);
             }
+
             :host([dark]) .rain-max-label {
                 fill: var(--meteogram-rain-max-label-color-dark);
             }
@@ -453,6 +461,7 @@ const runWhenLitLoaded = () => {
                 font: var(--meteogram-legend-font-size) sans-serif;
                 fill: var(--primary-text-color, #222);
             }
+
             :host([dark]) .legend {
                 fill: var(--primary-text-color, #fff);
             }
@@ -460,6 +469,7 @@ const runWhenLitLoaded = () => {
             .legend-temp {
                 fill: var(--meteogram-temp-line-color);
             }
+
             :host([dark]) .legend-temp {
                 fill: var(--meteogram-temp-line-color-dark);
             }
@@ -467,6 +477,7 @@ const runWhenLitLoaded = () => {
             .legend-pressure {
                 fill: var(--meteogram-pressure-line-color);
             }
+
             :host([dark]) .legend-pressure {
                 fill: var(--meteogram-pressure-line-color-dark);
             }
@@ -474,6 +485,7 @@ const runWhenLitLoaded = () => {
             .legend-rain {
                 fill: var(--meteogram-rain-bar-color);
             }
+
             :host([dark]) .legend-rain {
                 fill: var(--meteogram-rain-bar-color-dark);
             }
@@ -481,6 +493,7 @@ const runWhenLitLoaded = () => {
             .legend-rain-max {
                 fill: var(--meteogram-rain-max-bar-color);
             }
+
             :host([dark]) .legend-rain-max {
                 fill: var(--meteogram-rain-max-bar-color-dark);
             }
@@ -492,6 +505,7 @@ const runWhenLitLoaded = () => {
             .legend-cloud {
                 fill: var(--meteogram-cloud-color);
             }
+
             :host([dark]) .legend-cloud {
                 fill: var(--meteogram-cloud-color-dark);
             }
@@ -543,6 +557,7 @@ const runWhenLitLoaded = () => {
                 font: var(--meteogram-label-font-size) sans-serif;
                 fill: var(--meteogram-timescale-color);
             }
+
             :host([dark]) .bottom-hour-label {
                 fill: var(--meteogram-timescale-color-dark);
             }
@@ -565,13 +580,14 @@ const runWhenLitLoaded = () => {
                 color: var(--secondary-text-color);
                 text-align: right;
                 z-index: 2;
-                background: rgba(255,255,255,0.7);
+                background: rgba(255, 255, 255, 0.7);
                 padding: 2px 8px;
                 border-radius: 6px;
                 pointer-events: auto;
             }
 
             /* Tick text font size for axes */
+
             .temperature-axis .tick text,
             .pressure-axis .tick text {
                 font-size: var(--meteogram-tick-font-size);
@@ -582,6 +598,7 @@ const runWhenLitLoaded = () => {
                 fill: var(--meteogram-cloud-color);
                 opacity: 0.42;
             }
+
             :host([dark]) .cloud-area {
                 fill: var(--meteogram-cloud-color-dark);
                 opacity: 0.55;
@@ -591,6 +608,7 @@ const runWhenLitLoaded = () => {
                 font: var(--meteogram-label-font-size, 14px) sans-serif;
                 fill: var(--meteogram-axis-label-color);
             }
+
             :host([dark]) .axis-label {
                 fill: var(--meteogram-axis-label-color-dark);
             }
@@ -606,6 +624,7 @@ const runWhenLitLoaded = () => {
             .wind-band-outline {
                 stroke: var(--meteogram-grid-color);
             }
+
             :host([dark]) .grid line,
             :host([dark]) .xgrid line,
             :host([dark]) .wind-band-grid,
@@ -619,6 +638,7 @@ const runWhenLitLoaded = () => {
             }
 
             /* Tick text font size for axes */
+
             .temperature-axis .tick text,
             .pressure-axis .tick text {
                 font-size: var(--meteogram-tick-font-size);
@@ -629,6 +649,7 @@ const runWhenLitLoaded = () => {
                 fill: var(--meteogram-cloud-color);
                 opacity: 0.42;
             }
+
             :host([dark]) .cloud-area {
                 fill: var(--meteogram-cloud-color-dark);
                 opacity: 0.55;
@@ -638,6 +659,7 @@ const runWhenLitLoaded = () => {
                 font: var(--meteogram-label-font-size, 14px) sans-serif;
                 fill: var(--meteogram-axis-label-color);
             }
+
             :host([dark]) .axis-label {
                 fill: var(--meteogram-axis-label-color-dark);
             }
@@ -645,25 +667,30 @@ const runWhenLitLoaded = () => {
             .grid line {
                 stroke: var(--meteogram-grid-color);
             }
+
             .xgrid line {
                 stroke: var(--meteogram-grid-color);
             }
+
             .wind-band-grid {
                 stroke: var(--meteogram-grid-color);
                 stroke-width: 1;
             }
+
             .twentyfourh-line, .day-tic {
                 stroke: var(--meteogram-grid-color);
                 stroke-width: 3;
                 stroke-dasharray: 6, 5;
                 opacity: 0.7;
             }
+
             .twentyfourh-line-wind {
                 stroke: var(--meteogram-grid-color);
                 stroke-width: 2.5;
                 stroke-dasharray: 6, 5;
                 opacity: 0.5;
             }
+
             :host([dark]) .grid line,
             :host([dark]) .xgrid line,
             :host([dark]) .wind-band-grid,
@@ -677,6 +704,7 @@ const runWhenLitLoaded = () => {
             .pressure-axis path {
                 stroke: var(--meteogram-grid-color);
             }
+
             :host([dark]) .temperature-axis path,
             :host([dark]) .pressure-axis path {
                 stroke: var(--meteogram-grid-color-dark);
@@ -687,6 +715,7 @@ const runWhenLitLoaded = () => {
                 stroke-width: 2;
                 fill: none;
             }
+
             :host([dark]) .wind-band-outline {
                 stroke: var(--meteogram-grid-color-dark);
             }
@@ -720,6 +749,10 @@ const runWhenLitLoaded = () => {
             // Add styles override from config
             this.styles = config.styles || {};
 
+            // Add diagnostics option
+            this.diagnostics = config.diagnostics !== undefined ? config.diagnostics : DIAGNOSTICS_DEFAULT;
+            logEnabled = this.diagnostics; // Set logEnabled based on diagnostics
+
             // if (latChanged || lonChanged) {
             //     MeteogramCard.apiExpiresAt = null;
             //     MeteogramCard.cachedWeatherData = null;
@@ -747,7 +780,8 @@ const runWhenLitLoaded = () => {
                 show_wind: true,
                 dense_weather_icons: true,
                 meteogram_hours: "48h",
-                fill_container: false
+                fill_container: false,
+                diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
             });
             return editor;
         }
@@ -763,7 +797,8 @@ const runWhenLitLoaded = () => {
                 show_wind: true,
                 dense_weather_icons: true,
                 meteogram_hours: "48h",
-                fill_container: false
+                fill_container: false,
+                diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
                 // Coordinates will be fetched from HA configuration
             };
         }
@@ -1131,7 +1166,10 @@ const runWhenLitLoaded = () => {
             try {
                 if (latitude !== undefined && longitude !== undefined) {
                     const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                    let cacheObj: { ["forecast-data"]?: any, ["default-location"]?: { latitude: number, longitude: number } } = {};
+                    let cacheObj: {
+                        ["forecast-data"]?: any,
+                        ["default-location"]?: { latitude: number, longitude: number }
+                    } = {};
                     if (cacheStr) {
                         try {
                             cacheObj = JSON.parse(cacheStr);
@@ -1154,7 +1192,10 @@ const runWhenLitLoaded = () => {
         private _saveDefaultLocationToStorage(latitude: number, longitude: number) {
             try {
                 const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                let cacheObj: { ["forecast-data"]?: any, ["default-location"]?: { latitude: number, longitude: number } } = {};
+                let cacheObj: {
+                    ["forecast-data"]?: any,
+                    ["default-location"]?: { latitude: number, longitude: number }
+                } = {};
                 if (cacheStr) {
                     try {
                         cacheObj = JSON.parse(cacheStr);
@@ -1177,7 +1218,10 @@ const runWhenLitLoaded = () => {
             try {
                 const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
                 if (cacheStr) {
-                    let cacheObj: { ["forecast-data"]?: any, ["default-location"]?: { latitude: number, longitude: number } } = {};
+                    let cacheObj: {
+                        ["forecast-data"]?: any,
+                        ["default-location"]?: { latitude: number, longitude: number }
+                    } = {};
                     try {
                         cacheObj = JSON.parse(cacheStr);
                     } catch {
@@ -1187,7 +1231,7 @@ const runWhenLitLoaded = () => {
                         const latitude = parseFloat(Number(cacheObj["default-location"].latitude).toFixed(4));
                         const longitude = parseFloat(Number(cacheObj["default-location"].longitude).toFixed(4));
                         if (!isNaN(latitude) && !isNaN(longitude)) {
-                            return { latitude, longitude };
+                            return {latitude, longitude};
                         }
                     }
                 }
@@ -1203,7 +1247,10 @@ const runWhenLitLoaded = () => {
             try {
                 const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
                 if (cacheStr) {
-                    let cacheObj: { ["forecast-data"]?: any, ["default-location"]?: { latitude: number, longitude: number } } = {};
+                    let cacheObj: {
+                        ["forecast-data"]?: any,
+                        ["default-location"]?: { latitude: number, longitude: number }
+                    } = {};
                     try {
                         cacheObj = JSON.parse(cacheStr);
                     } catch {
@@ -1213,7 +1260,7 @@ const runWhenLitLoaded = () => {
                         const latitude = parseFloat(Number(cacheObj["default-location"].latitude).toFixed(4));
                         const longitude = parseFloat(Number(cacheObj["default-location"].longitude).toFixed(4));
                         if (!isNaN(latitude) && !isNaN(longitude)) {
-                            return { latitude, longitude };
+                            return {latitude, longitude};
                         }
                     }
                 }
@@ -1330,7 +1377,13 @@ const runWhenLitLoaded = () => {
             try {
                 if (this.cachedWeatherData && this.apiExpiresAt) {
                     const key = this.getLocationKey(lat, lon);
-                    let cacheObj: { ["forecast-data"]?: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> } = {};
+                    let cacheObj: {
+                        ["forecast-data"]?: Record<string, {
+                            expiresAt: number,
+                            lastModified?: string,
+                            data: MeteogramData
+                        }>
+                    } = {};
                     const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
                     if (cacheStr) {
                         try {
@@ -1360,7 +1413,13 @@ const runWhenLitLoaded = () => {
                 const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
 
                 if (cacheStr) {
-                    let cacheObj: { ["forecast-data"]?: Record<string, { expiresAt: number, lastModified?: string, data: MeteogramData }> } = {};
+                    let cacheObj: {
+                        ["forecast-data"]?: Record<string, {
+                            expiresAt: number,
+                            lastModified?: string,
+                            data: MeteogramData
+                        }>
+                    } = {};
                     try {
                         cacheObj = JSON.parse(cacheStr);
                     } catch {
@@ -1460,7 +1519,7 @@ const runWhenLitLoaded = () => {
                     }, msUntilRefresh);
                 }
                 if (logEnabled) {
-                    console.log(`[meteogram-card] Returning cached weather data (expires at ${expiresStr}), will refresh in ${Math.round(msUntilRefresh/1000)}s`);
+                    console.log(`[meteogram-card] Returning cached weather data (expires at ${expiresStr}), will refresh in ${Math.round(msUntilRefresh / 1000)}s`);
                 }
                 // Do NOT change _statusApiSuccess here
                 // Return cached data, but keep _lastApiSuccess as is
@@ -1481,11 +1540,6 @@ const runWhenLitLoaded = () => {
 
                     const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
                     const headers: Record<string, string> = {};
-                    // Remove If-Modified-Since header usage
-                    // if (this.apiLastModified) {
-                    //     headers['If-Modified-Since'] = this.apiLastModified;
-                    // }
-                    // Add Origin header for identification
                     headers['Origin'] = window.location.origin;
 
                     // Log headers before fetch
@@ -1494,6 +1548,23 @@ const runWhenLitLoaded = () => {
                     }
 
                     const response = await fetch(forecastUrl, { headers });
+                    // const response = {
+                    //     ok: false,
+                    //     status: 404,
+                    //     statusText: "Not Found",
+                    //     headers: {
+                    //         get: (name: string) => {
+                    //             if (name.toLowerCase() === "origin") return headers['Origin'];
+                    //             return undefined;
+                    //         }
+                    //     },
+                    //     json: async () => ({
+                    //         properties: {
+                    //             timeseries: []
+                    //         }
+                    //     }),
+                    //     text: async () => "Resource not found"
+                    // };
 
                     // Handle 429 Too Many Requests
                     if (response.status === 429) {
@@ -1568,10 +1639,20 @@ const runWhenLitLoaded = () => {
                             statusText: response.statusText,
                             body: errorText
                         });
+
                         // Add CORS/network hint if status is 0
                         if (response.status === 0) {
                             throw new Error(`Weather API request failed (status 0). This may be a network or CORS issue. See browser console for details.`);
                         }
+                        // Compose detailed diagnostic info
+                        const diag = [
+                            `<b>API Error</b>`,
+                            `Status: <code>${response.status} ${response.statusText}</code>`,
+                            `API URL: <code>${forecastUrl}</code>`,
+                            `Origin header: <code>${headers['Origin']}</code>`,
+                            `Error message: <pre>${errorText}</pre>`
+                        ].join('<br>');
+                        this.setError(diag);
                         throw new Error(`Weather API returned ${response.status}: ${response.statusText}\n${errorText}`);
                     }
 
@@ -1682,16 +1763,38 @@ const runWhenLitLoaded = () => {
 
                     return result;
                 } catch (error: unknown) {
-                    // On error, set API success to false
                     this._statusApiSuccess = false;
                     // Always fallback to cached weather data, even if expired
                     if (this.cachedWeatherData) {
                         console.warn('Error fetching weather data, using cached data (may be expired):', error);
+                        // Schedule a retry in 1 minute
+                        if (this._weatherRetryTimeout) clearTimeout(this._weatherRetryTimeout);
+                        this._weatherRetryTimeout = window.setTimeout(() => {
+                            this.meteogramError = "";
+                            this.fetchWeatherData().then((newData) => {
+                                if (JSON.stringify(newData) !== JSON.stringify(this.cachedWeatherData)) {
+                                    this.cachedWeatherData = newData;
+                                    this._scheduleDrawMeteogram();
+                                }
+                            }).catch(() => {
+                                this._scheduleDrawMeteogram();
+                            });
+                        }, 60000);
                         return this.cachedWeatherData;
                     }
-                    // Log error and provide more info for troubleshooting
-                    console.error('Error fetching weather data:', error);
-                    throw new Error(`Failed to get weather data: ${(error as Error).message}\nCheck your network connection, browser console, and API accessibility.`);
+                    // Compose diagnostic info for thrown error (HTML formatted)
+                    let diag = `<b>API Error</b><br>`;
+                    if (error instanceof Error) {
+                        diag += `Error: <code>${error.message}</code><br>`;
+                    } else {
+                        diag += `Error: <code>${String(error)}</code><br>`;
+                    }
+                    diag += `API URL: <code>https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}</code><br>`;
+                    diag += `Origin header: <code>${window.location.origin}</code><br>`;
+                    diag += `Card version: <code>${version || "unknown"}</code><br>`;
+                    diag += `Client type: <code>${navigator.userAgent}</code><br>`;
+                    this.setError(diag);
+                    throw new Error(`Failed to get weather data: ${(error as Error).message}\nCheck your network connection, browser console, and API accessibility.\n\n${diag}`);
                 } finally {
                     this.weatherDataPromise = null;
                 }
@@ -1747,7 +1850,11 @@ const runWhenLitLoaded = () => {
             try {
                 data = await this.fetchWeatherData();
             } catch (err) {
-                this.setError("Weather data not available.");
+                if (err instanceof Error) {
+                    this.setError(err.message);
+                } else {
+                    this.setError("Weather data not available.");
+                }
                 return;
             }
 
@@ -2134,7 +2241,7 @@ const runWhenLitLoaded = () => {
                 .attr("text-anchor", "start")
                 .attr("opacity", (d: number, i: number) => {
                     // Check if there's enough space for this label
-                    if ( i === dayStarts.length - 1) return 1; // Always show the last day
+                    if (i === dayStarts.length - 1) return 1; // Always show the last day
 
                     const thisLabelPos = margin.left + x(d);
                     const nextLabelPos = margin.left + x(dayStarts[i + 1]);
@@ -2204,7 +2311,7 @@ const runWhenLitLoaded = () => {
                 .attr("stroke", "currentColor")
                 .attr("stroke-width", 1);
 
-           // Wind band grid lines (if wind band is enabled)
+            // Wind band grid lines (if wind band is enabled)
             if (this.showWind) {
                 const windBandYOffset = margin.top + chartHeight;
                 const windBand = svg.append('g')
@@ -2242,7 +2349,6 @@ const runWhenLitLoaded = () => {
             }
 
 
-
             // --- Restore vertical day divider lines ---
             chart.selectAll(".twentyfourh-line")
                 .data(dayStarts.slice(1)) // skip first, draw at each new day
@@ -2271,11 +2377,11 @@ const runWhenLitLoaded = () => {
                 // );
                 // FIX: Use 1 - cloudCover[i] / 100 for the top band so higher cloud cover means more shading
                 for (let i = 0; i < N; i++) {
-                    cloudBandPoints.push([x(i), bandTop + (bandHeight/2) * (1 - cloudCover[i] / 100)]);
+                    cloudBandPoints.push([x(i), bandTop + (bandHeight / 2) * (1 - cloudCover[i] / 100)]);
                 }
                 // For the bottom band, use cloudCover[i] / 100
                 for (let i = N - 1; i >= 0; i--) {
-                    cloudBandPoints.push([x(i), bandTop + (bandHeight/2) * (1 + cloudCover[i] / 100)]);
+                    cloudBandPoints.push([x(i), bandTop + (bandHeight / 2) * (1 + cloudCover[i] / 100)]);
                 }
 
                 chart.append("path")
@@ -2358,7 +2464,6 @@ const runWhenLitLoaded = () => {
                 .attr("stroke-width", 3);
 
 
-
             // Only add cloud cover legend if enabled
             if (this.showCloudCover) {
                 chart.append("text")
@@ -2380,7 +2485,7 @@ const runWhenLitLoaded = () => {
             chart.append("text")
                 .attr("class", "legend legend-snow")
                 .attr("x", 630).attr("y", -45)
-                .text(trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") +  ' (mm)');
+                .text(trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)');
 
             // Temperature line
             const line = d3.line()
@@ -2735,62 +2840,71 @@ const runWhenLitLoaded = () => {
                         <div class="card-header">${this.title}</div>` : ""}
                     <div class="card-content">
                         <div class="attribution">
-                            ${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href="https://met.no/" target="_blank" rel="noopener" style="color: inherit;">met.no</a>
+                            ${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href="https://met.no/"
+                                                                                                  target="_blank"
+                                                                                                  rel="noopener"
+                                                                                                  style="color: inherit;">met.no</a>
                             <span
-                                style="margin-left:8px; vertical-align:middle;"
-                                title="${this._lastApiSuccess
-                                    ? trnslt(this.hass, 'ui.card.meteogram.status.success', 'success') + ` : ${successTooltip}`
-                                    : this._statusApiSuccess === null
-                                        ? trnslt(this.hass, 'ui.card.meteogram.status.cached', 'cached') + ` : ${successTooltip}`
-                                        : trnslt(this.hass, 'ui.card.meteogram.status.failed', 'failed') + ` : ${successTooltip}`}"
+                                    style="margin-left:8px; vertical-align:middle;"
+                                    title="${this._lastApiSuccess
+                                            ? trnslt(this.hass, 'ui.card.meteogram.status.success', 'success') + ` : ${successTooltip}`
+                                            : this._statusApiSuccess === null
+                                                    ? trnslt(this.hass, 'ui.card.meteogram.status.cached', 'cached') + ` : ${successTooltip}`
+                                                    : trnslt(this.hass, 'ui.card.meteogram.status.failed', 'failed') + ` : ${successTooltip}`}"
                             >${
-                                this._lastApiSuccess
-                                    ? "✅"
-                                    : this._statusApiSuccess === null
-                                        ? "❎"
-                                        : "❌"
+                                    this._lastApiSuccess
+                                            ? "✅"
+                                            : this._statusApiSuccess === null
+                                                    ? "❎"
+                                                    : "❌"
                             }</span>
                         </div>
                         ${this.meteogramError
-                                ? html`
-                                    <div class="error">${trnslt(this.hass, "ui.card.meteogram.error", this.meteogramError)}</div>`
-                                : html`
-                                    <div id="chart"></div>
-                                    ${logEnabled ? html`
-                                        <div id="meteogram-status-panel"
-                                             style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
-                                             xmlns="http://www.w3.org/1999/html">
-                                            <b>${trnslt(this.hass, "ui.card.meteogram.status_panel", "Status Panel")}</b>
-                                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
-                                                <div>
-                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.expires_at", "Expires At")}: ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
-                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.last_render", "Last Render")}: ${this._statusLastRender || "unknown"}</span><br>
-                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.last_fingerprint_miss", "Last Fingerprint Miss")}: ${this._statusLastFingerprintMiss || "unknown"}</span><br>
-                                                    <span>${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}: ${this._statusLastFetch || "unknown"}</span>
-                                                </div>
-                                                <div>
-                                                    <span
-                                                            title="${
+                            ? html`
+                                <div class="error" style="white-space:normal;"
+                                     .innerHTML=${this.meteogramError}></div>`
+                            : html`
+                                <div id="chart"></div>
+                                ${this.diagnostics ? html`
+                                    <div id="meteogram-status-panel"
+                                         style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
+                                         xmlns="http://www.w3.org/1999/html">
+                                        <b>${trnslt(this.hass, "ui.card.meteogram.status_panel", "Status Panel")}</b>
+                                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
+                                            <div>
+                                                <span>${trnslt(this.hass, "ui.card.meteogram.status.expires_at", "Expires At")}
+                                                    : ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
+                                                <span>${trnslt(this.hass, "ui.card.meteogram.status.last_render", "Last Render")}
+                                                    : ${this._statusLastRender || "unknown"}</span><br>
+                                                <span>${trnslt(this.hass, "ui.card.meteogram.status.last_fingerprint_miss", "Last Fingerprint Miss")}
+                                                    : ${this._statusLastFingerprintMiss || "unknown"}</span><br>
+                                                <span>${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}
+                                                    : ${this._statusLastFetch || "unknown"}</span>
+                                            </div>
+                                            <div>
+                                                <span
+                                                        title="${
                                                                 this._lastApiSuccess
-                                                                    ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
-                                                                    : this._statusApiSuccess === null
-                                                                        ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
-                                                                        : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
-                                                            }"
-                                                    >
-                                                        ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}: ${
-                                                            this._lastApiSuccess
+                                                                        ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
+                                                                        : this._statusApiSuccess === null
+                                                                                ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
+                                                                                : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
+                                                        }"
+                                                >
+                                                    ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}
+                                                        : ${
+                                                        this._lastApiSuccess
                                                                 ? "✅"
                                                                 : this._statusApiSuccess === null
-                                                                    ? "❎"
-                                                                    : "❌"
-                                                        }
-                                                    </span></br>
-                                                </div>
+                                                                        ? "❎"
+                                                                        : "❌"
+                                                }
+                                                </span></br>
                                             </div>
                                         </div>
-                                    ` : ""}
-                                `}
+                                    </div>
+                                ` : ""}
+                            `}
                     </div>
                 </ha-card>
             `;
@@ -2817,6 +2931,12 @@ const runWhenLitLoaded = () => {
         // Helper method to set errors with rate limiting
         setError(message: string) {
             const now = Date.now();
+
+            // Always show full error as HTML if diagnostics is enabled
+            this.meteogramError = message;
+            this.lastErrorTime = now;
+            this.errorCount = 1;
+            console.error("Meteogram error:", message);
 
             // If this is a repeat of the same error, just count it
             if (message === this.meteogramError) {
@@ -2845,7 +2965,7 @@ const runWhenLitLoaded = () => {
             } else {
                 // Fallback: check .dark-theme on <html> or <body>
                 isDark = document.documentElement.classList.contains('dark-theme') ||
-                         document.body.classList.contains('dark-theme');
+                    document.body.classList.contains('dark-theme');
             }
             if (isDark) {
                 this.setAttribute('dark', '');
@@ -2955,6 +3075,7 @@ const runWhenLitLoaded = () => {
             setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
             setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
             setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
+            setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT, 'checked');
         }
 
         render() {
@@ -2981,6 +3102,7 @@ const runWhenLitLoaded = () => {
             const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
             const meteogramHours = this._config.meteogram_hours || "48h";
             const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
+            const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT;
             const div = document.createElement('div');
 
             div.innerHTML = `
@@ -3136,6 +3258,14 @@ const runWhenLitLoaded = () => {
             .checked="${fillContainer}"
           ></ha-switch>
         </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Diagnostics (debug logging)</div>
+          <ha-switch
+            id="diagnostics"
+            .checked="${diagnostics}"
+          ></ha-switch>
+        </div>
       </div>
 
       <div class="row">
@@ -3159,91 +3289,98 @@ const runWhenLitLoaded = () => {
             // Append new content
             this.appendChild(div);
 
-            // Set up event listeners after DOM is updated
-            setTimeout(() => {
-                // Get and store references to all input elements with proper type casting
-                const titleInput = this.querySelector('#title-input') as ConfigurableHTMLElement;
-                if (titleInput) {
-                    titleInput.configValue = 'title';
-                    titleInput.addEventListener('input', this._valueChanged.bind(this));
-                    this._elements.set('title', titleInput);
-                }
+        // Set up event listeners after DOM is updated
+        setTimeout(() => {
+            // Get and store references to all input elements with proper type casting
+            const titleInput = this.querySelector('#title-input') as ConfigurableHTMLElement;
+            if (titleInput) {
+                titleInput.configValue = 'title';
+                titleInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('title', titleInput);
+            }
 
-                const latInput = this.querySelector('#latitude-input') as ConfigurableHTMLElement;
-                if (latInput) {
-                    latInput.configValue = 'latitude';
-                    latInput.addEventListener('input', this._valueChanged.bind(this));
-                    this._elements.set('latitude', latInput);
-                }
+            const latInput = this.querySelector('#latitude-input') as ConfigurableHTMLElement;
+            if (latInput) {
+                latInput.configValue = 'latitude';
+                latInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('latitude', latInput);
+            }
 
-                const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
-                if ( lonInput) {
-                    lonInput.configValue = 'longitude';
-                    lonInput.addEventListener('input', this._valueChanged.bind(this));
-                    this._elements.set('longitude', lonInput);
-                }
+            const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
+            if (lonInput) {
+                lonInput.configValue = 'longitude';
+                lonInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('longitude', lonInput);
+            }
 
-                // Set up toggle switches
-                const cloudCoverSwitch = this.querySelector('#show-cloud-cover') as ConfigurableHTMLElement;
-                if (cloudCoverSwitch) {
-                    cloudCoverSwitch.configValue = 'show_cloud_cover';
-                    cloudCoverSwitch.addEventListener('change', this._valueChanged.bind(this));
-                    this._elements.set('show_cloud_cover', cloudCoverSwitch);
-                }
+            // Set up toggle switches
+            const cloudCoverSwitch = this.querySelector('#show-cloud-cover') as ConfigurableHTMLElement;
+            if (cloudCoverSwitch) {
+                cloudCoverSwitch.configValue = 'show_cloud_cover';
+                cloudCoverSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_cloud_cover', cloudCoverSwitch);
+            }
 
-                const pressureSwitch = this.querySelector('#show-pressure') as ConfigurableHTMLElement;
-                if (pressureSwitch) {
-                    pressureSwitch.configValue = 'show_pressure';
-                    pressureSwitch.addEventListener('change', this._valueChanged.bind(this));
-                    this._elements.set('show_pressure', pressureSwitch);
-                }
+            const pressureSwitch = this.querySelector('#show-pressure') as ConfigurableHTMLElement;
+            if (pressureSwitch) {
+                pressureSwitch.configValue = 'show_pressure';
+                pressureSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_pressure', pressureSwitch);
+            }
 
-                const rainSwitch = this.querySelector('#show-rain') as ConfigurableHTMLElement;
-                if (rainSwitch) {
-                    rainSwitch.configValue = 'show_rain';
-                    rainSwitch.addEventListener('change', this._valueChanged.bind(this));
-                    this._elements.set('show_rain', rainSwitch);
-                }
+            const rainSwitch = this.querySelector('#show-rain') as ConfigurableHTMLElement;
+            if (rainSwitch) {
+                rainSwitch.configValue = 'show_rain';
+                rainSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_rain', rainSwitch);
+            }
 
-                const weatherIconsSwitch = this.querySelector('#show-weather-icons') as ConfigurableHTMLElement;
-                if (weatherIconsSwitch) {
-                    weatherIconsSwitch.configValue = 'show_weather_icons';
-                    weatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
-                    this._elements.set('show_weather_icons', weatherIconsSwitch);
-                }
+            const weatherIconsSwitch = this.querySelector('#show-weather-icons') as ConfigurableHTMLElement;
+            if (weatherIconsSwitch) {
+                weatherIconsSwitch.configValue = 'show_weather_icons';
+                weatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_weather_icons', weatherIconsSwitch);
+            }
 
-                const windSwitch = this.querySelector('#show-wind') as ConfigurableHTMLElement;
-                if (windSwitch) {
-                    windSwitch.configValue = 'show_wind';
-                    windSwitch.addEventListener('change', this._valueChanged.bind(this));
-                    this._elements.set('show_wind', windSwitch);
-                }
+            const windSwitch = this.querySelector('#show-wind') as ConfigurableHTMLElement;
+            if (windSwitch) {
+                windSwitch.configValue = 'show_wind';
+                windSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_wind', windSwitch);
+            }
 
-                const denseWeatherIconsSwitch = this.querySelector('#dense-weather-icons') as ConfigurableHTMLElement;
-                if (denseWeatherIconsSwitch) {
-                    denseWeatherIconsSwitch.configValue = 'dense_weather_icons';
-                    denseWeatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
-                    this._elements.set('dense_weather_icons', denseWeatherIconsSwitch);
-                }
+            const denseWeatherIconsSwitch = this.querySelector('#dense-weather-icons') as ConfigurableHTMLElement;
+            if (denseWeatherIconsSwitch) {
+                denseWeatherIconsSwitch.configValue = 'dense_weather_icons';
+                denseWeatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('dense_weather_icons', denseWeatherIconsSwitch);
+            }
 
-                const meteogramHoursSelect = this.querySelector('#meteogram-hours-select') as ConfigurableHTMLElement;
-                if (meteogramHoursSelect) {
-                    meteogramHoursSelect.configValue = 'meteogram_hours';
-                    meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
-                    this._elements.set('meteogram_hours', meteogramHoursSelect);
-                }
+            const meteogramHoursSelect = this.querySelector('#meteogram-hours-select') as ConfigurableHTMLElement;
+            if (meteogramHoursSelect) {
+                meteogramHoursSelect.configValue = 'meteogram_hours';
+                meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('meteogram_hours', meteogramHoursSelect);
+            }
 
-                const fillContainerSwitch = this.querySelector('#fill-container') as ConfigurableHTMLElement;
-                if (fillContainerSwitch) {
-                    fillContainerSwitch.configValue = 'fill_container';
-                    fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
-                    this._elements.set('fill_container', fillContainerSwitch);
-                }
+            const fillContainerSwitch = this.querySelector('#fill-container') as ConfigurableHTMLElement;
+            if (fillContainerSwitch) {
+                fillContainerSwitch.configValue = 'fill_container';
+                fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('fill_container', fillContainerSwitch);
+            }
 
-                // Update values after setting up elements and listeners
-                this._updateValues();
-            }, 0);
-        }
+            const diagnosticsSwitch = this.querySelector('#diagnostics') as ConfigurableHTMLElement;
+            if (diagnosticsSwitch) {
+                diagnosticsSwitch.configValue = 'diagnostics';
+                diagnosticsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('diagnostics', diagnosticsSwitch);
+            }
+
+            // Update values after setting up elements and listeners
+            this._updateValues();
+        }, 0);
+    }
 
         // Add the missing _valueChanged method
         private _valueChanged(ev: Event) {
