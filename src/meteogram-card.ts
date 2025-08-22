@@ -1382,7 +1382,8 @@ const runWhenLitLoaded = () => {
                         ["forecast-data"]?: Record<string, {
                             expiresAt: number,
                             lastModified?: string,
-                            data: MeteogramData
+                            data: MeteogramData,
+                            statusLastFetch?: string // <-- Add this property
                         }>
                     } = {};
                     const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
@@ -1397,8 +1398,8 @@ const runWhenLitLoaded = () => {
                     cacheObj["forecast-data"][key] = {
                         expiresAt: this.apiExpiresAt,
                         lastModified: this.apiLastModified || undefined,
-                        data: this.cachedWeatherData
-                        // fetchTimestamp is part of cachedWeatherData
+                        data: this.cachedWeatherData,
+                        statusLastFetch: this._statusLastFetch // <-- Store statusLastFetch
                     };
                     localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
                 }
@@ -1418,7 +1419,8 @@ const runWhenLitLoaded = () => {
                         ["forecast-data"]?: Record<string, {
                             expiresAt: number,
                             lastModified?: string,
-                            data: MeteogramData
+                            data: MeteogramData,
+                            statusLastFetch?: string // <-- Add this property
                         }>
                     } = {};
                     try {
@@ -1433,6 +1435,11 @@ const runWhenLitLoaded = () => {
                     if (entry && entry.expiresAt && entry.data) {
                         this.apiExpiresAt = entry.expiresAt;
                         this.apiLastModified = entry.lastModified || null;
+
+                        // Restore _statusLastFetch from cache if present
+                        if (entry.statusLastFetch) {
+                            this._statusLastFetch = entry.statusLastFetch;
+                        }
 
                         if (Array.isArray(entry.data.time)) {
                             entry.data.time = entry.data.time.map((t: string | Date) =>
@@ -1469,6 +1476,11 @@ const runWhenLitLoaded = () => {
             if (lat !== undefined && lon !== undefined) {
                 // Load cache from localStorage if available
                 this.loadCacheFromStorage(lat, lon);
+
+                // If we loaded from cache, update _statusLastFetch from cache
+                if (this.cachedWeatherData && this._statusLastFetch) {
+                    // Already set by loadCacheFromStorage
+                }
             }
 
             const expiresStr = this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown";
