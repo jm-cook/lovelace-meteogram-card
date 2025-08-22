@@ -1545,14 +1545,14 @@ const runWhenLitLoaded = () => {
                     const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
                     const headers: Record<string, string> = {};
                     headers['Origin'] = window.location.origin;
-                    // headers['Content-Type'] = 'application/json'; // Explicitly set content-type
+                    headers['Accept'] = 'application/json'; // Explicitly set content-type
 
                     // Log headers before fetch
                     if (logEnabled) {
                         console.log('[meteogram-card] Fetch headers:', headers);
                     }
 
-                    const response = await fetch(forecastUrl, { headers });
+                    const response = await fetch(forecastUrl, { headers, mode: 'cors' } );
                     METEOGRAM_CARD_API_CALL_COUNT++; // Increment global API call count
 
                     const statusCode = response.status;
