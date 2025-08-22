@@ -2142,6 +2142,12 @@ const runWhenLitLoaded = () => {
             return fallback !== undefined ? fallback : key;
         };
 
+        // Add a helper to get the HA locale string for date formatting
+        private getHaLocale(): string {
+            // Use hass.language if available, fallback to "en"
+            return (this.hass && this.hass.language) ? this.hass.language : "en";
+        }
+
         // Update renderMeteogram to add windBarbBand and hourLabelBand as arguments
         renderMeteogram(
             svg: any,
@@ -2261,7 +2267,9 @@ const runWhenLitLoaded = () => {
                 })
                 .text((d: number) => {
                     const dt = time[d];
-                    return dt.toLocaleDateString(undefined, {weekday: "short", day: "2-digit", month: "short"});
+                    // Use HA locale for date formatting
+                    const haLocale = this.getHaLocale();
+                    return dt.toLocaleDateString(haLocale, {weekday: "short", day: "2-digit", month: "short"});
                 });
 
             // Day boundary ticks
@@ -2765,13 +2773,16 @@ const runWhenLitLoaded = () => {
                 .attr("y", hourLabelY)
                 .attr("text-anchor", "middle")
                 .text((d: Date, i: number) => {
-                    const hour = d.getHours();
+                    // Use HA locale for hour formatting
+                    const haLocale = this.getHaLocale();
+                    // Only show hour label at intervals, as before
+                    const hour = d.toLocaleTimeString(haLocale, {hour: "2-digit", hour12: false});
                     if (width < 400) {
-                        return i % 6 === 0 ? String(hour).padStart(2, "0") : "";
+                        return i % 6 === 0 ? hour : "";
                     } else if (width > 800) {
-                        return i % 2 === 0 ? String(hour).padStart(2, "0") : "";
+                        return i % 2 === 0 ? hour : "";
                     } else {
-                        return i % 3 === 0 ? String(hour).padStart(2, "0") : "";
+                        return i % 3 === 0 ? hour : "";
                     }
                 });
         }
