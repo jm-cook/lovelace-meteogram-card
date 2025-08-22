@@ -21,6 +21,11 @@ const DIAGNOSTICS_DEFAULT = version.includes("beta"); // true if version contain
 
 const CARD_NAME = "Meteogram Card";
 
+// Initialize these variables when JS is loaded
+const METEOGRAM_CARD_STARTUP_TIME = new Date();
+let METEOGRAM_CARD_API_CALL_COUNT = 0;
+let METEOGRAM_CARD_API_SUCCESS_COUNT = 0;
+
 // Shared translation helper function
 function trnslt(hass: any, key: string, fallback?: string): string {
     // Try hass.localize (used by HA frontend)
@@ -304,11 +309,7 @@ const runWhenLitLoaded = () => {
         @state() private _statusLastFetch: string = "";
         @state() private _statusApiSuccess: boolean | null = null;
 
-        // Add startup time and API call counter
-        private _startupTime: Date = new Date(); // Track startup time
-        private _apiCallCount: number = 0;       // Total API calls since startup
-        private _apiSuccessCount: number = 0;    // Successful API calls since startup
-        private _lastApiSuccess: boolean = false;
+
 
         static styles = css`
             :host {
@@ -1535,12 +1536,16 @@ const runWhenLitLoaded = () => {
             }
 
             this.weatherDataPromise = (async () => {
+                let forecastUrl = ""
+                let headers: Record<string, string> = {};
+                let statusCode = 0;
                 try {
                     this._statusLastFetch = new Date().toISOString();
 
                     const forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
                     const headers: Record<string, string> = {};
                     headers['Origin'] = window.location.origin;
+                    // headers['Content-Type'] = 'application/json'; // Explicitly set content-type
 
                     // Log headers before fetch
                     if (logEnabled) {
@@ -1548,6 +1553,9 @@ const runWhenLitLoaded = () => {
                     }
 
                     const response = await fetch(forecastUrl, { headers });
+                    METEOGRAM_CARD_API_CALL_COUNT++; // Increment global API call count
+
+                    const statusCode = response.status;
                     // const response = {
                     //     ok: false,
                     //     status: 404,
@@ -1567,7 +1575,7 @@ const runWhenLitLoaded = () => {
                     // };
 
                     // Handle 429 Too Many Requests
-                    if (response.status === 429) {
+                    if (statusCode === 429) {
                         const expiresHeader = response.headers.get("Expires");
                         let expiresAt: number | null = null;
                         if (expiresHeader) {
@@ -1612,7 +1620,7 @@ const runWhenLitLoaded = () => {
                     }
 
                     // Handle 304 Not Modified
-                    if (response.status === 304) {
+                    if (statusCode === 304) {
                         if (logEnabled) {
                             console.log("[meteogram-card] API returned 304 Not Modified, using cached data.");
                         }
@@ -1627,8 +1635,8 @@ const runWhenLitLoaded = () => {
                     this._statusApiSuccess = null; // set to null before API call
                     this._statusApiSuccess = response.ok; // true/false after API call
                     if (response.ok) {
-                        this._lastApiSuccess = true; // <-- Track last successful API call
-                        this._apiSuccessCount++; // Count successful API call
+                        this._lastApiSuccess = true;
+                        METEOGRAM_CARD_API_SUCCESS_COUNT++; // Increment global API success count
                     }
 
                     if (!response.ok) {
@@ -1783,18 +1791,19 @@ const runWhenLitLoaded = () => {
                         return this.cachedWeatherData;
                     }
                     // Compose diagnostic info for thrown error (HTML formatted)
-                    let diag = `<b>API Error</b><br>`;
+                    let diag = `<br><b>API Error</b><br>`;
                     if (error instanceof Error) {
                         diag += `Error: <code>${error.message}</code><br>`;
                     } else {
                         diag += `Error: <code>${String(error)}</code><br>`;
                     }
-                    diag += `API URL: <code>https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}</code><br>`;
-                    diag += `Origin header: <code>${window.location.origin}</code><br>`;
+                    diag += `Status: <code>${statusCode}</code><br>`;
+                    diag += `API URL: <code>${forecastUrl}</code><br>`;
+                    diag += `Origin header: <code>${headers['Origin']}</code><br>`;
                     diag += `Card version: <code>${version || "unknown"}</code><br>`;
                     diag += `Client type: <code>${navigator.userAgent}</code><br>`;
                     this.setError(diag);
-                    throw new Error(`Failed to get weather data: ${(error as Error).message}\nCheck your network connection, browser console, and API accessibility.\n\n${diag}`);
+                    throw new Error(`<br>Failed to get weather data: ${(error as Error).message}\n<br>Check your network connection, browser console, and API accessibility.\n\n${diag}`);
                 } finally {
                     this.weatherDataPromise = null;
                 }
@@ -2829,10 +2838,10 @@ const runWhenLitLoaded = () => {
                 .map(([k, v]) => `${k}: ${v};`)
                 .join(" ");
 
-            const successRate = this._apiCallCount > 0
-                ? Math.round(100 * this._apiSuccessCount / this._apiCallCount)
+            const successRate = METEOGRAM_CARD_API_CALL_COUNT > 0
+                ? Math.round(100 * METEOGRAM_CARD_API_SUCCESS_COUNT / METEOGRAM_CARD_API_CALL_COUNT)
                 : 0;
-            const successTooltip = `API Success Rate: ${this._apiSuccessCount}/${this._apiCallCount} (${successRate}%) since ${this._startupTime.toISOString()}`;
+            const successTooltip = `API Success Rate: ${METEOGRAM_CARD_API_SUCCESS_COUNT}/${METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
 
             return html`
                 <ha-card style="${styleVars}">
@@ -2899,7 +2908,12 @@ const runWhenLitLoaded = () => {
                                                                         ? "❎"
                                                                         : "❌"
                                                 }
-                                                </span></br>
+                                                </span>
+                                                <br>
+                                                <span>Card version: <code>${version}</code></span><br>
+                                                <span>Client type: <code>${getClientName()}</code></span><br>
+                                                <span>${successTooltip}</span>
+
                                             </div>
                                         </div>
                                     </div>
