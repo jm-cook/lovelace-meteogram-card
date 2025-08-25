@@ -7,7 +7,7 @@ import {version} from "../package.json";
 // Add diagnostics helpers
 import {formatDiagnosticError, getClientName, getVersion} from "./diagnostics";
 // Import the external API fetcher
-import {fetchWeatherDataFromAPI, METEOGRAM_CARD_API_CALL_COUNT, METEOGRAM_CARD_API_SUCCESS_COUNT} from "./weather-api";
+import {WeatherAPI, ForecastData} from "./weather-api";
 
 // Import localization files
 import enLocale from "./translations/en.json";
@@ -102,7 +102,7 @@ const cleanupExpiredForecastCache = () => {
         localStorage.removeItem('meteogram-card-latitude');
         localStorage.removeItem('meteogram-card-longitude');
 
-        const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+        const cacheStr = localStorage.getItem('metno-weather-cache');
         if (!cacheStr) return;
         const cacheObj = JSON.parse(cacheStr);
         let changed = false;
@@ -139,9 +139,8 @@ const cleanupExpiredForecastCache = () => {
             if (logEnabled) {
                 console.log(`[${CARD_NAME}] Cleaned up expired forecast cache. cacheObj:`, cacheObj);
             }
-            localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
+            localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
         }
-
     } catch (e) {
         // Ignore storage errors
     }
@@ -161,7 +160,7 @@ const runWhenLitLoaded = () => {
     const {LitElement, css, customElement, property, state} = (window as any).litElementModules;
 
 // Define interfaces for better type safety
-    interface MeteogramData {
+    interface ForecastData {
         pressure: number[];
         time: Date[];
         temperature: (number | null)[];
@@ -286,8 +285,8 @@ const runWhenLitLoaded = () => {
         // Change these from static to instance properties
         private apiExpiresAt: number | null = null;
         private apiLastModified: string | null = null;
-        private cachedWeatherData: MeteogramData | null = null;
-        private weatherDataPromise: Promise<MeteogramData> | null = null;
+        private cachedWeatherData: ForecastData | null = null;
+        private weatherDataPromise: Promise<ForecastData> | null = null;
 
         // Add this property to the class
         private _redrawScheduled = false;
@@ -1162,107 +1161,33 @@ const runWhenLitLoaded = () => {
             return MeteogramCard.encodeCacheKey(Number(lat.toFixed(4)), Number(lon.toFixed(4)));
         }
 
-        // Save location to localStorage under "default-location" in "meteogram-card-weather-cache"
-        private _saveLocationToStorage(latitude: number | undefined, longitude: number | undefined) {
-            try {
-                if (latitude !== undefined && longitude !== undefined) {
-                    const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                    let cacheObj: {
-                        ["forecast-data"]?: any,
-                        ["default-location"]?: { latitude: number, longitude: number }
-                    } = {};
-                    if (cacheStr) {
-                        try {
-                            cacheObj = JSON.parse(cacheStr);
-                        } catch {
-                            cacheObj = {};
-                        }
-                    }
-                    cacheObj["default-location"] = {
-                        latitude: parseFloat(latitude.toFixed(4)),
-                        longitude: parseFloat(longitude.toFixed(4))
-                    };
-                    localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
-                }
-            } catch (e) {
-                console.debug('Failed to save location to localStorage:', e);
-            }
-        }
-
-        // Save HA location to localStorage under "default-location" in "meteogram-card-weather-cache"
+        // Save HA location to localStorage under "meteogram-card-default-location"
         private _saveDefaultLocationToStorage(latitude: number, longitude: number) {
             try {
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                let cacheObj: {
-                    ["forecast-data"]?: any,
-                    ["default-location"]?: { latitude: number, longitude: number }
-                } = {};
-                if (cacheStr) {
-                    try {
-                        cacheObj = JSON.parse(cacheStr);
-                    } catch {
-                        cacheObj = {};
-                    }
-                }
-                cacheObj["default-location"] = {
+                const locationObj = {
                     latitude: parseFloat(latitude.toFixed(4)),
                     longitude: parseFloat(longitude.toFixed(4))
                 };
-                localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
+                localStorage.setItem('meteogram-card-default-location', JSON.stringify(locationObj));
             } catch (e) {
                 console.debug('Failed to save default location to localStorage:', e);
             }
         }
 
-        // Load location from localStorage under "default-location" in "meteogram-card-weather-cache"
-        private _loadLocationFromStorage(): { latitude: number, longitude: number } | null {
-            try {
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                if (cacheStr) {
-                    let cacheObj: {
-                        ["forecast-data"]?: any,
-                        ["default-location"]?: { latitude: number, longitude: number }
-                    } = {};
-                    try {
-                        cacheObj = JSON.parse(cacheStr);
-                    } catch {
-                        cacheObj = {};
-                    }
-                    if (cacheObj["default-location"]) {
-                        const latitude = parseFloat(Number(cacheObj["default-location"].latitude).toFixed(4));
-                        const longitude = parseFloat(Number(cacheObj["default-location"].longitude).toFixed(4));
-                        if (!isNaN(latitude) && !isNaN(longitude)) {
-                            return {latitude, longitude};
-                        }
-                    }
-                }
-                return null;
-            } catch (e) {
-                console.debug('Failed to load location from localStorage:', e);
-                return null;
-            }
-        }
-
-        // Load location from localStorage under "default-location" in "meteogram-card-weather-cache"
+        // Load location from localStorage under "meteogram-card-default-location"
         private _loadDefaultLocationFromStorage(): { latitude: number, longitude: number } | null {
             try {
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                if (cacheStr) {
-                    let cacheObj: {
-                        ["forecast-data"]?: any,
-                        ["default-location"]?: { latitude: number, longitude: number }
-                    } = {};
+                const locationStr = localStorage.getItem('meteogram-card-default-location');
+                if (locationStr) {
                     try {
-                        cacheObj = JSON.parse(cacheStr);
-                    } catch {
-                        cacheObj = {};
-                    }
-                    if (cacheObj["default-location"]) {
-                        const latitude = parseFloat(Number(cacheObj["default-location"].latitude).toFixed(4));
-                        const longitude = parseFloat(Number(cacheObj["default-location"].longitude).toFixed(4));
+                        const locationObj = JSON.parse(locationStr);
+                        const latitude = parseFloat(Number(locationObj.latitude).toFixed(4));
+                        const longitude = parseFloat(Number(locationObj.longitude).toFixed(4));
                         if (!isNaN(latitude) && !isNaN(longitude)) {
                             return {latitude, longitude};
                         }
+                    } catch {
+                        // Ignore parse errors
                     }
                 }
                 return null;
@@ -1382,11 +1307,11 @@ const runWhenLitLoaded = () => {
                         ["forecast-data"]?: Record<string, {
                             expiresAt: number,
                             lastModified?: string,
-                            data: MeteogramData,
+                            data: ForecastData,
                             statusLastFetch?: string // <-- Add this property
                         }>
                     } = {};
-                    const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                    const cacheStr = localStorage.getItem('metno-weather-cache');
                     if (cacheStr) {
                         try {
                             cacheObj = JSON.parse(cacheStr);
@@ -1401,7 +1326,7 @@ const runWhenLitLoaded = () => {
                         data: this.cachedWeatherData,
                         statusLastFetch: this._statusLastFetch // <-- Store statusLastFetch
                     };
-                    localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
+                    localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
                 }
             } catch (e) {
                 // Ignore storage errors
@@ -1412,14 +1337,14 @@ const runWhenLitLoaded = () => {
         private loadCacheFromStorage(lat: number, lon: number) {
             try {
                 const key = this.getLocationKey(lat, lon);
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                const cacheStr = localStorage.getItem('metno-weather-cache');
 
                 if (cacheStr) {
                     let cacheObj: {
                         ["forecast-data"]?: Record<string, {
                             expiresAt: number,
                             lastModified?: string,
-                            data: MeteogramData,
+                            data: ForecastData,
                             statusLastFetch?: string // <-- Add this property
                         }>
                     } = {};
@@ -1465,95 +1390,7 @@ const runWhenLitLoaded = () => {
         }
 
 
-        // Stub for assignMeteogramDataFromRaw
-        private assignMeteogramDataFromRaw(rawData: any): MeteogramData {
-            try {
-                if (!rawData || !rawData.properties || !Array.isArray(rawData.properties.timeseries)) {
-                    throw new Error("Invalid raw data format from weather API");
-                }
-
-                // Process forecast data
-                const timeseries = rawData.properties.timeseries;
-                // --- REMOVE 48h restriction ---
-                // const now = new Date();
-                // const timePlus48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-
-                // Filter timeseries to get all available hourly data
-                const filtered = timeseries.filter((item: any) => {
-                    const time = new Date(item.time);
-                    // Only keep hourly data (minute == 0)
-                    return time.getMinutes() === 0;
-                });
-
-                const result: MeteogramData = {
-                    time: [],
-                    temperature: [],
-                    rain: [],
-                    rainMin: [],
-                    rainMax: [],
-                    snow: [],
-                    cloudCover: [],
-                    windSpeed: [],
-                    windDirection: [],
-                    symbolCode: [],
-                    pressure: []
-                };
-                result.fetchTimestamp = new Date().toISOString(); // Set fetch timestamp
-
-                filtered.forEach((item: any) => {
-                    const time = new Date(item.time);
-                    const instant = item.data.instant.details;
-                    const next1h = item.data.next_1_hours?.details;
-
-                    result.time.push(time);
-                    result.temperature.push(instant.air_temperature);
-                    result.cloudCover.push(instant.cloud_area_fraction);
-                    result.windSpeed.push(instant.wind_speed);
-                    result.windDirection.push(instant.wind_from_direction);
-                    // Extract pressure data (air_pressure_at_sea_level is in hPa)
-                    result.pressure.push(instant.air_pressure_at_sea_level);
-
-                    if (next1h) {
-                        // Use precipitation_amount_max and precipitation_amount_min if available
-                        const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
-                            next1h.precipitation_amount_max :
-                            (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-
-                        const rainAmountMin = next1h.precipitation_amount_min !== undefined ?
-                            next1h.precipitation_amount_min :
-                            (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-
-                        // Store min and max separately
-                        result.rainMin.push(rainAmountMin);
-                        result.rainMax.push(rainAmountMax);
-
-                        // FIX: Use precipitation_amount for main rain bar
-                        result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-
-                        result.snow.push(0); // Default to 0 if snow isn't separated out
-
-                        // Get weather symbol code for icons
-                        if (item.data.next_1_hours?.summary?.symbol_code) {
-                            result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
-                        } else {
-                            result.symbolCode.push('');
-                        }
-                    } else {
-                        // Fill in empty data if we don't have hourly precipitation data
-                        result.rain.push(0);
-                        result.rainMin.push(0);
-                        result.rainMax.push(0);
-                        result.snow.push(0);
-                        result.symbolCode.push('');
-                    }
-                });
-                return result;
-            } catch (err) {
-                throw new Error("Failed to parse weather data: " + (err instanceof Error ? err.message : String(err)));
-            }
-        }
-
-        async fetchWeatherData(): Promise<MeteogramData> {
+        async fetchWeatherData(): Promise<ForecastData> {
             // Always truncate to 4 decimals before using
             const lat = this.latitude !== undefined ? parseFloat(Number(this.latitude).toFixed(4)) : undefined;
             const lon = this.longitude !== undefined ? parseFloat(Number(this.longitude).toFixed(4)) : undefined;
@@ -1631,14 +1468,14 @@ const runWhenLitLoaded = () => {
 
             this.weatherDataPromise = (async () => {
                 let data: any = null;
-                let result: MeteogramData = null as any;
+                let result: ForecastData = null as any;
+                const weatherApi = new WeatherAPI(lat!, lon!);
                 try {
-                    // Updated to handle new return type
-                    const apiResult = await fetchWeatherDataFromAPI(lat!, lon!);
+                    const apiResult = await weatherApi.fetchWeatherDataFromAPI();
                     data = apiResult.data;
-                    // Store expires header as apiExpiresAt
                     this.apiExpiresAt = apiResult.expires ? apiResult.expires.getTime() : null;
-                    result = await this.assignMeteogramDataFromRaw(data);
+                    // Use parsed forecast data from WeatherAPI instance
+                    result = weatherApi.forecastData!;
 
                     // Mark API fetch as successful
                     this._statusApiSuccess = true;
@@ -1689,21 +1526,13 @@ const runWhenLitLoaded = () => {
                         return this.cachedWeatherData;
                     }
                     // Compose diagnostic info for thrown error (HTML formatted)
-                    let diag = `<br><b>API Error</b><br>`;
-                    if (error instanceof Error) {
-                        diag += `Error: <code>${error.message}</code><br>`;
-                    } else {
-                        diag += `Error: <code>${String(error)}</code><br>`;
-                    }
-                    diag += `Card version: <code>${version || "unknown"}</code><br>`;
-                    diag += `Client type: <code>${navigator.userAgent}</code><br>`;
+                    let diag = weatherApi.getDiagnosticText();
                     this.setError(diag);
                     throw new Error(`<br>Failed to get weather data: ${(error as Error).message}\n<br>Check your network connection, browser console, and API accessibility.\n\n${diag}`);
                 } finally {
                     this.weatherDataPromise = null;
                 }
             })();
-
             return this.weatherDataPromise;
         }
 
@@ -1752,7 +1581,7 @@ const runWhenLitLoaded = () => {
             }
 
             // Always fetch weather data before deciding to skip redraw
-            let data: MeteogramData | null = null;
+            let data: ForecastData | null = null;
             try {
                 data = await this.fetchWeatherData();
                 if (logEnabled) {
@@ -1929,7 +1758,7 @@ const runWhenLitLoaded = () => {
                     // Clean up previous chart
                     chartDiv.innerHTML = "";
                     // Fetch weather data and render
-                    this.fetchWeatherData().then((data: MeteogramData) => {
+                    this.fetchWeatherData().then((data: ForecastData) => {
                         // Ensure the chart div is still empty before creating a new SVG
                         if (chartDiv.querySelector("svg")) {
                             console.debug("SVG already exists, removing before creating new one");
@@ -1962,7 +1791,7 @@ const runWhenLitLoaded = () => {
                         // Slice all data arrays to the selected range
                         // To show N intervals (hours), you need N+1 data points
                         const sliceData = <T>(arr: T[]) => arr.slice(0, Math.min(hours, arr.length) + 1);
-                        const slicedData: MeteogramData = {
+                        const slicedData: ForecastData = {
                             time: sliceData(data.time),
                             temperature: sliceData(data.temperature),
                             rain: sliceData(data.rain),
@@ -2051,7 +1880,7 @@ const runWhenLitLoaded = () => {
         // Update renderMeteogram to add windBarbBand and hourLabelBand as arguments
         renderMeteogram(
             svg: any,
-            data: MeteogramData,
+            data: ForecastData,
             width: number,
             height: number,
             windBarbBand: number = 0,
@@ -2749,10 +2578,10 @@ const runWhenLitLoaded = () => {
                 .map(([k, v]) => `${k}: ${v};`)
                 .join(" ");
 
-            const successRate = METEOGRAM_CARD_API_CALL_COUNT > 0
-                ? Math.round(100 * METEOGRAM_CARD_API_SUCCESS_COUNT / METEOGRAM_CARD_API_CALL_COUNT)
+            const successRate = WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT > 0
+                ? Math.round(100 * WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT / WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT)
                 : 0;
-            const successTooltip = `API Success Rate: ${METEOGRAM_CARD_API_SUCCESS_COUNT}/${METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
+            const successTooltip = `API Success Rate: ${WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT}/${WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
 
             return html`
                 <ha-card style="${styleVars}">

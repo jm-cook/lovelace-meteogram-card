@@ -42,7 +42,7 @@ typeof SuppressedError === "function" ? SuppressedError : function (error, suppr
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 };
 
-var version = "2.1.1-0";
+var version = "2.1.2-0";
 
 // Helper to get version from global variable or fallback
 // Helper to detect client name from user agent
@@ -63,68 +63,217 @@ function getClientName() {
     return "Unknown";
 }
 
-let METEOGRAM_CARD_API_CALL_COUNT = 0;
-let METEOGRAM_CARD_API_SUCCESS_COUNT = 0;
-// Return type now includes both data and expires
-async function fetchWeatherDataFromAPI(lat, lon) {
-    let forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
-    let dedicatedForecastUrl = `https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
-    let headers = {};
-    let statusCode = 0;
-    try {
-        headers = {
-            'Origin': window.location.origin,
-            'Accept': 'application/json'
-        };
-        // Use dedicatedForecastUrl if origin contains ui.nabu.casa
-        const urlToUse = window.location.origin.includes("ui.nabu.casa")
-            ? dedicatedForecastUrl
-            : forecastUrl;
-        // Increment call count immediately before fetch
-        METEOGRAM_CARD_API_CALL_COUNT++;
-        const response = await fetch(urlToUse, { headers, mode: 'cors' });
-        statusCode = response.status;
-        // Get expires header (always, even if not throttled)
-        const expiresHeader = response.headers.get("Expires");
-        let expires = null;
-        if (expiresHeader) {
-            const expiresDate = new Date(expiresHeader);
-            if (!isNaN(expiresDate.getTime())) {
-                expires = expiresDate;
-            }
-        }
-        if (statusCode === 429) {
-            const nextTry = expires ? expires.toLocaleTimeString() : "later";
-            throw new Error(`Weather API throttling: Too many requests. Please wait until ${nextTry} before retrying.`);
-        }
-        if (statusCode === 304) {
-            throw new Error("API returned 304 but no cached data is available.");
-        }
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Weather API returned ${response.status}: ${response.statusText}\n${errorText}`);
-        }
-        const jsonData = await response.json();
-        // Increment success count only after successful fetch and parse
-        METEOGRAM_CARD_API_SUCCESS_COUNT++;
-        return { data: jsonData, expires };
+class WeatherAPI {
+    constructor(lat, lon) {
+        this.lastError = null;
+        this.lastStatusCode = null;
+        this._forecastData = null;
+        this._expiresAt = null;
+        this.lat = lat;
+        this.lon = lon;
     }
-    catch (error) {
+    get forecastData() {
+        return this._forecastData;
+    }
+    get expiresAt() {
+        return this._expiresAt;
+    }
+    getDiagnosticText() {
+        var _a;
         let diag = `<br><b>API Error</b><br>`;
-        if (error instanceof Error) {
-            diag += `Error: <code>${error.message}</code><br>`;
+        if (this.lastError instanceof Error) {
+            diag += `Error: <code>${this.lastError.message}</code><br>`;
         }
-        else {
-            diag += `Error: <code>${String(error)}</code><br>`;
+        else if (this.lastError !== undefined && this.lastError !== null) {
+            diag += `Error: <code>${String(this.lastError)}</code><br>`;
         }
-        diag += `Status: <code>${statusCode}</code><br>`;
-        diag += `API URL: <code>${forecastUrl}</code><br>`;
-        diag += `Origin header: <code>${headers['Origin']}</code><br>`;
+        diag += `Status: <code>${(_a = this.lastStatusCode) !== null && _a !== void 0 ? _a : ""}</code><br>`;
         diag += `Card version: <code>${version}</code><br>`;
         diag += `Client type: <code>${navigator.userAgent}</code><br>`;
-        throw new Error(`<br>Failed to get weather data: ${error.message}\n<br>Check your network connection, browser console, and API accessibility.\n\n${diag}`);
+        return diag;
+    }
+    // Helper to encode cache key as base64 of str(lat)+str(lon)
+    static encodeCacheKey(lat, lon) {
+        const keyStr = String(lat) + String(lon);
+        return btoa(keyStr);
+    }
+    // Save forecast data to localStorage
+    saveCacheToStorage() {
+        if (!this._forecastData || !this._expiresAt)
+            return;
+        const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)));
+        let cacheObj = {};
+        const cacheStr = localStorage.getItem('metno-weather-cache');
+        if (cacheStr) {
+            try {
+                cacheObj = JSON.parse(cacheStr);
+            }
+            catch {
+                cacheObj = {};
+            }
+        }
+        if (!cacheObj["forecast-data"])
+            cacheObj["forecast-data"] = {};
+        cacheObj["forecast-data"][key] = {
+            expiresAt: this._expiresAt,
+            data: this._forecastData
+        };
+        localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+    }
+    // Load forecast data from localStorage
+    loadCacheFromStorage() {
+        var _a;
+        const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)));
+        const cacheStr = localStorage.getItem('metno-weather-cache');
+        if (cacheStr) {
+            let cacheObj = {};
+            try {
+                cacheObj = JSON.parse(cacheStr);
+            }
+            catch {
+                cacheObj = {};
+            }
+            const entry = (_a = cacheObj["forecast-data"]) === null || _a === void 0 ? void 0 : _a[key];
+            if (entry && entry.expiresAt && entry.data) {
+                this._expiresAt = entry.expiresAt;
+                // Restore Date objects in time array
+                if (Array.isArray(entry.data.time)) {
+                    entry.data.time = entry.data.time.map((t) => typeof t === "string" ? new Date(t) : t);
+                }
+                this._forecastData = entry.data;
+            }
+            else {
+                this._expiresAt = null;
+                this._forecastData = null;
+            }
+        }
+    }
+    async fetchWeatherDataFromAPI() {
+        const lat = this.lat;
+        const lon = this.lon;
+        let forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
+        let dedicatedForecastUrl = `https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
+        let urlToUse = forecastUrl;
+        let headers = {};
+        this.lastStatusCode = null;
+        this.lastError = null;
+        try {
+            headers = {
+                'Origin': window.location.origin,
+                'Accept': 'application/json'
+            };
+            urlToUse = window.location.origin.includes("ui.nabu.casa")
+                ? dedicatedForecastUrl
+                : forecastUrl;
+            WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT++;
+            const response = await fetch(urlToUse, { headers, mode: 'cors' });
+            this.lastStatusCode = response.status;
+            const expiresHeader = response.headers.get("Expires");
+            let expires = null;
+            if (expiresHeader) {
+                const expiresDate = new Date(expiresHeader);
+                if (!isNaN(expiresDate.getTime())) {
+                    expires = expiresDate;
+                }
+            }
+            if (this.lastStatusCode === 429) {
+                const nextTry = expires ? expires.toLocaleTimeString() : "later";
+                throw new Error(`Weather API throttling: Too many requests. Please wait until ${nextTry} before retrying.`);
+            }
+            if (this.lastStatusCode === 304) {
+                throw new Error("API returned 304 but no cached data is available.");
+            }
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Weather API returned ${response.status}: ${response.statusText}\n${errorText}`);
+            }
+            const jsonData = await response.json();
+            WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT++;
+            // Parse and store forecast data
+            this.assignMeteogramDataFromRaw(jsonData);
+            this._expiresAt = expires ? expires.getTime() : null;
+            this.saveCacheToStorage();
+            return { data: jsonData, expires };
+        }
+        catch (error) {
+            this.lastError = error;
+            const diag = this.getDiagnosticText() +
+                `API URL: <code>${urlToUse}</code><br>` +
+                `Origin header: <code>${headers['Origin']}</code><br>`;
+            throw new Error(`<br>Failed to get weather data: ${error.message}\n<br>Check your network connection, browser console, and API accessibility.\n\n${diag}`);
+        }
+    }
+    // assignMeteogramDataFromRaw now only sets _forecastData
+    assignMeteogramDataFromRaw(rawData) {
+        try {
+            if (!rawData || !rawData.properties || !Array.isArray(rawData.properties.timeseries)) {
+                throw new Error("Invalid raw data format from weather API");
+            }
+            const timeseries = rawData.properties.timeseries;
+            const filtered = timeseries.filter((item) => {
+                const time = new Date(item.time);
+                return time.getMinutes() === 0;
+            });
+            const result = {
+                time: [],
+                temperature: [],
+                rain: [],
+                rainMin: [],
+                rainMax: [],
+                snow: [],
+                cloudCover: [],
+                windSpeed: [],
+                windDirection: [],
+                symbolCode: [],
+                pressure: []
+            };
+            result.fetchTimestamp = new Date().toISOString();
+            filtered.forEach((item) => {
+                var _a, _b, _c;
+                const time = new Date(item.time);
+                const instant = item.data.instant.details;
+                const next1h = (_a = item.data.next_1_hours) === null || _a === void 0 ? void 0 : _a.details;
+                result.time.push(time);
+                result.temperature.push(instant.air_temperature);
+                result.cloudCover.push(instant.cloud_area_fraction);
+                result.windSpeed.push(instant.wind_speed);
+                result.windDirection.push(instant.wind_from_direction);
+                result.pressure.push(instant.air_pressure_at_sea_level);
+                if (next1h) {
+                    const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
+                        next1h.precipitation_amount_max :
+                        (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                    const rainAmountMin = next1h.precipitation_amount_min !== undefined ?
+                        next1h.precipitation_amount_min :
+                        (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                    result.rainMin.push(rainAmountMin);
+                    result.rainMax.push(rainAmountMax);
+                    result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                    result.snow.push(0);
+                    if ((_c = (_b = item.data.next_1_hours) === null || _b === void 0 ? void 0 : _b.summary) === null || _c === void 0 ? void 0 : _c.symbol_code) {
+                        result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
+                    }
+                    else {
+                        result.symbolCode.push('');
+                    }
+                }
+                else {
+                    result.rain.push(0);
+                    result.rainMin.push(0);
+                    result.rainMax.push(0);
+                    result.snow.push(0);
+                    result.symbolCode.push('');
+                }
+            });
+            this._forecastData = result;
+        }
+        catch (err) {
+            throw new Error("Failed to parse weather data: " + (err instanceof Error ? err.message : String(err)));
+        }
     }
 }
+WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT = 0;
+WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT = 0;
 
 var enLocale = {
 	"ui.card.meteogram.attribution": "Data from",
@@ -987,99 +1136,34 @@ const runWhenLitLoaded = () => {
             // Always use 4 decimals for both lat and lon
             return MeteogramCard_1.encodeCacheKey(Number(lat.toFixed(4)), Number(lon.toFixed(4)));
         }
-        // Save location to localStorage under "default-location" in "meteogram-card-weather-cache"
-        _saveLocationToStorage(latitude, longitude) {
-            try {
-                if (latitude !== undefined && longitude !== undefined) {
-                    const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                    let cacheObj = {};
-                    if (cacheStr) {
-                        try {
-                            cacheObj = JSON.parse(cacheStr);
-                        }
-                        catch {
-                            cacheObj = {};
-                        }
-                    }
-                    cacheObj["default-location"] = {
-                        latitude: parseFloat(latitude.toFixed(4)),
-                        longitude: parseFloat(longitude.toFixed(4))
-                    };
-                    localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
-                }
-            }
-            catch (e) {
-                console.debug('Failed to save location to localStorage:', e);
-            }
-        }
-        // Save HA location to localStorage under "default-location" in "meteogram-card-weather-cache"
+        // Save HA location to localStorage under "meteogram-card-default-location"
         _saveDefaultLocationToStorage(latitude, longitude) {
             try {
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                let cacheObj = {};
-                if (cacheStr) {
-                    try {
-                        cacheObj = JSON.parse(cacheStr);
-                    }
-                    catch {
-                        cacheObj = {};
-                    }
-                }
-                cacheObj["default-location"] = {
+                const locationObj = {
                     latitude: parseFloat(latitude.toFixed(4)),
                     longitude: parseFloat(longitude.toFixed(4))
                 };
-                localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
+                localStorage.setItem('meteogram-card-default-location', JSON.stringify(locationObj));
             }
             catch (e) {
                 console.debug('Failed to save default location to localStorage:', e);
             }
         }
-        // Load location from localStorage under "default-location" in "meteogram-card-weather-cache"
-        _loadLocationFromStorage() {
-            try {
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                if (cacheStr) {
-                    let cacheObj = {};
-                    try {
-                        cacheObj = JSON.parse(cacheStr);
-                    }
-                    catch {
-                        cacheObj = {};
-                    }
-                    if (cacheObj["default-location"]) {
-                        const latitude = parseFloat(Number(cacheObj["default-location"].latitude).toFixed(4));
-                        const longitude = parseFloat(Number(cacheObj["default-location"].longitude).toFixed(4));
-                        if (!isNaN(latitude) && !isNaN(longitude)) {
-                            return { latitude, longitude };
-                        }
-                    }
-                }
-                return null;
-            }
-            catch (e) {
-                console.debug('Failed to load location from localStorage:', e);
-                return null;
-            }
-        }
-        // Load location from localStorage under "default-location" in "meteogram-card-weather-cache"
+        // Load location from localStorage under "meteogram-card-default-location"
         _loadDefaultLocationFromStorage() {
             try {
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
-                if (cacheStr) {
-                    let cacheObj = {};
+                const locationStr = localStorage.getItem('meteogram-card-default-location');
+                if (locationStr) {
                     try {
-                        cacheObj = JSON.parse(cacheStr);
-                    }
-                    catch {
-                        cacheObj = {};
-                    }
-                    if (cacheObj["default-location"]) {
-                        const latitude = parseFloat(Number(cacheObj["default-location"].latitude).toFixed(4));
-                        const longitude = parseFloat(Number(cacheObj["default-location"].longitude).toFixed(4));
+                        const locationObj = JSON.parse(locationStr);
+                        const latitude = parseFloat(Number(locationObj.latitude).toFixed(4));
+                        const longitude = parseFloat(Number(locationObj.longitude).toFixed(4));
                         if (!isNaN(latitude) && !isNaN(longitude)) {
                             return { latitude, longitude };
                         }
+                    }
+                    catch {
+                        // Ignore parse errors
                     }
                 }
                 return null;
@@ -1183,7 +1267,7 @@ const runWhenLitLoaded = () => {
                 if (this.cachedWeatherData && this.apiExpiresAt) {
                     const key = this.getLocationKey(lat, lon);
                     let cacheObj = {};
-                    const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                    const cacheStr = localStorage.getItem('metno-weather-cache');
                     if (cacheStr) {
                         try {
                             cacheObj = JSON.parse(cacheStr);
@@ -1200,7 +1284,7 @@ const runWhenLitLoaded = () => {
                         data: this.cachedWeatherData,
                         statusLastFetch: this._statusLastFetch // <-- Store statusLastFetch
                     };
-                    localStorage.setItem('meteogram-card-weather-cache', JSON.stringify(cacheObj));
+                    localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
                 }
             }
             catch (e) {
@@ -1212,7 +1296,7 @@ const runWhenLitLoaded = () => {
             var _a;
             try {
                 const key = this.getLocationKey(lat, lon);
-                const cacheStr = localStorage.getItem('meteogram-card-weather-cache');
+                const cacheStr = localStorage.getItem('metno-weather-cache');
                 if (cacheStr) {
                     let cacheObj = {};
                     try {
@@ -1251,86 +1335,6 @@ const runWhenLitLoaded = () => {
             catch (e) {
                 // Ignore storage errors
                 console.debug('Failed to load cache from localStorage:', e);
-            }
-        }
-        // Stub for assignMeteogramDataFromRaw
-        assignMeteogramDataFromRaw(rawData) {
-            try {
-                if (!rawData || !rawData.properties || !Array.isArray(rawData.properties.timeseries)) {
-                    throw new Error("Invalid raw data format from weather API");
-                }
-                // Process forecast data
-                const timeseries = rawData.properties.timeseries;
-                // --- REMOVE 48h restriction ---
-                // const now = new Date();
-                // const timePlus48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-                // Filter timeseries to get all available hourly data
-                const filtered = timeseries.filter((item) => {
-                    const time = new Date(item.time);
-                    // Only keep hourly data (minute == 0)
-                    return time.getMinutes() === 0;
-                });
-                const result = {
-                    time: [],
-                    temperature: [],
-                    rain: [],
-                    rainMin: [],
-                    rainMax: [],
-                    snow: [],
-                    cloudCover: [],
-                    windSpeed: [],
-                    windDirection: [],
-                    symbolCode: [],
-                    pressure: []
-                };
-                result.fetchTimestamp = new Date().toISOString(); // Set fetch timestamp
-                filtered.forEach((item) => {
-                    var _a, _b, _c;
-                    const time = new Date(item.time);
-                    const instant = item.data.instant.details;
-                    const next1h = (_a = item.data.next_1_hours) === null || _a === void 0 ? void 0 : _a.details;
-                    result.time.push(time);
-                    result.temperature.push(instant.air_temperature);
-                    result.cloudCover.push(instant.cloud_area_fraction);
-                    result.windSpeed.push(instant.wind_speed);
-                    result.windDirection.push(instant.wind_from_direction);
-                    // Extract pressure data (air_pressure_at_sea_level is in hPa)
-                    result.pressure.push(instant.air_pressure_at_sea_level);
-                    if (next1h) {
-                        // Use precipitation_amount_max and precipitation_amount_min if available
-                        const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
-                            next1h.precipitation_amount_max :
-                            (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-                        const rainAmountMin = next1h.precipitation_amount_min !== undefined ?
-                            next1h.precipitation_amount_min :
-                            (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-                        // Store min and max separately
-                        result.rainMin.push(rainAmountMin);
-                        result.rainMax.push(rainAmountMax);
-                        // FIX: Use precipitation_amount for main rain bar
-                        result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-                        result.snow.push(0); // Default to 0 if snow isn't separated out
-                        // Get weather symbol code for icons
-                        if ((_c = (_b = item.data.next_1_hours) === null || _b === void 0 ? void 0 : _b.summary) === null || _c === void 0 ? void 0 : _c.symbol_code) {
-                            result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
-                        }
-                        else {
-                            result.symbolCode.push('');
-                        }
-                    }
-                    else {
-                        // Fill in empty data if we don't have hourly precipitation data
-                        result.rain.push(0);
-                        result.rainMin.push(0);
-                        result.rainMax.push(0);
-                        result.snow.push(0);
-                        result.symbolCode.push('');
-                    }
-                });
-                return result;
-            }
-            catch (err) {
-                throw new Error("Failed to parse weather data: " + (err instanceof Error ? err.message : String(err)));
             }
         }
         async fetchWeatherData() {
@@ -1401,13 +1405,13 @@ const runWhenLitLoaded = () => {
             this.weatherDataPromise = (async () => {
                 let data = null;
                 let result = null;
+                const weatherApi = new WeatherAPI(lat, lon);
                 try {
-                    // Updated to handle new return type
-                    const apiResult = await fetchWeatherDataFromAPI(lat, lon);
+                    const apiResult = await weatherApi.fetchWeatherDataFromAPI();
                     data = apiResult.data;
-                    // Store expires header as apiExpiresAt
                     this.apiExpiresAt = apiResult.expires ? apiResult.expires.getTime() : null;
-                    result = await this.assignMeteogramDataFromRaw(data);
+                    // Use parsed forecast data from WeatherAPI instance
+                    result = weatherApi.forecastData;
                     // Mark API fetch as successful
                     this._statusApiSuccess = true;
                     this._lastApiSuccess = true;
@@ -1461,15 +1465,7 @@ const runWhenLitLoaded = () => {
                         return this.cachedWeatherData;
                     }
                     // Compose diagnostic info for thrown error (HTML formatted)
-                    let diag = `<br><b>API Error</b><br>`;
-                    if (error instanceof Error) {
-                        diag += `Error: <code>${error.message}</code><br>`;
-                    }
-                    else {
-                        diag += `Error: <code>${String(error)}</code><br>`;
-                    }
-                    diag += `Card version: <code>${version}</code><br>`;
-                    diag += `Client type: <code>${navigator.userAgent}</code><br>`;
+                    let diag = weatherApi.getDiagnosticText();
                     this.setError(diag);
                     throw new Error(`<br>Failed to get weather data: ${error.message}\n<br>Check your network connection, browser console, and API accessibility.\n\n${diag}`);
                 }
@@ -2367,10 +2363,10 @@ const runWhenLitLoaded = () => {
             const styleVars = Object.entries(this.styles || {})
                 .map(([k, v]) => `${k}: ${v};`)
                 .join(" ");
-            const successRate = METEOGRAM_CARD_API_CALL_COUNT > 0
-                ? Math.round(100 * METEOGRAM_CARD_API_SUCCESS_COUNT / METEOGRAM_CARD_API_CALL_COUNT)
+            const successRate = WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT > 0
+                ? Math.round(100 * WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT / WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT)
                 : 0;
-            const successTooltip = `API Success Rate: ${METEOGRAM_CARD_API_SUCCESS_COUNT}/${METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
+            const successTooltip = `API Success Rate: ${WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT}/${WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
             return html `
                 <ha-card style="${styleVars}">
                     ${this.title ? html `
