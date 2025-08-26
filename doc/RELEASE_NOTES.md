@@ -1,3 +1,28 @@
+## v2.1.0 – Language Support & API Migration
+
+Meteogram Card v2.1.0 introduces multi-language support and migrates all weather data requests to a dedicated Met.no API subdomain for improved reliability and compliance.
+
+**Highlights:**
+- **Multi-Language Support:**  
+  The card now automatically adapts labels, tooltips, and chart text to your Home Assistant language setting. 
+  Supported languages are currently English, French, German, Spanish, Norwegian, and Italian.
+- **API Migration:**  
+  All weather data is now fetched from the  Met.no API subdomain dedicated to Home Assistant, ensuring continued service and compliance with Met.no requirements.
+- **Improved Error Handling:**  
+  Enhanced diagnostics for API errors, including localized error messages.
+- **Minor Fixes & Improvements:**
+  - Updated documentation for language and API changes.
+  - Minor UI and accessibility improvements.
+
+**Upgrade Notes:**
+- No breaking changes. Existing configuration will continue to work.
+- If you use custom themes or translations, verify that new labels display correctly.
+- _Note: Some iOS users report intermittent issues retrieving data from the Met.no API. 
+This appears to be related to iOS network or browser restrictions and is outside the control of the card. Unfortunately there is curretly 
+no solution._
+
+Enjoy a more accessible and reliable meteogram experience!
+
 ## v2.0.0 – Introducing Fully Themeable Chart with Light & Dark Mode Support
 
 Meteogram Card v2.0.0 brings a major upgrade: every chart element is now fully themeable using CSS variables, with dedicated support for both light and dark mode.  
