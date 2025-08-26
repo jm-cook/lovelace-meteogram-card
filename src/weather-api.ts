@@ -25,13 +25,43 @@ export class WeatherAPI {
     lon: number;
     private _forecastData: ForecastData | null = null;
     private _expiresAt: number | null = null;
+    private _fetchPromise: Promise<void> | null = null;
+    private _lastFetchTime: number | null = null; // Track last fetch timestamp
 
     constructor(lat: number, lon: number) {
         this.lat = lat;
         this.lon = lon;
     }
 
-    get forecastData(): ForecastData | null {
+    // Getter for forecastData: checks expiry and refreshes if needed
+    async getForecastData(): Promise<ForecastData | null> {
+        console.debug(`[weather-api] getForecastData called for lat=${this.lat}, lon=${this.lon}`);
+        // If no data loaded, try to load from cache first
+        if (!this._forecastData) {
+            this.loadCacheFromStorage();
+        }
+        // If cache is valid, return it
+        if (this._forecastData && this._expiresAt && Date.now() < this._expiresAt) {
+            return this._forecastData;
+        }
+        // Only one fetch at a time, and throttle to 1 per 60 seconds
+        const now = Date.now();
+        if (
+            this._lastFetchTime &&
+            now - this._lastFetchTime < 60000 &&
+            this._fetchPromise
+        ) {
+            await this._fetchPromise;
+            return this._forecastData;
+        }
+        if (!this._fetchPromise) {
+            this._fetchPromise = this._fetchWeatherDataFromAPI();
+        }
+        try {
+            await this._fetchPromise;
+        } finally {
+            this._fetchPromise = null;
+        }
         return this._forecastData;
     }
 
@@ -117,7 +147,16 @@ export class WeatherAPI {
         }
     }
 
-    async fetchWeatherDataFromAPI(): Promise<{ data: any, expires: Date | null }> {
+    // Make fetchWeatherDataFromAPI private and update usages
+    private async _fetchWeatherDataFromAPI(): Promise<void> {
+        // Throttle: if last fetch was less than 60s ago, skip fetch
+        const now = Date.now();
+        if (this._lastFetchTime && now - this._lastFetchTime < 60000) {
+            // Already fetched recently, skip
+            return;
+        }
+        this._lastFetchTime = now;
+
         const lat = this.lat;
         const lon = this.lon;
         let forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
@@ -137,6 +176,8 @@ export class WeatherAPI {
                 ? dedicatedForecastUrl
                 : forecastUrl;
 
+            // log impending call to fetch
+            console.debug(`[weather-api] Fetching weather data from ${urlToUse} with Origin ${headers['Origin']}`);
             WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT++;
             const response = await fetch(urlToUse, { headers, mode: 'cors' });
 
@@ -171,8 +212,6 @@ export class WeatherAPI {
             this.assignMeteogramDataFromRaw(jsonData);
             this._expiresAt = expires ? expires.getTime() : null;
             this.saveCacheToStorage();
-            return { data: jsonData, expires };
-
         } catch (error: unknown) {
             this.lastError = error;
             const diag = this.getDiagnosticText() +

@@ -41,19 +41,19 @@ const litModulesPromise = Promise.all([
         allowSyntheticDefaultImports: true,
       }
     })
-    //,
-    // !dev && terser({
-    //   format: {
-    //     comments: false // Keep comments to preserve the banner
-    //   },
-    //   ecma: 2020,
-    //   compress: true,
-    //   // mangle: {
-    //   //   properties: {
-    //   //     regex: /^_/,
-    //   //   },
-    //   // },
-    // }),
+    ,
+    !dev && terser({
+      format: {
+        comments: false // Keep comments to preserve the banner
+      },
+      ecma: 2020,
+      compress: true,
+      // mangle: {
+      //   properties: {
+      //     regex: /^_/,
+      //   },
+      // },
+    }),
   ],
   // Add these modules as externals
   external: [
