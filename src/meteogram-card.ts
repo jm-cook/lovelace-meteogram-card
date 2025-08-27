@@ -8,6 +8,7 @@ import {version} from "../package.json";
 import {formatDiagnosticError, getClientName, getVersion} from "./diagnostics";
 // Import the external API fetcher
 import {WeatherAPI, ForecastData} from "./weather-api";
+import {WeatherEntityAPI} from "./weather-entity";
 
 // Import localization files
 import enLocale from "./translations/en.json";
@@ -286,6 +287,9 @@ const runWhenLitLoaded = () => {
         private weatherDataPromise: Promise<ForecastData> | null = null;
         // Add WeatherAPI instance as a class variable
         private _weatherApiInstance: WeatherAPI | null = null;
+
+        // Add WeatherEntityAPI instance as a class variable
+        private _weatherEntityApiInstance: WeatherEntityAPI | null = null;
 
         // Add these properties for throttling
         private _redrawScheduled = false;
@@ -1100,6 +1104,20 @@ const runWhenLitLoaded = () => {
             }, 50);
 
             this._updateDarkMode(); // Ensure dark mode is set on first update
+
+            // Only create WeatherEntityAPI once and reuse it
+            const entityId = "weather.forecast_home";
+            if (!this._weatherEntityApiInstance) {
+                this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, entityId);
+                // Subscribe to forecast updates from weather entity and log them
+                this._weatherEntityApiInstance.subscribeForecast((forecastArr: any[]) => {
+                    console.log(`[WeatherEntityAPI] subscribeForecast update for ${entityId}:`, forecastArr);
+                });
+            }
+
+            // Call sampleFetchWeatherEntityForecast to log weather entity data
+            console.log("sampleFetchWeatherEntityForecast called", this.hass);
+            MeteogramCard.sampleFetchWeatherEntityForecast(this.hass);
         }
 
         protected updated(changedProps: PropertyValues) {
@@ -1404,6 +1422,11 @@ const runWhenLitLoaded = () => {
                     this._statusApiSuccess = true;
                     this._lastApiSuccess = true;
 
+                    // --- NEW: Also fetch from WeatherEntityAPI and log ---
+                    const entityForecast = this._weatherEntityApiInstance?.getForecastData();
+                    console.log(`[WeatherEntityAPI] getForecastData for weather.forecast_home:`, entityForecast);
+                    // -----------------------------------------------------
+
                     // Filter result by meteogramHours
                     let hours = 48;
                     if (this.meteogramHours === "8h") hours = 8;
@@ -1435,7 +1458,13 @@ const runWhenLitLoaded = () => {
             return this.weatherDataPromise;
         }
 
-
+        // SAMPLE: Fetch forecast data from weather entity and log it
+        static sampleFetchWeatherEntityForecast(hass: any) {
+            const entityId = "weather.forecast_home";
+            const api = new WeatherEntityAPI(hass, entityId);
+            const data = api.getForecastData();
+            console.log("WeatherEntityAPI forecast data for", entityId, data);
+        }
 
         // Keep the cleanupChart method as is
         cleanupChart(): void {
@@ -2031,7 +2060,7 @@ const runWhenLitLoaded = () => {
             chart.append("line")
                 .attr("class", "line")
                 .attr("x1", 0).attr("x2", 0)
-                .attr("y1", 0).attr("y2", chartHeight)
+                .attr("y1", 0).attr("y2" , chartHeight)
                 .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
                 .attr("stroke-width", 3);
 

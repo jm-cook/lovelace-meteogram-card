@@ -313,6 +313,113 @@ class WeatherAPI {
 WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT = 0;
 WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT = 0;
 
+class WeatherEntityAPI {
+    constructor(hass, entityId) {
+        this._forecastData = null;
+        this._unsubForecast = null;
+        this.hass = hass;
+        this.entityId = entityId;
+        // Subscribe to forecast updates if hass and entityId are available
+        if (this.hass && this.entityId) {
+            this.subscribeForecast((forecastArr) => {
+                this._forecastData = this._parseForecastArray(forecastArr);
+                console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
+            }).then(unsub => {
+                this._unsubForecast = unsub;
+            });
+        }
+    }
+    _parseForecastArray(forecast) {
+        const result = {
+            time: [],
+            temperature: [],
+            rain: [],
+            rainMin: [],
+            rainMax: [],
+            snow: [],
+            cloudCover: [],
+            windSpeed: [],
+            windDirection: [],
+            symbolCode: [],
+            pressure: [],
+            fetchTimestamp: new Date().toISOString()
+        };
+        forecast.forEach((item, idx) => {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+            result.time.push(new Date(item.datetime || item.time));
+            result.temperature.push((_a = item.temperature) !== null && _a !== void 0 ? _a : null);
+            result.rain.push((_b = item.precipitation) !== null && _b !== void 0 ? _b : 0);
+            result.rainMin.push((_d = (_c = item.precipitation_min) !== null && _c !== void 0 ? _c : item.precipitation) !== null && _d !== void 0 ? _d : 0);
+            result.rainMax.push((_f = (_e = item.precipitation_max) !== null && _e !== void 0 ? _e : item.precipitation) !== null && _f !== void 0 ? _f : 0);
+            result.snow.push((_g = item.snow) !== null && _g !== void 0 ? _g : 0);
+            result.cloudCover.push((_h = item.cloud_coverage) !== null && _h !== void 0 ? _h : 0);
+            result.windSpeed.push((_j = item.wind_speed) !== null && _j !== void 0 ? _j : 0);
+            result.windDirection.push((_k = item.wind_bearing) !== null && _k !== void 0 ? _k : 0);
+            result.symbolCode.push((_l = item.condition) !== null && _l !== void 0 ? _l : "");
+            result.pressure.push((_m = item.pressure) !== null && _m !== void 0 ? _m : 0);
+            // Log each forecast item for debugging
+            console.debug(`[WeatherEntityAPI] Forecast[${idx}]:`, item);
+        });
+        return result;
+    }
+    getForecast() {
+        console.debug(`[WeatherEntityAPI] getForecastData called for entityId=${this.entityId}`);
+        if (this._forecastData) {
+            console.debug(`[WeatherEntityAPI] Returning stored ForecastData for ${this.entityId}`, this._forecastData);
+            return this._forecastData;
+        }
+        const entity = this.hass.states[this.entityId];
+        if (!entity) {
+            console.debug(`[WeatherEntityAPI] Entity not found: ${this.entityId}`);
+            return null;
+        }
+        if (!entity.attributes) {
+            console.debug(`[WeatherEntityAPI] Entity has no attributes: ${this.entityId}`);
+            return null;
+        }
+        console.debug(`[WeatherEntityAPI] Entity contents:`, entity);
+        if (!Array.isArray(entity.attributes.forecast)) {
+            console.debug(`[WeatherEntityAPI] Entity forecast attribute is not an array:`, entity.attributes.forecast);
+            return null;
+        }
+        this._forecastData = this._parseForecastArray(entity.attributes.forecast);
+        console.debug(`[WeatherEntityAPI] getForecastData result:`, this._forecastData);
+        return this._forecastData;
+    }
+    /**
+     * Subscribe to forecast updates for the weather entity.
+     * @param callback Called with the forecast array when updates arrive.
+     * @returns Unsubscribe function.
+     */
+    subscribeForecast(callback) {
+        var _a;
+        if (!((_a = this.hass) === null || _a === void 0 ? void 0 : _a.connection)) {
+            console.debug(`[WeatherEntityAPI] subscribeForecast: hass.connection not available`);
+            return Promise.resolve(() => { });
+        }
+        const unsubPromise = this.hass.connection.subscribeMessage((event) => {
+            if (Array.isArray(event.forecast)) {
+                console.debug(`[WeatherEntityAPI] subscribeForecast: received forecast update`, event.forecast);
+                callback(event.forecast);
+            }
+            else {
+                console.debug(`[WeatherEntityAPI] subscribeForecast: event.forecast not array`, event);
+            }
+        }, {
+            type: "weather/subscribe_forecast",
+            entity_id: this.entityId,
+            forecast_type: "hourly"
+        });
+        return unsubPromise;
+    }
+    /**
+     * Get the latest ForecastData received from subscribeForecast.
+     */
+    getForecastData() {
+        return this._forecastData;
+    }
+}
+
 var enLocale = {
 	"ui.card.meteogram.attribution": "Data from",
 	"ui.card.meteogram.status.cached": "cached",
@@ -716,6 +823,8 @@ const runWhenLitLoaded = () => {
             this.weatherDataPromise = null;
             // Add WeatherAPI instance as a class variable
             this._weatherApiInstance = null;
+            // Add WeatherEntityAPI instance as a class variable
+            this._weatherEntityApiInstance = null;
             // Add these properties for throttling
             this._redrawScheduled = false;
             this._lastDrawScheduleTime = 0;
@@ -1126,6 +1235,18 @@ const runWhenLitLoaded = () => {
                 this.loadD3AndDraw();
             }, 50);
             this._updateDarkMode(); // Ensure dark mode is set on first update
+            // Only create WeatherEntityAPI once and reuse it
+            const entityId = "weather.forecast_home";
+            if (!this._weatherEntityApiInstance) {
+                this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, entityId);
+                // Subscribe to forecast updates from weather entity and log them
+                this._weatherEntityApiInstance.subscribeForecast((forecastArr) => {
+                    console.log(`[WeatherEntityAPI] subscribeForecast update for ${entityId}:`, forecastArr);
+                });
+            }
+            // Call sampleFetchWeatherEntityForecast to log weather entity data
+            console.log("sampleFetchWeatherEntityForecast called", this.hass);
+            MeteogramCard_1.sampleFetchWeatherEntityForecast(this.hass);
         }
         updated(changedProps) {
             var _a, _b;
@@ -1381,6 +1502,7 @@ const runWhenLitLoaded = () => {
             }
             // Cache the promise so repeated calls during chart draw use the same one
             this.weatherDataPromise = (async () => {
+                var _a;
                 let result = null;
                 try {
                     // Use the new getForecastData method
@@ -1392,6 +1514,10 @@ const runWhenLitLoaded = () => {
                     this.apiExpiresAt = weatherApi.expiresAt;
                     this._statusApiSuccess = true;
                     this._lastApiSuccess = true;
+                    // --- NEW: Also fetch from WeatherEntityAPI and log ---
+                    const entityForecast = (_a = this._weatherEntityApiInstance) === null || _a === void 0 ? void 0 : _a.getForecastData();
+                    console.log(`[WeatherEntityAPI] getForecastData for weather.forecast_home:`, entityForecast);
+                    // -----------------------------------------------------
                     // Filter result by meteogramHours
                     let hours = 48;
                     if (this.meteogramHours === "8h")
@@ -1427,6 +1553,13 @@ const runWhenLitLoaded = () => {
                 }
             })();
             return this.weatherDataPromise;
+        }
+        // SAMPLE: Fetch forecast data from weather entity and log it
+        static sampleFetchWeatherEntityForecast(hass) {
+            const entityId = "weather.forecast_home";
+            const api = new WeatherEntityAPI(hass, entityId);
+            const data = api.getForecastData();
+            console.log("WeatherEntityAPI forecast data for", entityId, data);
         }
         // Keep the cleanupChart method as is
         cleanupChart() {
