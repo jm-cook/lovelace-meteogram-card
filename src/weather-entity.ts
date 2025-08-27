@@ -14,7 +14,7 @@ export class WeatherEntityAPI {
         if (this.hass && this.entityId) {
             this.subscribeForecast((forecastArr: any[]) => {
                 this._forecastData = this._parseForecastArray(forecastArr);
-                console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
+                // console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
             }).then(unsub => {
                 this._unsubForecast = unsub;
             });
@@ -37,12 +37,19 @@ export class WeatherEntityAPI {
             fetchTimestamp: new Date().toISOString()
         };
 
-        forecast.forEach((item: any, idx: number) => {
+        forecast.forEach((item: any) => {
             result.time.push(new Date(item.datetime || item.time));
             result.temperature.push(item.temperature ?? null);
             result.rain.push(item.precipitation ?? 0);
-            result.rainMin.push(item.precipitation_min ?? item.precipitation ?? 0);
-            result.rainMax.push(item.precipitation_max ?? item.precipitation ?? 0);
+
+            // Only push rainMin/rainMax if precipitation_min/max are present
+            if ('precipitation_min' in item) {
+                result.rainMin.push(item.precipitation_min);
+            }
+            if ('precipitation_max' in item) {
+                result.rainMax.push(item.precipitation_max);
+            }
+
             result.snow.push(item.snow ?? 0);
             result.cloudCover.push(item.cloud_coverage ?? 0);
             result.windSpeed.push(item.wind_speed ?? 0);
@@ -51,7 +58,7 @@ export class WeatherEntityAPI {
             result.pressure.push(item.pressure ?? 0);
 
             // Log each forecast item for debugging
-            console.debug(`[WeatherEntityAPI] Forecast[${idx}]:`, item);
+            // console.debug(`[WeatherEntityAPI] Forecast[${idx}]:`, item);
         });
 
         return result;
@@ -96,7 +103,7 @@ export class WeatherEntityAPI {
         const unsubPromise = this.hass.connection.subscribeMessage(
             (event: any) => {
                 if (Array.isArray(event.forecast)) {
-                    console.debug(`[WeatherEntityAPI] subscribeForecast: received forecast update`, event.forecast);
+                    // console.debug(`[WeatherEntityAPI] subscribeForecast: received forecast update`, event.forecast);
                     callback(event.forecast);
                 } else {
                     console.debug(`[WeatherEntityAPI] subscribeForecast: event.forecast not array`, event);

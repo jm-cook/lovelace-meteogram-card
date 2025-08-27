@@ -297,14 +297,14 @@ const runWhenLitLoaded = () => {
         private _drawThrottleMs = 200;
 
         // Helper to schedule a meteogram draw if not already scheduled
-        private _scheduleDrawMeteogram(source: string = "unknown") {
+        private _scheduleDrawMeteogram(source: string = "unknown", force: boolean = false) {
             const now = Date.now();
             this._drawCallIndex++;
             const callerId = `${source}#${this._drawCallIndex}`;
             console.debug(`[${CARD_NAME}] _scheduleDrawMeteogram called from: ${callerId}`);
 
-            // If a redraw is already scheduled, or last schedule was within throttle window, skip
-            if (this._redrawScheduled || (now - this._lastDrawScheduleTime < this._drawThrottleMs)) {
+            // Only skip if not forced
+            if (!force && (this._redrawScheduled || (now - this._lastDrawScheduleTime < this._drawThrottleMs))) {
                 console.debug(`[${CARD_NAME}] _scheduleDrawMeteogram: redraw already scheduled or throttled, skipping.`);
                 return;
             }
@@ -1110,9 +1110,9 @@ const runWhenLitLoaded = () => {
             if (!this._weatherEntityApiInstance) {
                 this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, entityId);
                 // Subscribe to forecast updates from weather entity and log them
-                this._weatherEntityApiInstance.subscribeForecast((forecastArr: any[]) => {
-                    console.log(`[WeatherEntityAPI] subscribeForecast update for ${entityId}:`, forecastArr);
-                });
+                // this._weatherEntityApiInstance.subscribeForecast((forecastArr: any[]) => {
+                //     console.log(`[WeatherEntityAPI] subscribeForecast update for ${entityId}:`, forecastArr);
+                // });
             }
 
             // Call sampleFetchWeatherEntityForecast to log weather entity data
@@ -1367,7 +1367,7 @@ const runWhenLitLoaded = () => {
                 }
 
                 // Now that D3 is loaded, draw the meteogram
-                await this._scheduleDrawMeteogram("loadD3AndDraw-afterD3");
+                await this._scheduleDrawMeteogram("loadD3AndDraw-afterD3", true);
             } catch (error) {
                 console.error('Error loading D3.js:', error);
                 this.setError('Failed to load D3.js visualization library. Please refresh the page.');

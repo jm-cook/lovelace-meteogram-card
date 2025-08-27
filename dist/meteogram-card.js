@@ -323,7 +323,7 @@ class WeatherEntityAPI {
         if (this.hass && this.entityId) {
             this.subscribeForecast((forecastArr) => {
                 this._forecastData = this._parseForecastArray(forecastArr);
-                console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
+                // console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
             }).then(unsub => {
                 this._unsubForecast = unsub;
             });
@@ -344,21 +344,26 @@ class WeatherEntityAPI {
             pressure: [],
             fetchTimestamp: new Date().toISOString()
         };
-        forecast.forEach((item, idx) => {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+        forecast.forEach((item) => {
+            var _a, _b, _c, _d, _e, _f, _g, _h;
             result.time.push(new Date(item.datetime || item.time));
             result.temperature.push((_a = item.temperature) !== null && _a !== void 0 ? _a : null);
             result.rain.push((_b = item.precipitation) !== null && _b !== void 0 ? _b : 0);
-            result.rainMin.push((_d = (_c = item.precipitation_min) !== null && _c !== void 0 ? _c : item.precipitation) !== null && _d !== void 0 ? _d : 0);
-            result.rainMax.push((_f = (_e = item.precipitation_max) !== null && _e !== void 0 ? _e : item.precipitation) !== null && _f !== void 0 ? _f : 0);
-            result.snow.push((_g = item.snow) !== null && _g !== void 0 ? _g : 0);
-            result.cloudCover.push((_h = item.cloud_coverage) !== null && _h !== void 0 ? _h : 0);
-            result.windSpeed.push((_j = item.wind_speed) !== null && _j !== void 0 ? _j : 0);
-            result.windDirection.push((_k = item.wind_bearing) !== null && _k !== void 0 ? _k : 0);
-            result.symbolCode.push((_l = item.condition) !== null && _l !== void 0 ? _l : "");
-            result.pressure.push((_m = item.pressure) !== null && _m !== void 0 ? _m : 0);
+            // Only push rainMin/rainMax if precipitation_min/max are present
+            if ('precipitation_min' in item) {
+                result.rainMin.push(item.precipitation_min);
+            }
+            if ('precipitation_max' in item) {
+                result.rainMax.push(item.precipitation_max);
+            }
+            result.snow.push((_c = item.snow) !== null && _c !== void 0 ? _c : 0);
+            result.cloudCover.push((_d = item.cloud_coverage) !== null && _d !== void 0 ? _d : 0);
+            result.windSpeed.push((_e = item.wind_speed) !== null && _e !== void 0 ? _e : 0);
+            result.windDirection.push((_f = item.wind_bearing) !== null && _f !== void 0 ? _f : 0);
+            result.symbolCode.push((_g = item.condition) !== null && _g !== void 0 ? _g : "");
+            result.pressure.push((_h = item.pressure) !== null && _h !== void 0 ? _h : 0);
             // Log each forecast item for debugging
-            console.debug(`[WeatherEntityAPI] Forecast[${idx}]:`, item);
+            // console.debug(`[WeatherEntityAPI] Forecast[${idx}]:`, item);
         });
         return result;
     }
@@ -399,7 +404,7 @@ class WeatherEntityAPI {
         }
         const unsubPromise = this.hass.connection.subscribeMessage((event) => {
             if (Array.isArray(event.forecast)) {
-                console.debug(`[WeatherEntityAPI] subscribeForecast: received forecast update`, event.forecast);
+                // console.debug(`[WeatherEntityAPI] subscribeForecast: received forecast update`, event.forecast);
                 callback(event.forecast);
             }
             else {
@@ -911,13 +916,13 @@ const runWhenLitLoaded = () => {
             }
         }
         // Helper to schedule a meteogram draw if not already scheduled
-        _scheduleDrawMeteogram(source = "unknown") {
+        _scheduleDrawMeteogram(source = "unknown", force = false) {
             const now = Date.now();
             this._drawCallIndex++;
             const callerId = `${source}#${this._drawCallIndex}`;
             console.debug(`[${CARD_NAME}] _scheduleDrawMeteogram called from: ${callerId}`);
-            // If a redraw is already scheduled, or last schedule was within throttle window, skip
-            if (this._redrawScheduled || (now - this._lastDrawScheduleTime < this._drawThrottleMs)) {
+            // Only skip if not forced
+            if (!force && (this._redrawScheduled || (now - this._lastDrawScheduleTime < this._drawThrottleMs))) {
                 console.debug(`[${CARD_NAME}] _scheduleDrawMeteogram: redraw already scheduled or throttled, skipping.`);
                 return;
             }
@@ -1240,9 +1245,9 @@ const runWhenLitLoaded = () => {
             if (!this._weatherEntityApiInstance) {
                 this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, entityId);
                 // Subscribe to forecast updates from weather entity and log them
-                this._weatherEntityApiInstance.subscribeForecast((forecastArr) => {
-                    console.log(`[WeatherEntityAPI] subscribeForecast update for ${entityId}:`, forecastArr);
-                });
+                // this._weatherEntityApiInstance.subscribeForecast((forecastArr: any[]) => {
+                //     console.log(`[WeatherEntityAPI] subscribeForecast update for ${entityId}:`, forecastArr);
+                // });
             }
             // Call sampleFetchWeatherEntityForecast to log weather entity data
             console.log("sampleFetchWeatherEntityForecast called", this.hass);
@@ -1467,7 +1472,7 @@ const runWhenLitLoaded = () => {
                     throw new Error('D3.js not available after loading script');
                 }
                 // Now that D3 is loaded, draw the meteogram
-                await this._scheduleDrawMeteogram("loadD3AndDraw-afterD3");
+                await this._scheduleDrawMeteogram("loadD3AndDraw-afterD3", true);
             }
             catch (error) {
                 console.error('Error loading D3.js:', error);
