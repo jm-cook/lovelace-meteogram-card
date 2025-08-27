@@ -205,9 +205,20 @@ const runWhenLitLoaded = () => {
         @state() private errorCount = 0;
         @state() private lastErrorTime = 0;
 
-        // Add storage keys for location caching
-        // private static readonly STORAGE_KEY_LAT = 'meteogram-card-latitude';
-        // private static readonly STORAGE_KEY_LON = 'meteogram-card-longitude';
+        // // Assuming 'hass' is available in your custom element
+        // // Subscribe to weather forecast events
+        // private unsubscribe = this.hass.connection.subscribeMessage(
+        //     (event: any) => {
+        //         // event.data contains the forecast data
+        //         console.log("Received forecast event:", event.data);
+        //         // You can update your card state here
+        //     },
+        //     {
+        //         type: "weather/subscribe_forecast",
+        //         entity_id: "weather.forecast_home", // Replace with your entity
+        //         forecast_type: "hourly" // or "daily"
+        //     }
+        // );
 
         private iconCache = new Map<string, string>();
         private iconBasePath = 'https://raw.githubusercontent.com/metno/weathericons/refs/heads/main/weather/svg/';
@@ -1379,7 +1390,6 @@ const runWhenLitLoaded = () => {
                 console.debug(`[${CARD_NAME}] Returning in-flight weather data promise`);
                 return this.weatherDataPromise;
             }
-
             // Cache the promise so repeated calls during chart draw use the same one
             this.weatherDataPromise = (async () => {
                 let result: ForecastData = null as any;

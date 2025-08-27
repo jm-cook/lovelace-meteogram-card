@@ -264,6 +264,8 @@ styles:
   --meteogram-timescale-color-dark: "orange"
 ```
 
+![img.png](../images/meteogram-card-quirky-colours.png)
+
 ### Example: Custom snow bar color
 
 ```yaml
