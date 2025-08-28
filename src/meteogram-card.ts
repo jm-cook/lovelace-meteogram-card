@@ -10,6 +10,7 @@ import {formatDiagnosticError, getClientName, getVersion} from "./diagnostics";
 import {WeatherAPI, ForecastData} from "./weather-api";
 import {WeatherEntityAPI} from "./weather-entity";
 
+
 // Import localization files
 import enLocale from "./translations/en.json";
 import nbLocale from "./translations/nb.json";
@@ -141,33 +142,37 @@ const cleanupExpiredForecastCache = () => {
         // Ignore storage errors
     }
 };
-
 // This wrapper ensures modules are loaded before code execution
-const runWhenLitLoaded = () => {
+// const runWhenLitLoaded = () => {
+
+await litModulesPromise; // Wait for Lit modules to load
+
+    const {LitElement, css, customElement, property, state, html} = window.litElementModules || {};
+
     // Clean up expired cache entries before anything else
     // cleanupExpiredForecastCache();
 
     // Print version info on startup
     printVersionInfo();
 
-    // Get Lit modules from the global variable set in the banner
-    const {LitElement, css, customElement, property, state} = (window as any).litElementModules;
+    // // Get Lit modules from the global variable set in the banner
+    // const {LitElement, css, customElement, property, state, html} = window.litElementModules || {};
 
-// Define interfaces for better type safety
-    interface ForecastData {
-        pressure: number[];
-        time: Date[];
-        temperature: (number | null)[];
-        rain: number[];
-        rainMin: number[]; // Add min precipitation array
-        rainMax: number[]; // Add max precipitation array
-        snow: number[];
-        cloudCover: number[];
-        windSpeed: number[];
-        windDirection: number[];
-        symbolCode: string[];
-        fetchTimestamp?: string; // Add this property
-    }
+// // Define interfaces for better type safety
+//     interface ForecastData {
+//         pressure: number[];
+//         time: Date[];
+//         temperature: (number | null)[];
+//         rain: number[];
+//         rainMin: number[]; // Add min precipitation array
+//         rainMax: number[]; // Add max precipitation array
+//         snow: number[];
+//         cloudCover: number[];
+//         windSpeed: number[];
+//         windDirection: number[];
+//         symbolCode: string[];
+//         fetchTimestamp?: string; // Add this property
+//     }
 
 // For day boundary shading
     interface DayRange {
@@ -184,6 +189,33 @@ const runWhenLitLoaded = () => {
 
     @customElement("meteogram-card")
     class MeteogramCard extends LitElement {
+        constructor(
+
+        ) {
+            super();
+            this.title = "";
+            this.latitude = undefined;
+            this.longitude = undefined;
+            this.showCloudCover = true;
+            this.showPressure = true;
+            this.showRain = true;
+            this.showWeatherIcons = true;
+            this.showWind = true;
+            this.denseWeatherIcons = true;
+            this.meteogramHours = "48h";
+            this.fillContainer = false;
+            this.styles = {};
+            this.diagnostics = DIAGNOSTICS_DEFAULT;
+            // Initialize state properties
+            this.chartLoaded = false;
+            this.meteogramError = "";
+            this.errorCount = 0;
+            this.lastErrorTime = 0;
+            this._statusExpiresAt = "";
+            this._statusLastRender = "";
+            this._statusLastFetch = "";
+            this._statusApiSuccess = null;
+        }
         @property({type: String}) title = "";
         @property({type: Number}) latitude?: number;
         @property({type: Number}) longitude?: number;
@@ -205,6 +237,13 @@ const runWhenLitLoaded = () => {
         @state() private meteogramError = "";
         @state() private errorCount = 0;
         @state() private lastErrorTime = 0;
+        private _drawCallIndex = 0;
+        private _weatherRetryTimeout: number | null = 0;
+        private _weatherRefreshTimeout: number | null = 0;
+        private _chartRenderInProgress = false;
+        private _pendingRender = false;
+        private _lastApiSuccess = false;
+        static lastD3RetryTime = 0;
 
         // // Assuming 'hass' is available in your custom element
         // // Subscribe to weather forecast events
@@ -1690,6 +1729,8 @@ const runWhenLitLoaded = () => {
                 }, 60000);
             }).finally(() => {
                 this._chartRenderInProgress = false;
+                // Assign _statusLastRender with a date string when rendering completes
+                this._statusLastRender = new Date().toISOString();
                 console.debug(`[${CARD_NAME}] _renderChart: finished render.`);
                 // If a render was queued, run it now
                 if (this._pendingRender) {
@@ -3037,18 +3078,18 @@ const runWhenLitLoaded = () => {
         preview: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/images/meteogram-card.png",
         documentationURL: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/README.md"
     });
-}
-// Wait for Lit modules to be loaded before running the code
-if (window.litElementModules) {
-    runWhenLitLoaded();
-} else {
-    // If the banner has already set up the promise, wait for it to resolve
-    if (typeof litModulesPromise !== 'undefined') {
-        litModulesPromise.then(() => {
-            runWhenLitLoaded();
-        });
-    } else {
-        console.error("Lit modules not found and litModulesPromise not available");
-    }
-}
+// }
+// // Wait for Lit modules to be loaded before running the code
+// if (window.litElementModules) {
+//     runWhenLitLoaded();
+// } else {
+//     // If the banner has already set up the promise, wait for it to resolve
+//     if (typeof litModulesPromise !== 'undefined') {
+//         litModulesPromise.then(() => {
+//             runWhenLitLoaded();
+//         });
+//     } else {
+//         console.error("Lit modules not found and litModulesPromise not available");
+//     }
+// }
 
