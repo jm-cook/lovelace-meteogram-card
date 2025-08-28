@@ -26,6 +26,9 @@
   ],
   "author": "Jeremy Cook",
   "license": "MIT",
+  "dependencies": {
+    "lit": "^3.1.0"
+  },
   "devDependencies": {
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.1",
@@ -33,7 +36,6 @@
     "@rollup/plugin-typescript": "^12.1.4",
     "rollup": "^4.9.5",
     "tslib": "^2.6.2",
-    "typescript": "^5.3.3",
-    "lit": "^3.1.0"
+    "typescript": "^5.3.3"
   }
 }

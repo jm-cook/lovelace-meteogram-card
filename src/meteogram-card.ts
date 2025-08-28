@@ -1,14 +1,15 @@
 // Use only the imports that are actually needed for type checking
-import {PropertyValues} from "lit";
+import { LitElement, css, html, PropertyValues } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
 // Import our local types
-import {MeteogramCardConfig, MeteogramCardEditorElement} from "./types";
+import { MeteogramCardConfig, MeteogramCardEditorElement } from "./types";
 // Version info - update this when releasing new versions
-import {version} from "../package.json";
+import { version } from "../package.json";
 // Add diagnostics helpers
-import {formatDiagnosticError, getClientName, getVersion} from "./diagnostics";
+import { formatDiagnosticError, getClientName, getVersion } from "./diagnostics";
 // Import the external API fetcher
-import {WeatherAPI, ForecastData} from "./weather-api";
-import {WeatherEntityAPI} from "./weather-entity";
+import { WeatherAPI, ForecastData } from "./weather-api";
+import { WeatherEntityAPI } from "./weather-entity";
 
 
 // Import localization files
@@ -144,10 +145,6 @@ const cleanupExpiredForecastCache = () => {
 };
 // This wrapper ensures modules are loaded before code execution
 // const runWhenLitLoaded = () => {
-
-await litModulesPromise; // Wait for Lit modules to load
-
-    const {LitElement, css, customElement, property, state, html} = window.litElementModules || {};
 
     // Clean up expired cache entries before anything else
     // cleanupExpiredForecastCache();
@@ -2467,7 +2464,6 @@ await litModulesPromise; // Wait for Lit modules to load
         // Add explicit render method to ensure chart container is created properly
         render() {
             this._updateDarkMode(); // Ensure dark mode is set before rendering
-            const {html} = window.litElementModules;
 
             // Build inline style string from styles property
             const styleVars = Object.entries(this.styles || {})

@@ -11,22 +11,6 @@ export default {
     file: 'dist/meteogram-card.js',
     format: 'es',
     sourcemap: dev ? true : false,
-    // Fix the imports to avoid variable naming conflicts
-    banner: `// Import required lit modules
-const litModulesPromise = Promise.all([
-  import("https://unpkg.com/lit@3.1.0/index.js?module"),
-  import("https://unpkg.com/lit@3.1.0/decorators.js?module")
-]).then(([litCore, litDecorators]) => {
-  window.litElementModules = {
-    LitElement: litCore.LitElement,
-    html: litCore.html,
-    css: litCore.css,
-    customElement: litDecorators.customElement,
-    property: litDecorators.property,
-    state: litDecorators.state
-  };
-});
-`
   },
   plugins: [
     resolve({
@@ -35,13 +19,11 @@ const litModulesPromise = Promise.all([
     }),
     json(),
     typescript({
-      // Add compilation options to ignore the imports we'll replace at runtime
       compilerOptions: {
         skipLibCheck: true,
         allowSyntheticDefaultImports: true,
       }
-    })
-    ,
+    }),
     // !dev && terser({
     //   format: {
     //     comments: false // Keep comments to preserve the banner
@@ -55,9 +37,7 @@ const litModulesPromise = Promise.all([
     //   // },
     // }),
   ],
-  // Add these modules as externals
   external: [
-    'lit',
-    'lit/decorators.js'
+    // Remove 'lit' and 'lit/decorators.js' from externals so they are bundled
   ]
 };
