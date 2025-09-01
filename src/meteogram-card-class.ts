@@ -4,7 +4,7 @@ import { MeteogramCardConfig, MeteogramCardEditorElement, DayRange, Configurable
 import { version } from "../package.json";
 import { getClientName} from "./diagnostics";
 import { WeatherAPI, ForecastData } from "./weather-api";
-import { WeatherEntityAPI } from "./weather-entity";
+import { WeatherEntityAPI, mapHaConditionToMetnoSymbol } from "./weather-entity";
 import { trnslt } from "./translations";
 
 const DIAGNOSTICS_DEFAULT = version.includes("beta");
@@ -1251,6 +1251,15 @@ export class MeteogramCard extends LitElement {
 
 
     async fetchWeatherData(): Promise<ForecastData> {
+        // If weather entity is set and not "none", use WeatherEntityAPI
+        if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
+            const entityData = this._weatherEntityApiInstance.getForecastData();
+            if (entityData && entityData.time && entityData.time.length > 0) {
+                return entityData;
+            }
+            // If no data from entity, fallback to WeatherAPI
+        }
+
         // Always truncate to 4 decimals before using
         const lat = this.latitude !== undefined ? parseFloat(Number(this.latitude).toFixed(4)) : undefined;
         const lon = this.longitude !== undefined ? parseFloat(Number(this.longitude).toFixed(4)) : undefined;
@@ -1298,10 +1307,10 @@ export class MeteogramCard extends LitElement {
                 this._lastApiSuccess = true;
 
                 // --- NEW: Also fetch from WeatherEntityAPI and log ---
-                if (this.entityId && this.entityId !== 'none') {
-                    const entityForecast = this._weatherEntityApiInstance?.getForecastData();
-                    console.debug(`[WeatherEntityAPI] getForecastData for ${this.entityId}:`, entityForecast);
-                }
+                // if (this.entityId && this.entityId !== 'none') {
+                //     const entityForecast = this._weatherEntityApiInstance?.getForecastData();
+                //     console.debug(`[WeatherEntityAPI] getForecastData for ${this.entityId}:`, entityForecast);
+                // }
                 // -----------------------------------------------------
 
                 // Filter result by meteogramHours
@@ -1970,7 +1979,8 @@ export class MeteogramCard extends LitElement {
         const line = d3.line()
             .defined((d: number | null) => d !== null)
             .x((_: number | null, i: number) => x(i))
-            .y((_: number | null, i: number) => temperatureConverted[i] !== null ? yTemp(temperatureConverted[i]) : 0);
+            .y((_: number | null, i: number) => temperatureConverted[i] !== null ? yTemp(temperatureConverted[i]) : 0)
+            .curve(d3.curveMonotoneX); // <-- Add smoothing
 
         chart.append("path")
             .datum(temperatureConverted)
@@ -1994,7 +2004,6 @@ export class MeteogramCard extends LitElement {
 
         // Weather icons along temperature curve - only if enabled
         if (this.showWeatherIcons) {
-            // Use config property for icon density
             const iconInterval = this.denseWeatherIcons ? 1 : 2;
 
             chart.selectAll(".weather-icon")
@@ -2013,28 +2022,57 @@ export class MeteogramCard extends LitElement {
                     (temperatureConverted[i] !== null && i % iconInterval === 0) ? 1 : 0)
                 .each((d: string, i: number, nodes: any) => {
                     if (i % iconInterval !== 0) return;
-
                     const node = nodes[i];
                     if (!d) return;
 
-                    // Handle the typo in the API
-                    const correctedSymbol = d
-                        .replace(/^lightssleet/, 'lightsleet')
-                        .replace(/^lightssnow/, 'lightsnow');
-
-                    this.getIconSVG(correctedSymbol).then(svgContent => {
-                        if (svgContent) {
-                            const div = document.createElement('div');
-                            div.style.width = '40px';
-                            div.style.height = '40px';
-                            div.innerHTML = svgContent;
-                            node.appendChild(div);
-                        } else {
-                            console.warn(`Failed to load icon: ${correctedSymbol}`);
-                        }
-                    }).catch((err: Error) => {
-                        console.error(`Error loading icon ${correctedSymbol}:`, err);
-                    });
+                    // If using weather entity, show HA built-in icon
+                    if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
+                        // Map HA condition to mdi icon name
+                        const haCondition = d;
+                        // Basic mapping for HA weather conditions to mdi icons
+                        const haIconMap: Record<string, string> = {
+                            "clear-night": "mdi:weather-night",
+                            "cloudy": "mdi:weather-cloudy",
+                            "fog": "mdi:weather-fog",
+                            "hail": "mdi:weather-hail",
+                            "lightning": "mdi:weather-lightning",
+                            "lightning-rainy": "mdi:weather-lightning-rainy",
+                            "partlycloudy": "mdi:weather-partly-cloudy",
+                            "pouring": "mdi:weather-pouring",
+                            "rainy": "mdi:weather-rainy",
+                            "snowy": "mdi:weather-snowy",
+                            "snowy-rainy": "mdi:weather-snowy-rainy",
+                            "sunny": "mdi:weather-sunny",
+                            "windy": "mdi:weather-windy",
+                            "windy-variant": "mdi:weather-windy-variant",
+                            "exceptional": "mdi:weather-sunny"
+                        };
+                        const mdiIcon = haIconMap[haCondition] || "mdi:weather-cloudy";
+                        // Create ha-icon element
+                        const haIcon = document.createElement('ha-icon');
+                        haIcon.setAttribute('icon', mdiIcon);
+                        haIcon.style.width = '40px';
+                        haIcon.style.height = '40px';
+                        node.appendChild(haIcon);
+                    } else {
+                        // Use Met.no SVG icons
+                        const correctedSymbol = d
+                            .replace(/^lightssleet/, 'lightsleet')
+                            .replace(/^lightssnow/, 'lightsnow');
+                        this.getIconSVG(correctedSymbol).then(svgContent => {
+                            if (svgContent) {
+                                const div = document.createElement('div');
+                                div.style.width = '40px';
+                                div.style.height = '40px';
+                                div.innerHTML = svgContent;
+                                node.appendChild(div);
+                            } else {
+                                console.warn(`Failed to load icon: ${correctedSymbol}`);
+                            }
+                        }).catch((err: Error) => {
+                            console.error(`Error loading icon ${correctedSymbol}:`, err);
+                        });
+                    }
                 });
         }
 

@@ -125,3 +125,28 @@ export class WeatherEntityAPI {
         return this._forecastData;
     }
 }
+
+/**
+ * Map HA weather entity 'condition' values to Met.no weather icon names.
+ */
+export function mapHaConditionToMetnoSymbol(condition: string): string {
+    const mapping: Record<string, string> = {
+        "clear-night": "clearsky_night",
+        "cloudy": "cloudy",
+        "fog": "fog",
+        "hail": "heavyrainshowers",
+        "lightning": "lightrainshowers",
+        "lightning-rainy": "lightrainshowers",
+        "partlycloudy": "partlycloudy_day",
+        "pouring": "heavyrain",
+        "rainy": "rain",
+        "snowy": "snow",
+        "snowy-rainy": "sleet",
+        "sunny": "clearsky_day",
+        "windy": "fair_day",
+        "windy-variant": "fair_day",
+        "exceptional": "clearsky_day"
+    };
+    // Default to condition itself if not mapped
+    return mapping[condition] || condition;
+}

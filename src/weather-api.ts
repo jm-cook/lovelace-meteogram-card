@@ -257,6 +257,8 @@ export class WeatherAPI {
                 const time = new Date(item.time);
                 const instant = item.data.instant.details;
                 const next1h = item.data.next_1_hours?.details;
+                const next6h = item.data.next_6_hours?.details;
+                const next6hSummary = item.data.next_6_hours?.summary;
 
                 result.time.push(time);
                 result.temperature.push(instant.air_temperature);
@@ -284,7 +286,23 @@ export class WeatherAPI {
                     } else {
                         result.symbolCode.push('');
                     }
+                } else if (next6h) {
+                    // Use next_6_hours data if next_1_hours is missing
+                    // Distribute 6h precipitation over 6 hours (average per hour)
+                    const rain6h = next6h.precipitation_amount !== undefined ? next6h.precipitation_amount : 0;
+                    const rainPerHour = rain6h / 6;
+                    result.rain.push(rainPerHour);
+                    result.rainMin.push(rainPerHour);
+                    result.rainMax.push(rainPerHour);
+                    result.snow.push(0);
+
+                    if (next6hSummary?.symbol_code) {
+                        result.symbolCode.push(next6hSummary.symbol_code);
+                    } else {
+                        result.symbolCode.push('');
+                    }
                 } else {
+                    // No precipitation data available
                     result.rain.push(0);
                     result.rainMin.push(0);
                     result.rainMax.push(0);

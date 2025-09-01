@@ -1082,10 +1082,12 @@ class WeatherAPI {
             };
             result.fetchTimestamp = new Date().toISOString();
             filtered.forEach((item) => {
-                var _a, _b, _c;
+                var _a, _b, _c, _d, _e;
                 const time = new Date(item.time);
                 const instant = item.data.instant.details;
                 const next1h = (_a = item.data.next_1_hours) === null || _a === void 0 ? void 0 : _a.details;
+                const next6h = (_b = item.data.next_6_hours) === null || _b === void 0 ? void 0 : _b.details;
+                const next6hSummary = (_c = item.data.next_6_hours) === null || _c === void 0 ? void 0 : _c.summary;
                 result.time.push(time);
                 result.temperature.push(instant.air_temperature);
                 result.cloudCover.push(instant.cloud_area_fraction);
@@ -1103,14 +1105,31 @@ class WeatherAPI {
                     result.rainMax.push(rainAmountMax);
                     result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
                     result.snow.push(0);
-                    if ((_c = (_b = item.data.next_1_hours) === null || _b === void 0 ? void 0 : _b.summary) === null || _c === void 0 ? void 0 : _c.symbol_code) {
+                    if ((_e = (_d = item.data.next_1_hours) === null || _d === void 0 ? void 0 : _d.summary) === null || _e === void 0 ? void 0 : _e.symbol_code) {
                         result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
                     }
                     else {
                         result.symbolCode.push('');
                     }
                 }
+                else if (next6h) {
+                    // Use next_6_hours data if next_1_hours is missing
+                    // Distribute 6h precipitation over 6 hours (average per hour)
+                    const rain6h = next6h.precipitation_amount !== undefined ? next6h.precipitation_amount : 0;
+                    const rainPerHour = rain6h / 6;
+                    result.rain.push(rainPerHour);
+                    result.rainMin.push(rainPerHour);
+                    result.rainMax.push(rainPerHour);
+                    result.snow.push(0);
+                    if (next6hSummary === null || next6hSummary === void 0 ? void 0 : next6hSummary.symbol_code) {
+                        result.symbolCode.push(next6hSummary.symbol_code);
+                    }
+                    else {
+                        result.symbolCode.push('');
+                    }
+                }
                 else {
+                    // No precipitation data available
                     result.rain.push(0);
                     result.rainMin.push(0);
                     result.rainMax.push(0);
@@ -1957,6 +1976,14 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
     }
     async fetchWeatherData() {
+        // If weather entity is set and not "none", use WeatherEntityAPI
+        if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
+            const entityData = this._weatherEntityApiInstance.getForecastData();
+            if (entityData && entityData.time && entityData.time.length > 0) {
+                return entityData;
+            }
+            // If no data from entity, fallback to WeatherAPI
+        }
         // Always truncate to 4 decimals before using
         const lat = this.latitude !== undefined ? parseFloat(Number(this.latitude).toFixed(4)) : undefined;
         const lon = this.longitude !== undefined ? parseFloat(Number(this.longitude).toFixed(4)) : undefined;
@@ -1984,7 +2011,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Cache the promise so repeated calls during chart draw use the same one
         this.weatherDataPromise = (async () => {
-            var _a;
             let result = null;
             try {
                 // Use the new getForecastData method
@@ -1997,10 +2023,10 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 this._statusApiSuccess = true;
                 this._lastApiSuccess = true;
                 // --- NEW: Also fetch from WeatherEntityAPI and log ---
-                if (this.entityId && this.entityId !== 'none') {
-                    const entityForecast = (_a = this._weatherEntityApiInstance) === null || _a === void 0 ? void 0 : _a.getForecastData();
-                    console.debug(`[WeatherEntityAPI] getForecastData for ${this.entityId}:`, entityForecast);
-                }
+                // if (this.entityId && this.entityId !== 'none') {
+                //     const entityForecast = this._weatherEntityApiInstance?.getForecastData();
+                //     console.debug(`[WeatherEntityAPI] getForecastData for ${this.entityId}:`, entityForecast);
+                // }
                 // -----------------------------------------------------
                 // Filter result by meteogramHours
                 let hours = 48;
@@ -2578,7 +2604,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         const line = d3.line()
             .defined((d) => d !== null)
             .x((_, i) => x(i))
-            .y((_, i) => temperatureConverted[i] !== null ? yTemp(temperatureConverted[i]) : 0);
+            .y((_, i) => temperatureConverted[i] !== null ? yTemp(temperatureConverted[i]) : 0)
+            .curve(d3.curveMonotoneX); // <-- Add smoothing
         chart.append("path")
             .datum(temperatureConverted)
             .attr("class", "temp-line")
@@ -2598,7 +2625,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Weather icons along temperature curve - only if enabled
         if (this.showWeatherIcons) {
-            // Use config property for icon density
             const iconInterval = this.denseWeatherIcons ? 1 : 2;
             chart.selectAll(".weather-icon")
                 .data(symbolCode)
@@ -2619,24 +2645,56 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 const node = nodes[i];
                 if (!d)
                     return;
-                // Handle the typo in the API
-                const correctedSymbol = d
-                    .replace(/^lightssleet/, 'lightsleet')
-                    .replace(/^lightssnow/, 'lightsnow');
-                this.getIconSVG(correctedSymbol).then(svgContent => {
-                    if (svgContent) {
-                        const div = document.createElement('div');
-                        div.style.width = '40px';
-                        div.style.height = '40px';
-                        div.innerHTML = svgContent;
-                        node.appendChild(div);
-                    }
-                    else {
-                        console.warn(`Failed to load icon: ${correctedSymbol}`);
-                    }
-                }).catch((err) => {
-                    console.error(`Error loading icon ${correctedSymbol}:`, err);
-                });
+                // If using weather entity, show HA built-in icon
+                if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
+                    // Map HA condition to mdi icon name
+                    const haCondition = d;
+                    // Basic mapping for HA weather conditions to mdi icons
+                    const haIconMap = {
+                        "clear-night": "mdi:weather-night",
+                        "cloudy": "mdi:weather-cloudy",
+                        "fog": "mdi:weather-fog",
+                        "hail": "mdi:weather-hail",
+                        "lightning": "mdi:weather-lightning",
+                        "lightning-rainy": "mdi:weather-lightning-rainy",
+                        "partlycloudy": "mdi:weather-partly-cloudy",
+                        "pouring": "mdi:weather-pouring",
+                        "rainy": "mdi:weather-rainy",
+                        "snowy": "mdi:weather-snowy",
+                        "snowy-rainy": "mdi:weather-snowy-rainy",
+                        "sunny": "mdi:weather-sunny",
+                        "windy": "mdi:weather-windy",
+                        "windy-variant": "mdi:weather-windy-variant",
+                        "exceptional": "mdi:weather-sunny"
+                    };
+                    const mdiIcon = haIconMap[haCondition] || "mdi:weather-cloudy";
+                    // Create ha-icon element
+                    const haIcon = document.createElement('ha-icon');
+                    haIcon.setAttribute('icon', mdiIcon);
+                    haIcon.style.width = '40px';
+                    haIcon.style.height = '40px';
+                    node.appendChild(haIcon);
+                }
+                else {
+                    // Use Met.no SVG icons
+                    const correctedSymbol = d
+                        .replace(/^lightssleet/, 'lightsleet')
+                        .replace(/^lightssnow/, 'lightsnow');
+                    this.getIconSVG(correctedSymbol).then(svgContent => {
+                        if (svgContent) {
+                            const div = document.createElement('div');
+                            div.style.width = '40px';
+                            div.style.height = '40px';
+                            div.innerHTML = svgContent;
+                            node.appendChild(div);
+                        }
+                        else {
+                            console.warn(`Failed to load icon: ${correctedSymbol}`);
+                        }
+                    }).catch((err) => {
+                        console.error(`Error loading icon ${correctedSymbol}:`, err);
+                    });
+                }
             });
         }
         // Rain bars with labels - only if enabled
