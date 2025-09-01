@@ -67,6 +67,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
         setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT, 'checked');
         setValue(this._elements.get('entity_id'), this._config.entity_id || '');
+        setValue(this._elements.get('focussed'), this._config.focussed !== undefined ? this._config.focussed : false, 'checked');
     }
 
     render() {
@@ -94,6 +95,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const meteogramHours = this._config.meteogram_hours || "48h";
         const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
         const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT;
+        const focussed = this._config.focussed !== undefined ? this._config.focussed : false;
         const div = document.createElement('div');
 
         // Get all weather entities from hass
@@ -271,12 +273,12 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
             .checked="${fillContainer}"
           ></ha-switch>
         </div>
-
+      
         <div class="toggle-row">
-          <div class="toggle-label">Diagnostics (debug logging)</div>
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.focussed", "Focussed Mode (minimal chart)")}</div>
           <ha-switch
-            id="diagnostics"
-            .checked="${diagnostics}"
+            id="focussed"
+            .checked="${focussed}"
           ></ha-switch>
         </div>
       </div>
@@ -293,6 +295,15 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         </select>
       </div>
       <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
+      <div class="toggle-section"></div>
+        <div class="toggle-row">
+          <div class="toggle-label">Diagnostics (debug logging)</div>
+          <ha-switch
+            id="diagnostics"
+            .checked="${diagnostics}"
+          ></ha-switch>
+        </div>
+      </div>
     </div>
   </ha-card>
 `;
@@ -397,6 +408,13 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 this._elements.set('entity_id', weatherEntitySelect);
             }
 
+            const focussedSwitch = this.querySelector('#focussed') as ConfigurableHTMLElement;
+            if (focussedSwitch) {
+                focussedSwitch.configValue = 'focussed';
+                focussedSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('focussed', focussedSwitch);
+            }
+
             // Disable/enable lat/lon fields based on weather entity selection
             if (latInput) latInput.disabled = isWeatherEntitySelected;
             if (lonInput) lonInput.disabled = isWeatherEntitySelected;
@@ -416,7 +434,8 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         // List of boolean config fields
         const boolFields = [
             'show_cloud_cover', 'show_pressure', 'show_rain', 'show_weather_icons',
-            'show_wind', 'dense_weather_icons', 'fill_container', 'diagnostics'
+            'show_wind', 'dense_weather_icons', 'fill_container', 'diagnostics',
+            'focussed'
         ];
 
         // Handle different input types

@@ -9,12 +9,18 @@ export class WeatherEntityAPI {
     constructor(hass: any, entityId: string) {
         this.hass = hass;
         this.entityId = entityId;
-
+        console.debug(`[WeatherEntityAPI] Initialized for entityId: ${this.entityId}`, this.hass);
         // Subscribe to forecast updates if hass and entityId are available
         if (this.hass && this.entityId) {
+            console.debug(`[WeatherEntityAPI] Subscribing to forecast updates for ${this.entityId}`);
             this.subscribeForecast((forecastArr: any[]) => {
                 this._forecastData = this._parseForecastArray(forecastArr);
-                // console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
+                console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
+                // Force chart update by dispatching a custom event
+                const card = document.querySelector('meteogram-card') as any;
+                if (card && typeof card._scheduleDrawMeteogram === "function") {
+                    card._scheduleDrawMeteogram("WeatherEntityAPI-forecast-update", true);
+                }
             }).then(unsub => {
                 this._unsubForecast = unsub;
             });
@@ -50,14 +56,27 @@ export class WeatherEntityAPI {
                 result.rainMax.push(item.precipitation_max);
             }
 
-            result.snow.push(item.snow ?? 0);
-            result.cloudCover.push(item.cloud_coverage ?? 0);
-            result.windSpeed.push(item.wind_speed ?? 0);
-            result.windDirection.push(item.wind_bearing ?? 0);
+            // Only push snow if present
+            if ('snow' in item && typeof item.snow === 'number') {
+                result.snow.push(item.snow);
+            }
+
+            // Only push cloudCover if present
+            if ('cloud_coverage' in item && typeof item.cloud_coverage === 'number') {
+                result.cloudCover.push(item.cloud_coverage);
+            }
+
+            // Only push windSpeed/windDirection if present
+            if ('wind_speed' in item && typeof item.wind_speed === 'number') {
+                result.windSpeed.push(item.wind_speed);
+            }
+            if ('wind_bearing' in item && typeof item.wind_bearing === 'number') {
+                result.windDirection.push(item.wind_bearing);
+            }
+
             result.symbolCode.push(item.condition ?? "");
 
             // Map pressure attribute for renderer compatibility
-            // Try 'pressure', fallback to 'pressure_mbar', fallback to 'pressure_hpa'
             if ('pressure' in item && typeof item.pressure === 'number') {
                 result.pressure.push(item.pressure);
             } else if ('pressure_mbar' in item && typeof item.pressure_mbar === 'number') {

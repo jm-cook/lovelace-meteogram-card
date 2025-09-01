@@ -14,6 +14,7 @@ export interface MeteogramCardConfig {
     styles?: Record<string, string>; // <-- Add this line for style overrides
     diagnostics?: boolean; // Add this line
     entity_id?: string; // Add this line for weather entity selection
+    focussed?: boolean; // Add this line for Focussed mode
 }
 
 export interface MeteogramData {
