@@ -7,9 +7,13 @@ import { WeatherAPI, ForecastData } from "./weather-api";
 import { WeatherEntityAPI, mapHaConditionToMetnoSymbol } from "./weather-entity";
 import { trnslt } from "./translations";
 
-const DIAGNOSTICS_DEFAULT = version.includes("beta");
-const CARD_NAME = "Meteogram Card";
-const METEOGRAM_CARD_STARTUP_TIME = new Date();
+
+// import { METEOGRAM_CARD_STARTUP_TIME, DIAGNOSTICS_DEFAULT, CARD_NAME } from "./meteogram-card"; // Import from meteogram-card.ts
+
+export const CARD_NAME = "Meteogram Card";
+export const METEOGRAM_CARD_STARTUP_TIME = new Date();
+
+export const DIAGNOSTICS_DEFAULT = version.includes("beta");
 
 
 @customElement("meteogram-card")

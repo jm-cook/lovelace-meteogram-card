@@ -1,12 +1,13 @@
 import { MeteogramCardConfig, MeteogramCardEditorElement } from "./types";
 import { version } from "../package.json";
+
+export const CARD_NAME = "Meteogram Card";
+export const METEOGRAM_CARD_STARTUP_TIME = new Date();
+// Declare DIAGNOSTICS_DEFAULT here only
+export const DIAGNOSTICS_DEFAULT = version.includes("beta");
+
 import './meteogram-card-editor';
 import './meteogram-card-class';
-const CARD_NAME = "Meteogram Card";
-
-// Initialize these variables when JS is loaded
-const METEOGRAM_CARD_STARTUP_TIME = new Date();
-
 // Declare litModulesPromise to avoid TypeScript error
 // This will be defined in the banner added by rollup
 declare const litModulesPromise: Promise<any>;

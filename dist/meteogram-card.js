@@ -398,7 +398,8 @@ function trnslt(hass, key, fallback) {
     return fallback !== undefined ? fallback : key;
 }
 
-const DIAGNOSTICS_DEFAULT$1 = version.includes("beta");
+// Add DIAGNOSTICS_DEFAULT declaration here
+const DIAGNOSTICS_DEFAULT$2 = version.includes("beta");
 let MeteogramCardEditor = class MeteogramCardEditor extends i {
     constructor() {
         super(...arguments);
@@ -455,7 +456,7 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
         setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
         setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
-        setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$1, 'checked');
+        setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$2, 'checked');
         setValue(this._elements.get('entity_id'), this._config.entity_id || '');
         setValue(this._elements.get('focussed'), this._config.focussed !== undefined ? this._config.focussed : false, 'checked');
     }
@@ -481,7 +482,7 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
         const meteogramHours = this._config.meteogram_hours || "48h";
         const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
-        const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$1;
+        const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$2;
         const focussed = this._config.focussed !== undefined ? this._config.focussed : false;
         const div = document.createElement('div');
         // Get all weather entities from hass
@@ -1329,9 +1330,10 @@ function mapHaConditionToMetnoSymbol(condition) {
 }
 
 var MeteogramCard_1;
-const DIAGNOSTICS_DEFAULT = version.includes("beta");
+// import { METEOGRAM_CARD_STARTUP_TIME, DIAGNOSTICS_DEFAULT, CARD_NAME } from "./meteogram-card"; // Import from meteogram-card.ts
 const CARD_NAME$1 = "Meteogram Card";
-const METEOGRAM_CARD_STARTUP_TIME = new Date();
+const METEOGRAM_CARD_STARTUP_TIME$1 = new Date();
+const DIAGNOSTICS_DEFAULT$1 = version.includes("beta");
 let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     constructor() {
         super();
@@ -1346,7 +1348,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this.meteogramHours = "48h"; // Default is now 48h
         this.fillContainer = false; // NEW: fill container option
         this.styles = {}; // NEW: styles override
-        this.diagnostics = DIAGNOSTICS_DEFAULT; // Initialize here
+        this.diagnostics = DIAGNOSTICS_DEFAULT$1; // Initialize here
         this.focussed = false; // NEW: Focussed mode
         this.chartLoaded = false;
         this.meteogramError = "";
@@ -1432,7 +1434,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this.meteogramHours = "48h";
         this.fillContainer = false;
         this.styles = {};
-        this.diagnostics = DIAGNOSTICS_DEFAULT;
+        this.diagnostics = DIAGNOSTICS_DEFAULT$1;
         // Initialize state properties
         this.chartLoaded = false;
         this.meteogramError = "";
@@ -1517,7 +1519,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Add styles override from config
         this.styles = config.styles || {};
         // Add diagnostics option
-        this.diagnostics = config.diagnostics !== undefined ? config.diagnostics : DIAGNOSTICS_DEFAULT;
+        this.diagnostics = config.diagnostics !== undefined ? config.diagnostics : DIAGNOSTICS_DEFAULT$1;
         // Set entityId from config
         this.entityId = config.entity_id || undefined;
         // Ensure boolean for focussed mode
@@ -1554,7 +1556,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             dense_weather_icons: true,
             meteogram_hours: "48h",
             fill_container: false,
-            diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
+            diagnostics: DIAGNOSTICS_DEFAULT$1 // Default to DIAGNOSTICS_DEFAULT
         });
         return editor;
     }
@@ -1570,7 +1572,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             dense_weather_icons: true,
             meteogram_hours: "48h",
             fill_container: false,
-            diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
+            diagnostics: DIAGNOSTICS_DEFAULT$1 // Default to DIAGNOSTICS_DEFAULT
             // Coordinates will be fetched from HA configuration
         };
     }
@@ -3072,7 +3074,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         const successRate = WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT > 0
             ? Math.round(100 * WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT / WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT)
             : 0;
-        const successTooltip = `API Success Rate: ${WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT}/${WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
+        const successTooltip = `API Success Rate: ${WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT}/${WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME$1.toISOString()}`;
         // In Focussed mode, hide title and attribution
         if (this.focussed) {
             return x `
@@ -3741,6 +3743,9 @@ MeteogramCard$1 = MeteogramCard_1 = __decorate([
 ], MeteogramCard$1);
 
 const CARD_NAME = "Meteogram Card";
+const METEOGRAM_CARD_STARTUP_TIME = new Date();
+// Declare DIAGNOSTICS_DEFAULT here only
+const DIAGNOSTICS_DEFAULT = version.includes("beta");
 // Print version info - based on mushroom cards implementation
 const printVersionInfo = () => {
     // Use the blue color from wind barbs and add weather emojis
@@ -3796,3 +3801,5 @@ window.customCards.push({
 //         console.error("Lit modules not found and litModulesPromise not available");
 //     }
 // }
+
+export { CARD_NAME, DIAGNOSTICS_DEFAULT, METEOGRAM_CARD_STARTUP_TIME };

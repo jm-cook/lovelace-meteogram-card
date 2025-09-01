@@ -3,8 +3,9 @@ import { customElement, property, state } from "lit/decorators.js";
 import { MeteogramCardConfig, MeteogramCardEditorElement, ConfigurableHTMLElement } from "./types";
 import { trnslt } from "./translations";
 import { version } from "../package.json";
+// Add DIAGNOSTICS_DEFAULT declaration here
+export const DIAGNOSTICS_DEFAULT = version.includes("beta");
 
-const DIAGNOSTICS_DEFAULT = version.includes("beta");
 
 @customElement('meteogram-card-editor')
 export class MeteogramCardEditor extends LitElement implements MeteogramCardEditorElement {
