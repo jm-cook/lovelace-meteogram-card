@@ -1,3 +1,5 @@
+var version = "2.1.3-0";
+
 /******************************************************************************
 Copyright (c) Microsoft Corporation.
 
@@ -71,8 +73,6 @@ const t=t=>(e,o)=>{ void 0!==o?o.addInitializer((()=>{customElements.define(t,e)
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */function r(r){return n({...r,state:true,attribute:false})}
-
-var version = "2.1.3-0";
 
 // Helper to get version from global variable or fallback
 // Helper to detect client name from user agent
@@ -743,12 +743,6 @@ var frLocale = {
 	"ui.editor.meteogram.attributes.fill_container": "Remplir le conteneur"
 };
 
-var MeteogramCard_1;
-const DIAGNOSTICS_DEFAULT = version.includes("beta"); // true if version contains "beta"
-const CARD_NAME = "Meteogram Card";
-// Initialize these variables when JS is loaded
-const METEOGRAM_CARD_STARTUP_TIME = new Date();
-// Shared translation helper function
 function trnslt(hass, key, fallback) {
     var _a;
     // Try hass.localize (used by HA frontend)
@@ -790,17 +784,404 @@ function trnslt(hass, key, fallback) {
     // Return fallback if provided, otherwise the key
     return fallback !== undefined ? fallback : key;
 }
-// Print version info - based on mushroom cards implementation
-const printVersionInfo = () => {
-    // Use the blue color from wind barbs and add weather emojis
-    console.info(`%c☀️ ${CARD_NAME} ${version} ⚡️🌦️`, "color: #1976d2; font-weight: bold; background: white");
+
+const DIAGNOSTICS_DEFAULT$1 = version.includes("beta");
+let MeteogramCardEditor = class MeteogramCardEditor extends i {
+    constructor() {
+        super(...arguments);
+        this._config = {};
+        this._initialized = false;
+        this._elements = new Map();
+    }
+    setConfig(config) {
+        this._config = config || {};
+        if (this._initialized) {
+            this._updateValues();
+        }
+        else {
+            this._initialize();
+        }
+    }
+    get config() {
+        return this._config;
+    }
+    connectedCallback() {
+        if (!this._initialized) {
+            this._initialize();
+        }
+    }
+    _initialize() {
+        this.render();
+        this._initialized = true;
+        setTimeout(() => this._updateValues(), 0); // Wait for DOM to be ready
+    }
+    // Update only the values, not the entire DOM
+    _updateValues() {
+        var _a, _b, _c, _d;
+        if (!this._initialized)
+            return;
+        // Helper to update only if value changed
+        const setValue = (el, value, prop = 'value') => {
+            if (!el)
+                return;
+            if (el[prop] !== value)
+                el[prop] = value;
+        };
+        setValue(this._elements.get('title'), this._config.title || '');
+        setValue(this._elements.get('latitude'), this._config.latitude !== undefined
+            ? String(this._config.latitude)
+            : (((_b = (_a = this.hass) === null || _a === void 0 ? void 0 : _a.config) === null || _b === void 0 ? void 0 : _b.latitude) !== undefined ? String(this.hass.config.latitude) : ''));
+        setValue(this._elements.get('longitude'), this._config.longitude !== undefined
+            ? String(this._config.longitude)
+            : (((_d = (_c = this.hass) === null || _c === void 0 ? void 0 : _c.config) === null || _d === void 0 ? void 0 : _d.longitude) !== undefined ? String(this.hass.config.longitude) : ''));
+        setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
+        setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
+        setValue(this._elements.get('show_rain'), this._config.show_rain !== undefined ? this._config.show_rain : true, 'checked');
+        setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
+        setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
+        setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
+        setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
+        setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
+        setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$1, 'checked');
+    }
+    render() {
+        var _a, _b, _c, _d;
+        const hass = this.hass;
+        const config = this._config;
+        // Wait for both hass and config to be set before rendering
+        if (!hass || !config) {
+            this.innerHTML = '<ha-card><div style="padding:16px;">Loading Home Assistant context...</div></ha-card>';
+            setTimeout(() => this.render(), 300); // Retry every 300ms until both are set
+            return;
+        }
+        // Get default coordinates from Home Assistant config if available
+        const defaultLat = (_b = (_a = hass === null || hass === void 0 ? void 0 : hass.config) === null || _a === void 0 ? void 0 : _a.latitude) !== null && _b !== void 0 ? _b : '';
+        const defaultLon = (_d = (_c = hass === null || hass === void 0 ? void 0 : hass.config) === null || _c === void 0 ? void 0 : _c.longitude) !== null && _d !== void 0 ? _d : '';
+        // Get current toggle values or default to true
+        const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
+        const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
+        const showRain = this._config.show_rain !== undefined ? this._config.show_rain : true;
+        const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
+        const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
+        const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
+        const meteogramHours = this._config.meteogram_hours || "48h";
+        const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
+        const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$1;
+        const div = document.createElement('div');
+        div.innerHTML = `
+  <style>
+    ha-card {
+      padding: 16px;
+    }
+    .values {
+      padding-left: 16px;
+      margin: 8px 0;
+    }
+    .row {
+      display: flex;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    ha-textfield {
+      width: 100%;
+    }
+    .side-by-side {
+      display: flex;
+      gap: 12px;
+    }
+    .side-by-side > * {
+      flex: 1;
+    }
+    h3 {
+      font-size: 18px;
+      color: var(--primary-text-color);
+      font-weight: 500;
+      margin-bottom: 12px;
+      margin-top: 0;
+    }
+    .help-text {
+      color: var(--secondary-text-color);
+      font-size: 0.875rem;
+      margin-top: 4px;
+    }
+    .info-text {
+      color: var(--primary-text-color);
+      opacity: 0.8;
+      font-size: 0.9rem;
+      font-style: italic;
+      margin: 4px 0 16px 0;
+    }
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .toggle-label {
+      flex-grow: 1;
+    }
+    .toggle-section {
+      margin-top: 16px;
+      border-top: 1px solid var(--divider-color);
+      padding-top: 16px;
+    }
+  </style>
+  <ha-card>
+    <h3>${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.title") : "Meteogram Card Settings"}</h3>
+    <div class="values">
+      <div class="row">
+        <ha-textfield
+          label="${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.title_label") : "Title"}"
+          id="title-input"
+          .value="${this._config.title || ''}"
+        ></ha-textfield>
+      </div>
+
+      <p class="info-text">
+        ${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.location_info") : "Location coordinates will be used to fetch weather data directly from Met.no API."}
+        ${defaultLat ? trnslt(hass, "ui.editor.meteogram.using_ha_location", "Using Home Assistant's location by default.") : ""}
+      </p>
+
+      <div class="side-by-side">
+        <ha-textfield
+          label="${trnslt(hass, "ui.editor.meteogram.latitude", "Latitude")}"
+          id="latitude-input"
+          type="number"
+          step="any"
+          .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
+          placeholder="${defaultLat ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLat}` : ""}"
+        ></ha-textfield>
+
+        <ha-textfield
+          label="${trnslt(hass, "ui.editor.meteogram.longitude", "Longitude")}"
+          id="longitude-input"
+          type="number"
+          step="any"
+          .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
+          placeholder="${defaultLon ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : ""}"
+        ></ha-textfield>
+      </div>
+      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.leave_empty", "Leave empty to use Home Assistant's configured location")}</p>
+
+      <div class="toggle-section">
+        <h3>${trnslt(hass, "ui.editor.meteogram.display_options", "Display Options")}</h3>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.cloud_coverage", "Show Cloud Cover")}</div>
+          <ha-switch
+            id="show-cloud-cover"
+            .checked="${showCloudCover}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.air_pressure", "Show Pressure")}</div>
+          <ha-switch
+            id="show-pressure"
+            .checked="${showPressure}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.precipitation", "Show Rain")}</div>
+          <ha-switch
+            id="show-rain"
+            .checked="${showRain}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.weather_icons", "Show Weather Icons")}</div>
+          <ha-switch
+            id="show-weather-icons"
+            .checked="${showWeatherIcons}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.wind", "Show Wind")}</div>
+          <ha-switch
+            id="show-wind"
+            .checked="${showWind}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.dense_icons", "Dense Weather Icons (every hour)")}</div>
+          <ha-switch
+            id="dense-weather-icons"
+            .checked="${denseWeatherIcons}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.fill_container", "Fill Container")}</div>
+          <ha-switch
+            id="fill-container"
+            .checked="${fillContainer}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Diagnostics (debug logging)</div>
+          <ha-switch
+            id="diagnostics"
+            .checked="${diagnostics}"
+          ></ha-switch>
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="meteogram-hours-select" style="margin-right:8px;">${trnslt(hass, "ui.editor.meteogram.meteogram_length", "Meteogram Length")}</label>
+        <select id="meteogram-hours-select">
+          <option value="8h" ${meteogramHours === "8h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_8", "8 hours")}</option>
+          <option value="12h" ${meteogramHours === "12h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_12", "12 hours")}</option>
+          <option value="24h" ${meteogramHours === "24h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_24", "24 hours")}</option>
+          <option value="48h" ${meteogramHours === "48h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_48", "48 hours")}</option>
+          <option value="54h" ${meteogramHours === "54h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_54", "54 hours")}</option>
+          <option value="max" ${meteogramHours === "max" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_max", "Max available")}</option>
+        </select>
+      </div>
+      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
+    </div>
+  </ha-card>
+`;
+        // Clear previous content
+        this.innerHTML = '';
+        // Append new content
+        this.appendChild(div);
+        // Set up event listeners after DOM is updated
+        setTimeout(() => {
+            // Get and store references to all input elements with proper type casting
+            const titleInput = this.querySelector('#title-input');
+            if (titleInput) {
+                titleInput.configValue = 'title';
+                titleInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('title', titleInput);
+            }
+            const latInput = this.querySelector('#latitude-input');
+            if (latInput) {
+                latInput.configValue = 'latitude';
+                latInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('latitude', latInput);
+            }
+            const lonInput = this.querySelector('#longitude-input');
+            if (lonInput) {
+                lonInput.configValue = 'longitude';
+                lonInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('longitude', lonInput);
+            }
+            // Set up toggle switches
+            const cloudCoverSwitch = this.querySelector('#show-cloud-cover');
+            if (cloudCoverSwitch) {
+                cloudCoverSwitch.configValue = 'show_cloud_cover';
+                cloudCoverSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_cloud_cover', cloudCoverSwitch);
+            }
+            const pressureSwitch = this.querySelector('#show-pressure');
+            if (pressureSwitch) {
+                pressureSwitch.configValue = 'show_pressure';
+                pressureSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_pressure', pressureSwitch);
+            }
+            const rainSwitch = this.querySelector('#show-rain');
+            if (rainSwitch) {
+                rainSwitch.configValue = 'show_rain';
+                rainSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_rain', rainSwitch);
+            }
+            const weatherIconsSwitch = this.querySelector('#show-weather-icons');
+            if (weatherIconsSwitch) {
+                weatherIconsSwitch.configValue = 'show_weather_icons';
+                weatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_weather_icons', weatherIconsSwitch);
+            }
+            const windSwitch = this.querySelector('#show-wind');
+            if (windSwitch) {
+                windSwitch.configValue = 'show_wind';
+                windSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_wind', windSwitch);
+            }
+            const denseWeatherIconsSwitch = this.querySelector('#dense-weather-icons');
+            if (denseWeatherIconsSwitch) {
+                denseWeatherIconsSwitch.configValue = 'dense_weather_icons';
+                denseWeatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('dense_weather_icons', denseWeatherIconsSwitch);
+            }
+            const meteogramHoursSelect = this.querySelector('#meteogram-hours-select');
+            if (meteogramHoursSelect) {
+                meteogramHoursSelect.configValue = 'meteogram_hours';
+                meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('meteogram_hours', meteogramHoursSelect);
+            }
+            const fillContainerSwitch = this.querySelector('#fill-container');
+            if (fillContainerSwitch) {
+                fillContainerSwitch.configValue = 'fill_container';
+                fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('fill_container', fillContainerSwitch);
+            }
+            const diagnosticsSwitch = this.querySelector('#diagnostics');
+            if (diagnosticsSwitch) {
+                diagnosticsSwitch.configValue = 'diagnostics';
+                diagnosticsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('diagnostics', diagnosticsSwitch);
+            }
+            // Update values after setting up elements and listeners
+            this._updateValues();
+        }, 0);
+    }
+    // Add the missing _valueChanged method
+    _valueChanged(ev) {
+        const target = ev.target;
+        if (!this._config || !target || !target.configValue)
+            return;
+        let newValue = target.value || '';
+        // Handle different input types
+        if (target.tagName === 'HA-SWITCH') {
+            newValue = target.checked;
+        }
+        else if (target.type === 'number') {
+            if (newValue === '') {
+                // If field is cleared, set to undefined to use defaults
+                newValue = undefined;
+            }
+            else {
+                const numValue = parseFloat(newValue.toString());
+                if (!isNaN(numValue)) {
+                    newValue = numValue;
+                }
+            }
+        }
+        else if (newValue === '') {
+            newValue = undefined;
+        }
+        // Update config without re-rendering the entire form
+        this._config = {
+            ...this._config,
+            [target.configValue]: newValue
+        };
+        this.dispatchEvent(new CustomEvent('config-changed', {
+            detail: { config: this._config }
+        }));
+    }
 };
-// This wrapper ensures modules are loaded before code execution
-// const runWhenLitLoaded = () => {
-// Clean up expired cache entries before anything else
-// cleanupExpiredForecastCache();
-// Print version info on startup
-printVersionInfo();
+__decorate([
+    n({ type: Object })
+], MeteogramCardEditor.prototype, "_config", void 0);
+__decorate([
+    n({ type: Object })
+], MeteogramCardEditor.prototype, "hass", void 0);
+__decorate([
+    r()
+], MeteogramCardEditor.prototype, "_initialized", void 0);
+MeteogramCardEditor = __decorate([
+    t('meteogram-card-editor')
+], MeteogramCardEditor);
+
+var MeteogramCard_1;
+const DIAGNOSTICS_DEFAULT = version.includes("beta");
+const CARD_NAME$1 = "Meteogram Card";
+const METEOGRAM_CARD_STARTUP_TIME = new Date();
 let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
     constructor() {
         super();
@@ -888,36 +1269,6 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
                 }
             }, 100);
         };
-        // Translation helper
-        this.trnslt = (key, fallback) => {
-            var _a;
-            // Try hass.localize (used by HA frontend)
-            if (this.hass && typeof this.hass.localize === "function") {
-                const result = this.hass.localize(key);
-                if (result && result !== key)
-                    return result;
-            }
-            // Try hass.resources (used by HA backend)
-            if (this.hass && this.hass.resources && typeof this.hass.resources === "object") {
-                const lang = this.hass.language || "en";
-                const res = (_a = this.hass.resources[lang]) === null || _a === void 0 ? void 0 : _a[key];
-                if (res)
-                    return res;
-            }
-            // Try local translation files
-            const lang = (this.hass && this.hass.language) ? this.hass.language : "en";
-            let localRes;
-            if (lang.startsWith("nb")) {
-                localRes = nbLocale[key];
-            }
-            else {
-                localRes = enLocale[key];
-            }
-            if (localRes)
-                return localRes;
-            // Return fallback if provided, otherwise the key
-            return fallback !== undefined ? fallback : key;
-        };
         this.title = "";
         this.latitude = undefined;
         this.longitude = undefined;
@@ -976,10 +1327,10 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
         const now = Date.now();
         this._drawCallIndex++;
         const callerId = `${source}#${this._drawCallIndex}`;
-        console.debug(`[${CARD_NAME}] _scheduleDrawMeteogram called from: ${callerId}`);
+        console.debug(`[${CARD_NAME$1}] _scheduleDrawMeteogram called from: ${callerId}`);
         // Only skip if not forced
         if (!force && (this._redrawScheduled || (now - this._lastDrawScheduleTime < this._drawThrottleMs))) {
-            console.debug(`[${CARD_NAME}] _scheduleDrawMeteogram: redraw already scheduled or throttled, skipping.`);
+            console.debug(`[${CARD_NAME$1}] _scheduleDrawMeteogram: redraw already scheduled or throttled, skipping.`);
             return;
         }
         this._redrawScheduled = true;
@@ -992,6 +1343,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
     }
     // Required for Home Assistant
     setConfig(config) {
+        console.log(`[${CARD_NAME$1}] setConfig called with:`, config);
         // Truncate to 4 decimals for comparison
         const configLat = config.latitude !== undefined ? parseFloat(Number(config.latitude).toFixed(4)) : undefined;
         const configLon = config.longitude !== undefined ? parseFloat(Number(config.longitude).toFixed(4)) : undefined;
@@ -1022,6 +1374,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
         // Pre-initialize the editor component for faster display
         const editor = document.createElement("meteogram-card-editor");
         // Create a basic config to start with
+        console.log(`[${CARD_NAME$1}] getConfigElement called, pre-initializing editor.`);
         editor.setConfig({
             show_cloud_cover: true,
             show_pressure: true,
@@ -1033,6 +1386,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             fill_container: false,
             diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
         });
+        console.log(`[${CARD_NAME$1}] Editor pre-initialized with default config.`);
         return editor;
     }
     // Define card configuration type
@@ -1235,7 +1589,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
                 !svgExists;
             // Guard: If chart is already rendered and visible, skip scheduling
             if (!needsRedraw && svgExists && chartIsVisible) {
-                console.debug(`[${CARD_NAME}] _handleVisibilityChange: chart already rendered and visible, skipping redraw.`);
+                console.debug(`[${CARD_NAME$1}] _handleVisibilityChange: chart already rendered and visible, skipping redraw.`);
                 return;
             }
             if (needsRedraw && this.chartLoaded) {
@@ -1276,7 +1630,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             const svgExists = chartDiv === null || chartDiv === void 0 ? void 0 : chartDiv.querySelector("svg");
             const chartIsVisible = chartDiv && chartDiv.offsetWidth > 0 && chartDiv.offsetHeight > 0;
             if (svgExists && chartIsVisible) {
-                console.debug(`[${CARD_NAME}] _onResize: chart already rendered and visible, skipping redraw.`);
+                console.debug(`[${CARD_NAME$1}] _onResize: chart already rendered and visible, skipping redraw.`);
                 return;
             }
             this._scheduleDrawMeteogram("_onResize");
@@ -1324,7 +1678,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             changedProps.has('meteogramHours') ||
             changedProps.has('fillContainer');
         if (needsRedraw) {
-            console.debug(`[${CARD_NAME}] updated(): needsRedraw because:`, {
+            console.debug(`[${CARD_NAME$1}] updated(): needsRedraw because:`, {
                 latitude: changedProps.has('latitude'),
                 longitude: changedProps.has('longitude'),
                 // hass: changedProps.has('hass'),
@@ -1339,11 +1693,11 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             });
         }
         if (!needsRedraw) {
-            console.debug(`[${CARD_NAME}] updated(): no redraw needed or chart render in progress, skipping.`);
+            console.debug(`[${CARD_NAME$1}] updated(): no redraw needed or chart render in progress, skipping.`);
             return;
         }
         else {
-            console.debug(`[${CARD_NAME}] updated(): scheduling redraw, chartLoaded=${this.chartLoaded}`);
+            console.debug(`[${CARD_NAME$1}] updated(): scheduling redraw, chartLoaded=${this.chartLoaded}`);
         }
         if (this.chartLoaded && needsRedraw) {
             // Guard: If chart is already rendered and visible, skip scheduling
@@ -1395,7 +1749,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             localStorage.setItem('meteogram-card-default-location', JSON.stringify(locationObj));
         }
         catch (e) {
-            console.debug(`[${CARD_NAME}] Failed to save default location to localStorage:`, e);
+            console.debug(`[${CARD_NAME$1}] Failed to save default location to localStorage:`, e);
         }
     }
     // Load location from localStorage under "meteogram-card-default-location"
@@ -1418,7 +1772,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             return null;
         }
         catch (e) {
-            console.debug(`[${CARD_NAME}] Failed to load default location from localStorage:`, e);
+            console.debug(`[${CARD_NAME$1}] Failed to load default location from localStorage:`, e);
             return null;
         }
     }
@@ -1459,7 +1813,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
                     this._weatherApiInstance.lon !== this.longitude) {
                     this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude);
                 }
-                console.debug(`[${CARD_NAME}] Using HA location: ${this.latitude}, ${this.longitude}`);
+                console.debug(`[${CARD_NAME$1}] Using HA location: ${this.latitude}, ${this.longitude}`);
                 return;
             }
         }
@@ -1475,7 +1829,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
                     this._weatherApiInstance.lon !== this.longitude) {
                     this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude);
                 }
-                console.debug(`[${CARD_NAME}] Using cached default-location: ${this.latitude}, ${this.longitude}`);
+                console.debug(`[${CARD_NAME$1}] Using cached default-location: ${this.latitude}, ${this.longitude}`);
             }
             else {
                 this.latitude = 51.5074;
@@ -1486,7 +1840,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
                     this._weatherApiInstance.lon !== this.longitude) {
                     this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude);
                 }
-                console.debug(`[${CARD_NAME}] Using default location: ${this.latitude}, ${this.longitude}`);
+                console.debug(`[${CARD_NAME$1}] Using default location: ${this.latitude}, ${this.longitude}`);
             }
         }
     }
@@ -1539,7 +1893,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
         // Always truncate to 4 decimals before using
         const lat = this.latitude !== undefined ? parseFloat(Number(this.latitude).toFixed(4)) : undefined;
         const lon = this.longitude !== undefined ? parseFloat(Number(this.longitude).toFixed(4)) : undefined;
-        console.debug(`[${CARD_NAME}] fetchWeatherData called with lat=${lat}, lon=${lon}`);
+        console.debug(`[${CARD_NAME$1}] fetchWeatherData called with lat=${lat}, lon=${lon}`);
         // Enhanced location check with better error message
         if (!lat || !lon) {
             this._checkAndUpdateLocation(); // Try harder to get location
@@ -1558,7 +1912,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
         const weatherApi = this._weatherApiInstance;
         // If a fetch is already in progress, return the same promise
         if (this.weatherDataPromise) {
-            console.debug(`[${CARD_NAME}] Returning in-flight weather data promise`);
+            console.debug(`[${CARD_NAME$1}] Returning in-flight weather data promise`);
             return this.weatherDataPromise;
         }
         // Cache the promise so repeated calls during chart draw use the same one
@@ -1645,7 +1999,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
     }
     async _drawMeteogram(caller = "unknown") {
         var _a, _b;
-        console.debug(`[${CARD_NAME}] _drawMeteogram called from: ${caller}`);
+        console.debug(`[${CARD_NAME$1}] _drawMeteogram called from: ${caller}`);
         // Limit excessive error messages
         const now = Date.now();
         if (this.meteogramError && now - this.lastErrorTime < 60000) {
@@ -1722,14 +2076,14 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
         this._renderChart(chartDiv, "_drawMeteogram");
     }
     _renderChart(chartDiv, source = "unknown") {
-        console.debug(`[${CARD_NAME}] _renderChart called from: ${source}`);
+        console.debug(`[${CARD_NAME$1}] _renderChart called from: ${source}`);
         // Queue logic: If already rendering, do not start another
         if (this._chartRenderInProgress) {
-            console.debug(`[${CARD_NAME}] _renderChart: already in progress, skipping.`);
+            console.debug(`[${CARD_NAME$1}] _renderChart: already in progress, skipping.`);
             return;
         }
         this._chartRenderInProgress = true;
-        console.debug(`[${CARD_NAME}] _renderChart: starting render.`);
+        console.debug(`[${CARD_NAME$1}] _renderChart: starting render.`);
         // Responsive sizing based on parent
         const parent = chartDiv.parentElement;
         let availableWidth = parent ? parent.clientWidth : chartDiv.offsetWidth || 350;
@@ -1823,15 +2177,40 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             this._chartRenderInProgress = false;
             // Assign _statusLastRender with a date string when rendering completes
             this._statusLastRender = new Date().toISOString();
-            console.debug(`[${CARD_NAME}] _renderChart: finished render.`);
+            console.debug(`[${CARD_NAME$1}] _renderChart: finished render.`);
             // If a render was queued, run it now
             if (this._pendingRender) {
                 this._pendingRender = false;
-                console.debug(`[${CARD_NAME}] _renderChart: running pending render.`);
+                console.debug(`[${CARD_NAME$1}] _renderChart: running pending render.`);
                 this._drawMeteogram("pending-after-render");
             }
         });
     }
+    // // Translation helper
+    // private trnslt = (key: string, fallback?: string): string => {
+    //     // Try hass.localize (used by HA frontend)
+    //     if (this.hass && typeof this.hass.localize === "function") {
+    //         const result = this.hass.localize(key);
+    //         if (result && result !== key) return result;
+    //     }
+    //     // Try hass.resources (used by HA backend)
+    //     if (this.hass && this.hass.resources && typeof this.hass.resources === "object") {
+    //         const lang = this.hass.language || "en";
+    //         const res = this.hass.resources[lang]?.[key];
+    //         if (res) return res;
+    //     }
+    //     // Try local translation files
+    //     const lang = (this.hass && this.hass.language) ? this.hass.language : "en";
+    //     let localRes: string | undefined;
+    //     if (lang.startsWith("nb")) {
+    //         localRes = (nbLocale as Record<string, string>)[key];
+    //     } else {
+    //         localRes = (enLocale as Record<string, string>)[key];
+    //     }
+    //     if (localRes) return localRes;
+    //     // Return fallback if provided, otherwise the key
+    //     return fallback !== undefined ? fallback : key;
+    // };
     // Add a helper to get the HA locale string for date formatting
     getHaLocale() {
         // Use hass.language if available, fallback to "en"
@@ -3081,402 +3460,40 @@ __decorate([
 MeteogramCard = MeteogramCard_1 = __decorate([
     t("meteogram-card")
 ], MeteogramCard);
+
+// // Version info - update this when releasing new versions
+const CARD_NAME = "Meteogram Card";
+// Print version info - based on mushroom cards implementation
+const printVersionInfo = () => {
+    // Use the blue color from wind barbs and add weather emojis
+    console.info(`%c☀️ ${CARD_NAME} ${version} ⚡️🌦️`, "color: #1976d2; font-weight: bold; background: white");
+};
+// This wrapper ensures modules are loaded before code execution
+// const runWhenLitLoaded = () => {
+// Clean up expired cache entries before anything else
+// cleanupExpiredForecastCache();
+// Print version info on startup
+printVersionInfo();
+// // Get Lit modules from the global variable set in the banner
+// const {LitElement, css, customElement, property, state, html} = window.litElementModules || {};
+// // Define interfaces for better type safety
+//     interface ForecastData {
+//         pressure: number[];
+//         time: Date[];
+//         temperature: (number | null)[];
+//         rain: number[];
+//         rainMin: number[]; // Add min precipitation array
+//         rainMax: number[]; // Add max precipitation array
+//         snow: number[];
+//         cloudCover: number[];
+//         windSpeed: number[];
+//         windDirection: number[];
+//         symbolCode: string[];
+//         fetchTimestamp?: string; // Add this property
+//     }
 // Tell TypeScript that the class is being used
 // @ts-ignore: Used by customElement decorator
 window.customElements.get('meteogram-card') || customElements.define('meteogram-card', MeteogramCard);
-// Visual editor for HACS
-let MeteogramCardEditor = class MeteogramCardEditor extends HTMLElement {
-    constructor() {
-        super(...arguments);
-        this._config = {};
-        this._initialized = false;
-        this._elements = new Map();
-    }
-    set hass(hass) {
-        this._hass = hass;
-        // Remove this to prevent unnecessary rerendering/blinking:
-        // if (this._initialized) {
-        //     this.render();
-        // }
-    }
-    get hass() {
-        return this._hass;
-    }
-    setConfig(config) {
-        this._config = config || {};
-        if (this._initialized) {
-            this._updateValues();
-        }
-        else {
-            this._initialize();
-        }
-    }
-    get config() {
-        return this._config;
-    }
-    connectedCallback() {
-        if (!this._initialized) {
-            this._initialize();
-        }
-    }
-    _initialize() {
-        this.render();
-        this._initialized = true;
-        setTimeout(() => this._updateValues(), 0); // Wait for DOM to be ready
-    }
-    // Update only the values, not the entire DOM
-    _updateValues() {
-        var _a, _b, _c, _d;
-        if (!this._initialized)
-            return;
-        // Helper to update only if value changed
-        const setValue = (el, value, prop = 'value') => {
-            if (!el)
-                return;
-            if (el[prop] !== value)
-                el[prop] = value;
-        };
-        setValue(this._elements.get('title'), this._config.title || '');
-        setValue(this._elements.get('latitude'), this._config.latitude !== undefined
-            ? String(this._config.latitude)
-            : (((_b = (_a = this._hass) === null || _a === void 0 ? void 0 : _a.config) === null || _b === void 0 ? void 0 : _b.latitude) !== undefined ? String(this._hass.config.latitude) : ''));
-        setValue(this._elements.get('longitude'), this._config.longitude !== undefined
-            ? String(this._config.longitude)
-            : (((_d = (_c = this._hass) === null || _c === void 0 ? void 0 : _c.config) === null || _d === void 0 ? void 0 : _d.longitude) !== undefined ? String(this._hass.config.longitude) : ''));
-        setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
-        setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
-        setValue(this._elements.get('show_rain'), this._config.show_rain !== undefined ? this._config.show_rain : true, 'checked');
-        setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
-        setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
-        setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
-        setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
-        setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
-        setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT, 'checked');
-    }
-    render() {
-        var _a, _b, _c, _d, _e, _f, _g;
-        const hass = this.hass;
-        const config = this._config;
-        // Wait for both hass and config to be set before rendering
-        if (!hass || !config) {
-            this.innerHTML = '<ha-card><div style="padding:16px;">Loading Home Assistant context...</div></ha-card>';
-            setTimeout(() => this.render(), 300); // Retry every 300ms until both are set
-            return;
-        }
-        // Get default coordinates from Home Assistant config if available
-        const defaultLat = (_b = (_a = hass === null || hass === void 0 ? void 0 : hass.config) === null || _a === void 0 ? void 0 : _a.latitude) !== null && _b !== void 0 ? _b : '';
-        const defaultLon = (_d = (_c = hass === null || hass === void 0 ? void 0 : hass.config) === null || _c === void 0 ? void 0 : _c.longitude) !== null && _d !== void 0 ? _d : '';
-        // Get current toggle values or default to true
-        const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
-        const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
-        const showRain = this._config.show_rain !== undefined ? this._config.show_rain : true;
-        const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
-        const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
-        const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
-        const meteogramHours = this._config.meteogram_hours || "48h";
-        const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
-        const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT;
-        const div = document.createElement('div');
-        div.innerHTML = `
-  <style>
-    ha-card {
-      padding: 16px;
-    }
-    .values {
-      padding-left: 16px;
-      margin: 8px 0;
-    }
-    .row {
-      display: flex;
-      margin-bottom: 12px;
-      align-items: center;
-    }
-    ha-textfield {
-      width: 100%;
-    }
-    .side-by-side {
-      display: flex;
-      gap: 12px;
-    }
-    .side-by-side > * {
-      flex: 1;
-    }
-    h3 {
-      font-size: 18px;
-      color: var(--primary-text-color);
-      font-weight: 500;
-      margin-bottom: 12px;
-      margin-top: 0;
-    }
-    .help-text {
-      color: var(--secondary-text-color);
-      font-size: 0.875rem;
-      margin-top: 4px;
-    }
-    .info-text {
-      color: var(--primary-text-color);
-      opacity: 0.8;
-      font-size: 0.9rem;
-      font-style: italic;
-      margin: 4px 0 16px 0;
-    }
-    .toggle-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .toggle-label {
-      flex-grow: 1;
-    }
-    .toggle-section {
-      margin-top: 16px;
-      border-top: 1px solid var(--divider-color);
-      padding-top: 16px;
-    }
-  </style>
-  <ha-card>
-    <h3>${((_e = this._hass) === null || _e === void 0 ? void 0 : _e.localize) ? this._hass.localize("ui.editor.meteogram.title") : "Meteogram Card Settings"}</h3>
-    <div class="values">
-      <div class="row">
-        <ha-textfield
-          label="${((_f = this._hass) === null || _f === void 0 ? void 0 : _f.localize) ? this._hass.localize("ui.editor.meteogram.title_label") : "Title"}"
-          id="title-input"
-          .value="${this._config.title || ''}"
-        ></ha-textfield>
-      </div>
-
-      <p class="info-text">
-        ${((_g = this._hass) === null || _g === void 0 ? void 0 : _g.localize) ? this._hass.localize("ui.editor.meteogram.location_info") : "Location coordinates will be used to fetch weather data directly from Met.no API."}
-        ${defaultLat ? trnslt(this._hass, "ui.editor.meteogram.using_ha_location", "Using Home Assistant's location by default.") : ""}
-      </p>
-
-      <div class="side-by-side">
-        <ha-textfield
-          label="${trnslt(this._hass, "ui.editor.meteogram.latitude", "Latitude")}"
-          id="latitude-input"
-          type="number"
-          step="any"
-          .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
-          placeholder="${defaultLat ? `${trnslt(this._hass, "ui.editor.meteogram.default", "Default")}: ${defaultLat}` : ""}"
-        ></ha-textfield>
-
-        <ha-textfield
-          label="${trnslt(this._hass, "ui.editor.meteogram.longitude", "Longitude")}"
-          id="longitude-input"
-          type="number"
-          step="any"
-          .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
-          placeholder="${defaultLon ? `${trnslt(this._hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : ""}"
-        ></ha-textfield>
-      </div>
-      <p class="help-text">${trnslt(this._hass, "ui.editor.meteogram.leave_empty", "Leave empty to use Home Assistant's configured location")}</p>
-
-      <div class="toggle-section">
-        <h3>${trnslt(this._hass, "ui.editor.meteogram.display_options", "Display Options")}</h3>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.cloud_coverage", "Show Cloud Cover")}</div>
-          <ha-switch
-            id="show-cloud-cover"
-            .checked="${showCloudCover}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.air_pressure", "Show Pressure")}</div>
-          <ha-switch
-            id="show-pressure"
-            .checked="${showPressure}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.precipitation", "Show Rain")}</div>
-          <ha-switch
-            id="show-rain"
-            .checked="${showRain}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.weather_icons", "Show Weather Icons")}</div>
-          <ha-switch
-            id="show-weather-icons"
-            .checked="${showWeatherIcons}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.wind", "Show Wind")}</div>
-          <ha-switch
-            id="show-wind"
-            .checked="${showWind}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.dense_icons", "Dense Weather Icons (every hour)")}</div>
-          <ha-switch
-            id="dense-weather-icons"
-            .checked="${denseWeatherIcons}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(this._hass, "ui.editor.meteogram.attributes.fill_container", "Fill Container")}</div>
-          <ha-switch
-            id="fill-container"
-            .checked="${fillContainer}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">Diagnostics (debug logging)</div>
-          <ha-switch
-            id="diagnostics"
-            .checked="${diagnostics}"
-          ></ha-switch>
-        </div>
-      </div>
-
-      <div class="row">
-        <label for="meteogram-hours-select" style="margin-right:8px;">${trnslt(this._hass, "ui.editor.meteogram.meteogram_length", "Meteogram Length")}</label>
-        <select id="meteogram-hours-select">
-          <option value="8h" ${meteogramHours === "8h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_8", "8 hours")}</option>
-          <option value="12h" ${meteogramHours === "12h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_12", "12 hours")}</option>
-          <option value="24h" ${meteogramHours === "24h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_24", "24 hours")}</option>
-          <option value="48h" ${meteogramHours === "48h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_48", "48 hours")}</option>
-          <option value="54h" ${meteogramHours === "54h" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_54", "54 hours")}</option>
-          <option value="max" ${meteogramHours === "max" ? "selected" : ""}>${trnslt(this._hass, "ui.editor.meteogram.hours_max", "Max available")}</option>
-        </select>
-      </div>
-      <p class="help-text">${trnslt(this._hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
-    </div>
-  </ha-card>
-`;
-        // Clear previous content
-        this.innerHTML = '';
-        // Append new content
-        this.appendChild(div);
-        // Set up event listeners after DOM is updated
-        setTimeout(() => {
-            // Get and store references to all input elements with proper type casting
-            const titleInput = this.querySelector('#title-input');
-            if (titleInput) {
-                titleInput.configValue = 'title';
-                titleInput.addEventListener('input', this._valueChanged.bind(this));
-                this._elements.set('title', titleInput);
-            }
-            const latInput = this.querySelector('#latitude-input');
-            if (latInput) {
-                latInput.configValue = 'latitude';
-                latInput.addEventListener('input', this._valueChanged.bind(this));
-                this._elements.set('latitude', latInput);
-            }
-            const lonInput = this.querySelector('#longitude-input');
-            if (lonInput) {
-                lonInput.configValue = 'longitude';
-                lonInput.addEventListener('input', this._valueChanged.bind(this));
-                this._elements.set('longitude', lonInput);
-            }
-            // Set up toggle switches
-            const cloudCoverSwitch = this.querySelector('#show-cloud-cover');
-            if (cloudCoverSwitch) {
-                cloudCoverSwitch.configValue = 'show_cloud_cover';
-                cloudCoverSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_cloud_cover', cloudCoverSwitch);
-            }
-            const pressureSwitch = this.querySelector('#show-pressure');
-            if (pressureSwitch) {
-                pressureSwitch.configValue = 'show_pressure';
-                pressureSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_pressure', pressureSwitch);
-            }
-            const rainSwitch = this.querySelector('#show-rain');
-            if (rainSwitch) {
-                rainSwitch.configValue = 'show_rain';
-                rainSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_rain', rainSwitch);
-            }
-            const weatherIconsSwitch = this.querySelector('#show-weather-icons');
-            if (weatherIconsSwitch) {
-                weatherIconsSwitch.configValue = 'show_weather_icons';
-                weatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_weather_icons', weatherIconsSwitch);
-            }
-            const windSwitch = this.querySelector('#show-wind');
-            if (windSwitch) {
-                windSwitch.configValue = 'show_wind';
-                windSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_wind', windSwitch);
-            }
-            const denseWeatherIconsSwitch = this.querySelector('#dense-weather-icons');
-            if (denseWeatherIconsSwitch) {
-                denseWeatherIconsSwitch.configValue = 'dense_weather_icons';
-                denseWeatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('dense_weather_icons', denseWeatherIconsSwitch);
-            }
-            const meteogramHoursSelect = this.querySelector('#meteogram-hours-select');
-            if (meteogramHoursSelect) {
-                meteogramHoursSelect.configValue = 'meteogram_hours';
-                meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('meteogram_hours', meteogramHoursSelect);
-            }
-            const fillContainerSwitch = this.querySelector('#fill-container');
-            if (fillContainerSwitch) {
-                fillContainerSwitch.configValue = 'fill_container';
-                fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('fill_container', fillContainerSwitch);
-            }
-            const diagnosticsSwitch = this.querySelector('#diagnostics');
-            if (diagnosticsSwitch) {
-                diagnosticsSwitch.configValue = 'diagnostics';
-                diagnosticsSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('diagnostics', diagnosticsSwitch);
-            }
-            // Update values after setting up elements and listeners
-            this._updateValues();
-        }, 0);
-    }
-    // Add the missing _valueChanged method
-    _valueChanged(ev) {
-        const target = ev.target;
-        if (!this._config || !target || !target.configValue)
-            return;
-        let newValue = target.value || '';
-        // Handle different input types
-        if (target.tagName === 'HA-SWITCH') {
-            newValue = target.checked;
-        }
-        else if (target.type === 'number') {
-            if (newValue === '') {
-                // If field is cleared, set to undefined to use defaults
-                newValue = undefined;
-            }
-            else {
-                const numValue = parseFloat(newValue.toString());
-                if (!isNaN(numValue)) {
-                    newValue = numValue;
-                }
-            }
-        }
-        else if (newValue === '') {
-            newValue = undefined;
-        }
-        // Update config without re-rendering the entire form
-        this._config = {
-            ...this._config,
-            [target.configValue]: newValue
-        };
-        this.dispatchEvent(new CustomEvent('config-changed', {
-            detail: { config: this._config }
-        }));
-    }
-};
-MeteogramCardEditor = __decorate([
-    t('meteogram-card-editor')
-], MeteogramCardEditor);
 // Home Assistant requires this for custom cards
 window.customCards = window.customCards || [];
 window.customCards.push({

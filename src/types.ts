@@ -76,7 +76,7 @@ export interface ConfigurableHTMLElement extends HTMLElement {
   checked?: boolean; // Add the checked property for switches
 }
 
-// Define editor interface with required methods
+// // Define editor interface with required methods
 export interface MeteogramCardEditorElement extends HTMLElement {
   setConfig(config: MeteogramCardConfig): void;
   hass?: any;
