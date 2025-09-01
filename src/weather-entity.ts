@@ -55,7 +55,16 @@ export class WeatherEntityAPI {
             result.windSpeed.push(item.wind_speed ?? 0);
             result.windDirection.push(item.wind_bearing ?? 0);
             result.symbolCode.push(item.condition ?? "");
-            result.pressure.push(item.pressure ?? 0);
+
+            // Map pressure attribute for renderer compatibility
+            // Try 'pressure', fallback to 'pressure_mbar', fallback to 'pressure_hpa'
+            if ('pressure' in item && typeof item.pressure === 'number') {
+                result.pressure.push(item.pressure);
+            } else if ('pressure_mbar' in item && typeof item.pressure_mbar === 'number') {
+                result.pressure.push(item.pressure_mbar);
+            } else if ('pressure_hpa' in item && typeof item.pressure_hpa === 'number') {
+                result.pressure.push(item.pressure_hpa);
+            }
 
             // Log each forecast item for debugging
             // console.debug(`[WeatherEntityAPI] Forecast[${idx}]:`, item);
