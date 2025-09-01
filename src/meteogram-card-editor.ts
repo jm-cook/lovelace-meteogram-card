@@ -1,11 +1,8 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-// import { customElement } from "lit/decorators.js";
-import { ConfigurableHTMLElement } from "./types";
+import { MeteogramCardConfig, MeteogramCardEditorElement, ConfigurableHTMLElement } from "./types";
 import { trnslt } from "./translations";
 import { version } from "../package.json";
-import { MeteogramCardConfig, MeteogramCardEditorElement } from "./types";
 
 const DIAGNOSTICS_DEFAULT = version.includes("beta");
 
@@ -69,6 +66,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
         setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
         setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT, 'checked');
+        setValue(this._elements.get('entity_id'), this._config.entity_id || '');
     }
 
     render() {
@@ -97,6 +95,14 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
         const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT;
         const div = document.createElement('div');
+
+        // Get all weather entities from hass
+        const weatherEntities: string[] = hass && hass.states
+            ? Object.keys(hass.states).filter(eid => eid.startsWith('weather.'))
+            : [];
+        // Add "none" option at the top
+        const selectedEntity = this._config.entity_id ?? (weatherEntities.length > 0 ? weatherEntities[0] : '');
+        const isWeatherEntitySelected = !!(selectedEntity && selectedEntity !== 'none');
 
         div.innerHTML = `
   <style>
@@ -166,11 +172,23 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
           .value="${this._config.title || ''}"
         ></ha-textfield>
       </div>
+      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.title_description", "Card title (optional, shown at the top of the card)")}</p>
 
-      <p class="info-text">
+      <div class="row">
+        <label for="weather-entity-select" style="margin-right:8px;">${trnslt(hass, "ui.editor.meteogram.weather_entity", "Weather Entity")}</label>
+        <select id="weather-entity-select">
+          <option value="none" ${!isWeatherEntitySelected ? "selected" : ""}>None</option>
+          ${weatherEntities.map(eid =>
+            `<option value="${eid}" ${selectedEntity === eid ? "selected" : ""}>${eid}</option>`
+          ).join('')}
+        </select>
+      </div>
+      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_weather_entity", "Choose a weather entity for Home Assistant integration, or select 'None' to use coordinates.")}</p>
+
+      <div class="info-text">
         ${hass?.localize ? hass.localize("ui.editor.meteogram.location_info") : "Location coordinates will be used to fetch weather data directly from Met.no API."}
         ${defaultLat ? trnslt(hass, "ui.editor.meteogram.using_ha_location", "Using Home Assistant's location by default.") : ""}
-      </p>
+      </div>
 
       <div class="side-by-side">
         <ha-textfield
@@ -180,6 +198,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
           step="any"
           .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
           placeholder="${defaultLat ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLat}` : ""}"
+          ${isWeatherEntitySelected ? "disabled" : ""}
         ></ha-textfield>
 
         <ha-textfield
@@ -189,6 +208,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
           step="any"
           .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
           placeholder="${defaultLon ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : ""}"
+          ${isWeatherEntitySelected ? "disabled" : ""}
         ></ha-textfield>
       </div>
       <p class="help-text">${trnslt(hass, "ui.editor.meteogram.leave_empty", "Leave empty to use Home Assistant's configured location")}</p>
@@ -370,6 +390,17 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 this._elements.set('diagnostics', diagnosticsSwitch);
             }
 
+            const weatherEntitySelect = this.querySelector('#weather-entity-select') as ConfigurableHTMLElement;
+            if (weatherEntitySelect) {
+                weatherEntitySelect.configValue = 'entity_id';
+                weatherEntitySelect.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('entity_id', weatherEntitySelect);
+            }
+
+            // Disable/enable lat/lon fields based on weather entity selection
+            if (latInput) latInput.disabled = isWeatherEntitySelected;
+            if (lonInput) lonInput.disabled = isWeatherEntitySelected;
+
             // Update values after setting up elements and listeners
             this._updateValues();
         }, 0);
@@ -380,29 +411,66 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const target = ev.target as ConfigurableHTMLElement;
         if (!this._config || !target || !target.configValue) return;
 
-        let newValue: string | number | boolean | undefined = target.value || '';
+        let newValue: string | number | boolean | undefined = target.value;
+
+        // List of boolean config fields
+        const boolFields = [
+            'show_cloud_cover', 'show_pressure', 'show_rain', 'show_weather_icons',
+            'show_wind', 'dense_weather_icons', 'fill_container', 'diagnostics'
+        ];
 
         // Handle different input types
         if (target.tagName === 'HA-SWITCH') {
             newValue = target.checked;
         } else if ((target as HTMLInputElement).type === 'number') {
             if (newValue === '') {
-                // If field is cleared, set to undefined to use defaults
                 newValue = undefined;
             } else {
-                const numValue = parseFloat(newValue.toString());
+                const numValue = parseFloat(newValue?.toString() ?? '');
                 if (!isNaN(numValue)) {
                     newValue = numValue;
                 }
             }
         } else if (newValue === '') {
-            newValue = undefined;
+            // For boolean fields, set undefined instead of empty string
+            if (boolFields.includes(target.configValue)) {
+                newValue = undefined;
+            } else {
+                newValue = undefined;
+            }
         }
 
-        // Update config without re-rendering the entire form
+        // Ensure boolean config fields never receive an empty string ("")
+        if (boolFields.includes(target.configValue)) {
+            if (newValue === "") {
+                newValue = undefined;
+            } else if (typeof newValue !== "boolean" && typeof newValue !== "undefined") {
+                newValue = Boolean(newValue);
+            }
+        }
+
+        // Special handling for weather entity selection
+        if (target.configValue === 'entity_id') {
+            if (newValue === 'none') {
+                newValue = undefined;
+            }
+            setTimeout(() => {
+                const latInput = this.querySelector('#latitude-input') as ConfigurableHTMLElement;
+                const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
+                const isWeatherEntitySelected = !!(newValue && newValue !== 'none');
+                if (latInput) latInput.disabled = isWeatherEntitySelected;
+                if (lonInput) lonInput.disabled = isWeatherEntitySelected;
+            }, 0);
+        }
+
+        // TS18048: Ensure newValue is not undefined for boolean fields
+        const configValue = boolFields.includes(target.configValue)
+            ? (typeof newValue === "undefined" ? undefined : !!newValue)
+            : newValue;
+
         this._config = {
             ...this._config,
-            [target.configValue]: newValue
+            [target.configValue]: configValue
         };
 
         this.dispatchEvent(new CustomEvent('config-changed', {

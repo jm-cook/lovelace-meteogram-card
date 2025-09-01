@@ -5,6 +5,16 @@ import itLocale from "./translations/it.json";
 import deLocale from "./translations/de.json";
 import frLocale from "./translations/fr.json";
 
+// Array of supported locales and their language codes
+const locales: Array<{ code: string; data: Record<string, string> }> = [
+    { code: "en", data: enLocale },
+    { code: "nb", data: nbLocale },
+    { code: "es", data: esLocale },
+    { code: "it", data: itLocale },
+    { code: "de", data: deLocale },
+    { code: "fr", data: frLocale },
+];
+
 export function trnslt(hass: any, key: string, fallback?: string): string {
     // Try hass.localize (used by HA frontend)
     if (hass && typeof hass.localize === "function") {
@@ -20,22 +30,14 @@ export function trnslt(hass: any, key: string, fallback?: string): string {
     }
     // Try local translation files
     const lang = (hass && hass.language) ? hass.language : "en";
-    let localRes: string | undefined;
-    if (lang.startsWith("nb")) {
-        localRes = (nbLocale as Record<string, string>)[key];
-    } else if (lang.startsWith("es")) {
-        localRes = (esLocale as Record<string, string>)[key];
-    } else if (lang.startsWith("it")) {
-        localRes = (itLocale as Record<string, string>)[key];
-    } else if (lang.startsWith("de")) {
-        localRes = (deLocale as Record<string, string>)[key];
-    } else if (lang.startsWith("fr")) {
-        localRes = (frLocale as Record<string, string>)[key];
-    } else {
-        localRes = (enLocale as Record<string, string>)[key];
-    }
+    // Find the best matching locale by prefix
+    const localeObj =
+        locales.find(l => lang.toLowerCase().startsWith(l.code)) ||
+        locales[0]; // Default to English if not found
+
+    const localRes = localeObj.data[key];
+
     if (localRes) return localRes;
     // Return fallback if provided, otherwise the key
     return fallback !== undefined ? fallback : key;
 }
-

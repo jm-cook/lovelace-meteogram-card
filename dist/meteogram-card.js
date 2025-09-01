@@ -74,7 +74,792 @@ const t=t=>(e,o)=>{ void 0!==o?o.addInitializer((()=>{customElements.define(t,e)
  * SPDX-License-Identifier: BSD-3-Clause
  */function r(r){return n({...r,state:true,attribute:false})}
 
-// Helper to get version from global variable or fallback
+var enLocale = {
+	"ui.card.meteogram.attribution": "Data from",
+	"ui.card.meteogram.status.cached": "cached",
+	"ui.card.meteogram.status.success": "success",
+	"ui.card.meteogram.status.failed": "failed",
+	"ui.card.meteogram.status_panel": "Status Panel",
+	"ui.card.meteogram.status.expires_at": "Expires At",
+	"ui.card.meteogram.status.last_render": "Last Render",
+	"ui.card.meteogram.status.last_fingerprint_miss": "Last Fingerprint Miss",
+	"ui.card.meteogram.status.last_data_fetch": "Last Data Fetch",
+	"ui.card.meteogram.status.last_cached": "Last cached",
+	"ui.card.meteogram.status.api_success": "API Success",
+	"ui.card.meteogram.error": "Weather data not available",
+	"ui.card.meteogram.attributes.temperature": "Temperature",
+	"ui.card.meteogram.attributes.air_pressure": "Pressure",
+	"ui.card.meteogram.attributes.precipitation": "Rain",
+	"ui.card.meteogram.attributes.snow": "Snow",
+	"ui.card.meteogram.attributes.cloud_coverage": "Cloud Cover",
+	"ui.card.meteogram.attributes.weather_icons": "Show Weather Icons",
+	"ui.card.meteogram.attributes.wind": "Show Wind",
+	"ui.card.meteogram.attributes.dense_icons": "Dense Weather Icons (every hour)",
+	"ui.card.meteogram.attributes.fill_container": "Fill Container",
+	"ui.editor.meteogram.title": "Meteogram Card Settings",
+	"ui.editor.meteogram.title_label": "Title",
+	"ui.editor.meteogram.location_info": "Location coordinates will be used to fetch weather data directly from Met.no API.",
+	"ui.editor.meteogram.using_ha_location": "Using Home Assistant's location by default.",
+	"ui.editor.meteogram.latitude": "Latitude",
+	"ui.editor.meteogram.longitude": "Longitude",
+	"ui.editor.meteogram.default": "Default",
+	"ui.editor.meteogram.leave_empty": "Leave empty to use Home Assistant's configured location",
+	"ui.editor.meteogram.display_options": "Display Options",
+	"ui.editor.meteogram.meteogram_length": "Meteogram Length",
+	"ui.editor.meteogram.hours_8": "8 hours",
+	"ui.editor.meteogram.hours_12": "12 hours",
+	"ui.editor.meteogram.hours_24": "24 hours",
+	"ui.editor.meteogram.hours_48": "48 hours",
+	"ui.editor.meteogram.hours_54": "54 hours",
+	"ui.editor.meteogram.hours_max": "Max available",
+	"ui.editor.meteogram.choose_hours": "Choose how many hours to show in the meteogram",
+	"ui.editor.meteogram.attributes.cloud_coverage": "Show Cloud Cover",
+	"ui.editor.meteogram.attributes.air_pressure": "Show Pressure",
+	"ui.editor.meteogram.attributes.precipitation": "Show Rain",
+	"ui.editor.meteogram.attributes.weather_icons": "Show Weather Icons",
+	"ui.editor.meteogram.attributes.wind": "Show Wind",
+	"ui.editor.meteogram.attributes.dense_icons": "Dense Weather Icons (every hour)",
+	"ui.editor.meteogram.attributes.fill_container": "Fill Container"
+};
+
+var nbLocale = {
+	"ui.card.meteogram.attribution": "Data fra",
+	"ui.card.meteogram.status.cached": "bufret",
+	"ui.card.meteogram.status.success": "suksess",
+	"ui.card.meteogram.status.failed": "feilet",
+	"ui.card.meteogram.status_panel": "Statuspanel",
+	"ui.card.meteogram.status.expires_at": "Utløper",
+	"ui.card.meteogram.status.last_render": "Sist tegnet",
+	"ui.card.meteogram.status.last_fingerprint_miss": "Siste fingerprint-miss",
+	"ui.card.meteogram.status.last_data_fetch": "Siste datainnhenting",
+	"ui.card.meteogram.status.last_cached": "Sist bufret",
+	"ui.card.meteogram.status.api_success": "API-suksess",
+	"ui.card.meteogram.error": "Værdata ikke tilgjengelig",
+	"ui.card.meteogram.attributes.temperature": "Temperatur",
+	"ui.card.meteogram.attributes.air_pressure": "Lufttrykk",
+	"ui.card.meteogram.attributes.precipitation": "Regn",
+	"ui.card.meteogram.attributes.snow": "Snø",
+	"ui.card.meteogram.attributes.cloud_coverage": "Skydekke",
+	"ui.card.meteogram.attributes.weather_icons": "Vis værikoner",
+	"ui.card.meteogram.attributes.wind": "Vis vind",
+	"ui.card.meteogram.attributes.dense_icons": "Tette værikoner (hver time)",
+	"ui.card.meteogram.attributes.fill_container": "Fyll beholder",
+	"ui.editor.meteogram.title": "Meteogram-kortinnstillinger",
+	"ui.editor.meteogram.title_label": "Tittel",
+	"ui.editor.meteogram.location_info": "Lokasjonskoordinater brukes for å hente værdata direkte fra Met.no API.",
+	"ui.editor.meteogram.using_ha_location": "Bruker Home Assistants lokasjon som standard.",
+	"ui.editor.meteogram.latitude": "Breddegrad",
+	"ui.editor.meteogram.longitude": "Lengdegrad",
+	"ui.editor.meteogram.default": "Standard",
+	"ui.editor.meteogram.leave_empty": "La stå tomt for å bruke Home Assistants konfigurerte lokasjon",
+	"ui.editor.meteogram.display_options": "Visningsvalg",
+	"ui.editor.meteogram.meteogram_length": "Meteogramlengde",
+	"ui.editor.meteogram.hours_8": "8 timer",
+	"ui.editor.meteogram.hours_12": "12 timer",
+	"ui.editor.meteogram.hours_24": "24 timer",
+	"ui.editor.meteogram.hours_48": "48 timer",
+	"ui.editor.meteogram.hours_54": "54 timer",
+	"ui.editor.meteogram.hours_max": "Maks tilgjengelig",
+	"ui.editor.meteogram.choose_hours": "Velg hvor mange timer som skal vises i meteogrammet",
+	"ui.editor.meteogram.attributes.cloud_coverage": "Vis skydekke",
+	"ui.editor.meteogram.attributes.air_pressure": "Vis lufttrykk",
+	"ui.editor.meteogram.attributes.precipitation": "Vis regn",
+	"ui.editor.meteogram.attributes.weather_icons": "Vis værikoner",
+	"ui.editor.meteogram.attributes.wind": "Vis vind",
+	"ui.editor.meteogram.attributes.dense_icons": "Tette værikoner (hver time)",
+	"ui.editor.meteogram.attributes.fill_container": "Fyll beholder"
+};
+
+var esLocale = {
+	"ui.card.meteogram.attribution": "Datos de",
+	"ui.card.meteogram.status.cached": "en caché",
+	"ui.card.meteogram.status.success": "éxito",
+	"ui.card.meteogram.status.failed": "fallido",
+	"ui.card.meteogram.status_panel": "Panel de estado",
+	"ui.card.meteogram.status.expires_at": "Expira en",
+	"ui.card.meteogram.status.last_render": "Última representación",
+	"ui.card.meteogram.status.last_fingerprint_miss": "Última huella fallida",
+	"ui.card.meteogram.status.last_data_fetch": "Última obtención de datos",
+	"ui.card.meteogram.status.last_cached": "Último en caché",
+	"ui.card.meteogram.status.api_success": "Éxito de la API",
+	"ui.card.meteogram.error": "Datos meteorológicos no disponibles",
+	"ui.card.meteogram.attributes.temperature": "Temperatura",
+	"ui.card.meteogram.attributes.air_pressure": "Presión",
+	"ui.card.meteogram.attributes.precipitation": "Lluvia",
+	"ui.card.meteogram.attributes.snow": "Nieve",
+	"ui.card.meteogram.attributes.cloud_coverage": "Cobertura de nubes",
+	"ui.card.meteogram.attributes.weather_icons": "Mostrar iconos meteorológicos",
+	"ui.card.meteogram.attributes.wind": "Mostrar viento",
+	"ui.card.meteogram.attributes.dense_icons": "Iconos meteorológicos densos (cada hora)",
+	"ui.card.meteogram.attributes.fill_container": "Rellenar el contenedor",
+	"ui.editor.meteogram.title": "Configuración de la tarjeta Meteograma",
+	"ui.editor.meteogram.title_label": "Título",
+	"ui.editor.meteogram.location_info": "Las coordenadas se utilizarán para obtener datos meteorológicos directamente de la API de Met.no.",
+	"ui.editor.meteogram.using_ha_location": "Usando la ubicación de Home Assistant por defecto.",
+	"ui.editor.meteogram.latitude": "Latitud",
+	"ui.editor.meteogram.longitude": "Longitud",
+	"ui.editor.meteogram.default": "Predeterminado",
+	"ui.editor.meteogram.leave_empty": "Dejar vacío para usar la ubicación configurada en Home Assistant",
+	"ui.editor.meteogram.display_options": "Opciones de visualización",
+	"ui.editor.meteogram.meteogram_length": "Duración del meteograma",
+	"ui.editor.meteogram.hours_8": "8 horas",
+	"ui.editor.meteogram.hours_12": "12 horas",
+	"ui.editor.meteogram.hours_24": "24 horas",
+	"ui.editor.meteogram.hours_48": "48 horas",
+	"ui.editor.meteogram.hours_54": "54 horas",
+	"ui.editor.meteogram.hours_max": "Máximo disponible",
+	"ui.editor.meteogram.choose_hours": "Elija cuántas horas mostrar en el meteograma",
+	"ui.editor.meteogram.attributes.cloud_coverage": "Mostrar cobertura de nubes",
+	"ui.editor.meteogram.attributes.air_pressure": "Mostrar presión",
+	"ui.editor.meteogram.attributes.precipitation": "Mostrar lluvia",
+	"ui.editor.meteogram.attributes.weather_icons": "Mostrar iconos meteorológicos",
+	"ui.editor.meteogram.attributes.wind": "Mostrar viento",
+	"ui.editor.meteogram.attributes.dense_icons": "Iconos meteorológicos densos (cada hora)",
+	"ui.editor.meteogram.attributes.fill_container": "Rellenar el contenedor"
+};
+
+var itLocale = {
+	"ui.card.meteogram.attribution": "Dati da",
+	"ui.card.meteogram.status.cached": "memorizzato",
+	"ui.card.meteogram.status.success": "successo",
+	"ui.card.meteogram.status.failed": "fallito",
+	"ui.card.meteogram.status_panel": "Pannello di stato",
+	"ui.card.meteogram.status.expires_at": "Scade il",
+	"ui.card.meteogram.status.last_render": "Ultima visualizzazione",
+	"ui.card.meteogram.status.last_fingerprint_miss": "Ultima impronta mancante",
+	"ui.card.meteogram.status.last_data_fetch": "Ultimo recupero dati",
+	"ui.card.meteogram.status.last_cached": "Ultimo memorizzato",
+	"ui.card.meteogram.status.api_success": "Successo API",
+	"ui.card.meteogram.error": "Dati meteorologici non disponibili",
+	"ui.card.meteogram.attributes.temperature": "Temperatura",
+	"ui.card.meteogram.attributes.air_pressure": "Pressione",
+	"ui.card.meteogram.attributes.precipitation": "Pioggia",
+	"ui.card.meteogram.attributes.snow": "Neve",
+	"ui.card.meteogram.attributes.cloud_coverage": "Copertura nuvolosa",
+	"ui.card.meteogram.attributes.weather_icons": "Mostra icone meteo",
+	"ui.card.meteogram.attributes.wind": "Mostra vento",
+	"ui.card.meteogram.attributes.dense_icons": "Icone meteo dense (ogni ora)",
+	"ui.card.meteogram.attributes.fill_container": "Riempi contenitore",
+	"ui.editor.meteogram.title": "Impostazioni della scheda Meteogramma",
+	"ui.editor.meteogram.title_label": "Titolo",
+	"ui.editor.meteogram.location_info": "Le coordinate verranno utilizzate per ottenere i dati meteorologici direttamente dall'API Met.no.",
+	"ui.editor.meteogram.using_ha_location": "Utilizzo della posizione di Home Assistant come predefinita.",
+	"ui.editor.meteogram.latitude": "Latitudine",
+	"ui.editor.meteogram.longitude": "Longitudine",
+	"ui.editor.meteogram.default": "Predefinito",
+	"ui.editor.meteogram.leave_empty": "Lascia vuoto per usare la posizione configurata in Home Assistant",
+	"ui.editor.meteogram.display_options": "Opzioni di visualizzazione",
+	"ui.editor.meteogram.meteogram_length": "Durata meteogramma",
+	"ui.editor.meteogram.hours_8": "8 ore",
+	"ui.editor.meteogram.hours_12": "12 ore",
+	"ui.editor.meteogram.hours_24": "24 ore",
+	"ui.editor.meteogram.hours_48": "48 ore",
+	"ui.editor.meteogram.hours_54": "54 ore",
+	"ui.editor.meteogram.hours_max": "Massimo disponibile",
+	"ui.editor.meteogram.choose_hours": "Scegli quante ore mostrare nel meteogramma",
+	"ui.editor.meteogram.attributes.cloud_coverage": "Mostra copertura nuvolosa",
+	"ui.editor.meteogram.attributes.air_pressure": "Mostra pressione",
+	"ui.editor.meteogram.attributes.precipitation": "Mostra pioggia",
+	"ui.editor.meteogram.attributes.weather_icons": "Mostra icone meteo",
+	"ui.editor.meteogram.attributes.wind": "Mostra vento",
+	"ui.editor.meteogram.attributes.dense_icons": "Icone meteo dense (ogni ora)",
+	"ui.editor.meteogram.attributes.fill_container": "Riempi contenitore"
+};
+
+var deLocale = {
+	"ui.card.meteogram.attribution": "Daten von",
+	"ui.card.meteogram.status.cached": "zwischengespeichert",
+	"ui.card.meteogram.status.success": "Erfolg",
+	"ui.card.meteogram.status.failed": "Fehler",
+	"ui.card.meteogram.status_panel": "Statuspanel",
+	"ui.card.meteogram.status.expires_at": "Ablaufdatum",
+	"ui.card.meteogram.status.last_render": "Letzte Darstellung",
+	"ui.card.meteogram.status.last_fingerprint_miss": "Letzter Fingerabdruck-Fehler",
+	"ui.card.meteogram.status.last_data_fetch": "Letzter Datenabruf",
+	"ui.card.meteogram.status.last_cached": "Zuletzt zwischengespeichert",
+	"ui.card.meteogram.status.api_success": "API-Erfolg",
+	"ui.card.meteogram.error": "Wetterdaten nicht verfügbar",
+	"ui.card.meteogram.attributes.temperature": "Temperatur",
+	"ui.card.meteogram.attributes.air_pressure": "Luftdruck",
+	"ui.card.meteogram.attributes.precipitation": "Regen",
+	"ui.card.meteogram.attributes.snow": "Schnee",
+	"ui.card.meteogram.attributes.cloud_coverage": "Wolkenbedeckung",
+	"ui.card.meteogram.attributes.weather_icons": "Wetter-Symbole anzeigen",
+	"ui.card.meteogram.attributes.wind": "Wind anzeigen",
+	"ui.card.meteogram.attributes.dense_icons": "Dichte Wettersymbole (jede Stunde)",
+	"ui.card.meteogram.attributes.fill_container": "Container ausfüllen",
+	"ui.editor.meteogram.title": "Meteogramm-Karteneinstellungen",
+	"ui.editor.meteogram.title_label": "Titel",
+	"ui.editor.meteogram.location_info": "Die Koordinaten werden verwendet, um Wetterdaten direkt von der Met.no API abzurufen.",
+	"ui.editor.meteogram.using_ha_location": "Standardmäßig wird der Standort von Home Assistant verwendet.",
+	"ui.editor.meteogram.latitude": "Breitengrad",
+	"ui.editor.meteogram.longitude": "Längengrad",
+	"ui.editor.meteogram.default": "Standard",
+	"ui.editor.meteogram.leave_empty": "Leer lassen, um die konfigurierte Position von Home Assistant zu verwenden",
+	"ui.editor.meteogram.display_options": "Anzeigeoptionen",
+	"ui.editor.meteogram.meteogram_length": "Meteogramm-Länge",
+	"ui.editor.meteogram.hours_8": "8 Stunden",
+	"ui.editor.meteogram.hours_12": "12 Stunden",
+	"ui.editor.meteogram.hours_24": "24 Stunden",
+	"ui.editor.meteogram.hours_48": "48 Stunden",
+	"ui.editor.meteogram.hours_54": "54 Stunden",
+	"ui.editor.meteogram.hours_max": "Maximal verfügbar",
+	"ui.editor.meteogram.choose_hours": "Wählen Sie, wie viele Stunden im Meteogramm angezeigt werden sollen",
+	"ui.editor.meteogram.attributes.cloud_coverage": "Wolkenbedeckung anzeigen",
+	"ui.editor.meteogram.attributes.air_pressure": "Luftdruck anzeigen",
+	"ui.editor.meteogram.attributes.precipitation": "Regen anzeigen",
+	"ui.editor.meteogram.attributes.weather_icons": "Wetter-Symbole anzeigen",
+	"ui.editor.meteogram.attributes.wind": "Wind anzeigen",
+	"ui.editor.meteogram.attributes.dense_icons": "Dichte Wettersymbole (jede Stunde)",
+	"ui.editor.meteogram.attributes.fill_container": "Container ausfüllen"
+};
+
+var frLocale = {
+	"ui.card.meteogram.attribution": "Données de",
+	"ui.card.meteogram.status.cached": "mis en cache",
+	"ui.card.meteogram.status.success": "succès",
+	"ui.card.meteogram.status.failed": "échec",
+	"ui.card.meteogram.status_panel": "Panneau d'état",
+	"ui.card.meteogram.status.expires_at": "Expire à",
+	"ui.card.meteogram.status.last_render": "Dernier rendu",
+	"ui.card.meteogram.status.last_fingerprint_miss": "Dernière empreinte manquée",
+	"ui.card.meteogram.status.last_data_fetch": "Dernière récupération de données",
+	"ui.card.meteogram.status.last_cached": "Dernière mise en cache",
+	"ui.card.meteogram.status.api_success": "Succès API",
+	"ui.card.meteogram.error": "Données météo non disponibles",
+	"ui.card.meteogram.attributes.temperature": "Température",
+	"ui.card.meteogram.attributes.air_pressure": "Pression",
+	"ui.card.meteogram.attributes.precipitation": "Pluie",
+	"ui.card.meteogram.attributes.snow": "Neige",
+	"ui.card.meteogram.attributes.cloud_coverage": "Couverture nuageuse",
+	"ui.card.meteogram.attributes.weather_icons": "Afficher les icônes météo",
+	"ui.card.meteogram.attributes.wind": "Afficher le vent",
+	"ui.card.meteogram.attributes.dense_icons": "Icônes météo denses (chaque heure)",
+	"ui.card.meteogram.attributes.fill_container": "Remplir le conteneur",
+	"ui.editor.meteogram.title": "Paramètres de la carte Météogramme",
+	"ui.editor.meteogram.title_label": "Titre",
+	"ui.editor.meteogram.location_info": "Les coordonnées seront utilisées pour obtenir les données météo directement depuis l'API Met.no.",
+	"ui.editor.meteogram.using_ha_location": "Utilisation de la localisation Home Assistant par défaut.",
+	"ui.editor.meteogram.latitude": "Latitude",
+	"ui.editor.meteogram.longitude": "Longitude",
+	"ui.editor.meteogram.default": "Défaut",
+	"ui.editor.meteogram.leave_empty": "Laisser vide pour utiliser la localisation configurée dans Home Assistant",
+	"ui.editor.meteogram.display_options": "Options d'affichage",
+	"ui.editor.meteogram.meteogram_length": "Durée du météogramme",
+	"ui.editor.meteogram.hours_8": "8 heures",
+	"ui.editor.meteogram.hours_12": "12 heures",
+	"ui.editor.meteogram.hours_24": "24 heures",
+	"ui.editor.meteogram.hours_48": "48 heures",
+	"ui.editor.meteogram.hours_54": "54 heures",
+	"ui.editor.meteogram.hours_max": "Maximum disponible",
+	"ui.editor.meteogram.choose_hours": "Choisissez combien d'heures afficher dans le météogramme",
+	"ui.editor.meteogram.attributes.cloud_coverage": "Afficher la couverture nuageuse",
+	"ui.editor.meteogram.attributes.air_pressure": "Afficher la pression",
+	"ui.editor.meteogram.attributes.precipitation": "Afficher la pluie",
+	"ui.editor.meteogram.attributes.weather_icons": "Afficher les icônes météo",
+	"ui.editor.meteogram.attributes.wind": "Afficher le vent",
+	"ui.editor.meteogram.attributes.dense_icons": "Icônes météo denses (chaque heure)",
+	"ui.editor.meteogram.attributes.fill_container": "Remplir le conteneur"
+};
+
+// Array of supported locales and their language codes
+const locales = [
+    { code: "en", data: enLocale },
+    { code: "nb", data: nbLocale },
+    { code: "es", data: esLocale },
+    { code: "it", data: itLocale },
+    { code: "de", data: deLocale },
+    { code: "fr", data: frLocale },
+];
+function trnslt(hass, key, fallback) {
+    var _a;
+    // Try hass.localize (used by HA frontend)
+    if (hass && typeof hass.localize === "function") {
+        const result = hass.localize(key);
+        if (result && result !== key)
+            return result;
+    }
+    // Try hass.resources (used by HA backend)
+    if (hass && hass.resources && typeof hass.resources === "object") {
+        const lang = hass.language || "en";
+        const res = (_a = hass.resources[lang]) === null || _a === void 0 ? void 0 : _a[key];
+        if (res)
+            return res;
+    }
+    // Try local translation files
+    const lang = (hass && hass.language) ? hass.language : "en";
+    // Find the best matching locale by prefix
+    const localeObj = locales.find(l => lang.toLowerCase().startsWith(l.code)) ||
+        locales[0]; // Default to English if not found
+    const localRes = localeObj.data[key];
+    if (localRes)
+        return localRes;
+    // Return fallback if provided, otherwise the key
+    return fallback !== undefined ? fallback : key;
+}
+
+const DIAGNOSTICS_DEFAULT$1 = version.includes("beta");
+let MeteogramCardEditor = class MeteogramCardEditor extends i {
+    constructor() {
+        super(...arguments);
+        this._config = {};
+        this._initialized = false;
+        this._elements = new Map();
+    }
+    setConfig(config) {
+        this._config = config || {};
+        if (this._initialized) {
+            this._updateValues();
+        }
+        else {
+            this._initialize();
+        }
+    }
+    get config() {
+        return this._config;
+    }
+    connectedCallback() {
+        if (!this._initialized) {
+            this._initialize();
+        }
+    }
+    _initialize() {
+        this.render();
+        this._initialized = true;
+        setTimeout(() => this._updateValues(), 0); // Wait for DOM to be ready
+    }
+    // Update only the values, not the entire DOM
+    _updateValues() {
+        var _a, _b, _c, _d;
+        if (!this._initialized)
+            return;
+        // Helper to update only if value changed
+        const setValue = (el, value, prop = 'value') => {
+            if (!el)
+                return;
+            if (el[prop] !== value)
+                el[prop] = value;
+        };
+        setValue(this._elements.get('title'), this._config.title || '');
+        setValue(this._elements.get('latitude'), this._config.latitude !== undefined
+            ? String(this._config.latitude)
+            : (((_b = (_a = this.hass) === null || _a === void 0 ? void 0 : _a.config) === null || _b === void 0 ? void 0 : _b.latitude) !== undefined ? String(this.hass.config.latitude) : ''));
+        setValue(this._elements.get('longitude'), this._config.longitude !== undefined
+            ? String(this._config.longitude)
+            : (((_d = (_c = this.hass) === null || _c === void 0 ? void 0 : _c.config) === null || _d === void 0 ? void 0 : _d.longitude) !== undefined ? String(this.hass.config.longitude) : ''));
+        setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
+        setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
+        setValue(this._elements.get('show_rain'), this._config.show_rain !== undefined ? this._config.show_rain : true, 'checked');
+        setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
+        setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
+        setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
+        setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
+        setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
+        setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$1, 'checked');
+        setValue(this._elements.get('entity_id'), this._config.entity_id || '');
+    }
+    render() {
+        var _a, _b, _c, _d, _e;
+        const hass = this.hass;
+        const config = this._config;
+        // Wait for both hass and config to be set before rendering
+        if (!hass || !config) {
+            this.innerHTML = '<ha-card><div style="padding:16px;">Loading Home Assistant context...</div></ha-card>';
+            setTimeout(() => this.render(), 300); // Retry every 300ms until both are set
+            return;
+        }
+        // Get default coordinates from Home Assistant config if available
+        const defaultLat = (_b = (_a = hass === null || hass === void 0 ? void 0 : hass.config) === null || _a === void 0 ? void 0 : _a.latitude) !== null && _b !== void 0 ? _b : '';
+        const defaultLon = (_d = (_c = hass === null || hass === void 0 ? void 0 : hass.config) === null || _c === void 0 ? void 0 : _c.longitude) !== null && _d !== void 0 ? _d : '';
+        // Get current toggle values or default to true
+        const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
+        const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
+        const showRain = this._config.show_rain !== undefined ? this._config.show_rain : true;
+        const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
+        const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
+        const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
+        const meteogramHours = this._config.meteogram_hours || "48h";
+        const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
+        const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$1;
+        const div = document.createElement('div');
+        // Get all weather entities from hass
+        const weatherEntities = hass && hass.states
+            ? Object.keys(hass.states).filter(eid => eid.startsWith('weather.'))
+            : [];
+        // Add "none" option at the top
+        const selectedEntity = (_e = this._config.entity_id) !== null && _e !== void 0 ? _e : (weatherEntities.length > 0 ? weatherEntities[0] : '');
+        const isWeatherEntitySelected = !!(selectedEntity && selectedEntity !== 'none');
+        div.innerHTML = `
+  <style>
+    ha-card {
+      padding: 16px;
+    }
+    .values {
+      padding-left: 16px;
+      margin: 8px 0;
+    }
+    .row {
+      display: flex;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    ha-textfield {
+      width: 100%;
+    }
+    .side-by-side {
+      display: flex;
+      gap: 12px;
+    }
+    .side-by-side > * {
+      flex: 1;
+    }
+    h3 {
+      font-size: 18px;
+      color: var(--primary-text-color);
+      font-weight: 500;
+      margin-bottom: 12px;
+      margin-top: 0;
+    }
+    .help-text {
+      color: var(--secondary-text-color);
+      font-size: 0.875rem;
+      margin-top: 4px;
+    }
+    .info-text {
+      color: var(--primary-text-color);
+      opacity: 0.8;
+      font-size: 0.9rem;
+      font-style: italic;
+      margin: 4px 0 16px 0;
+    }
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .toggle-label {
+      flex-grow: 1;
+    }
+    .toggle-section {
+      margin-top: 16px;
+      border-top: 1px solid var(--divider-color);
+      padding-top: 16px;
+    }
+  </style>
+  <ha-card>
+    <h3>${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.title") : "Meteogram Card Settings"}</h3>
+    <div class="values">
+      <div class="row">
+        <ha-textfield
+          label="${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.title_label") : "Title"}"
+          id="title-input"
+          .value="${this._config.title || ''}"
+        ></ha-textfield>
+      </div>
+      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.title_description", "Card title (optional, shown at the top of the card)")}</p>
+
+      <div class="row">
+        <label for="weather-entity-select" style="margin-right:8px;">${trnslt(hass, "ui.editor.meteogram.weather_entity", "Weather Entity")}</label>
+        <select id="weather-entity-select">
+          <option value="none" ${!isWeatherEntitySelected ? "selected" : ""}>None</option>
+          ${weatherEntities.map(eid => `<option value="${eid}" ${selectedEntity === eid ? "selected" : ""}>${eid}</option>`).join('')}
+        </select>
+      </div>
+      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_weather_entity", "Choose a weather entity for Home Assistant integration, or select 'None' to use coordinates.")}</p>
+
+      <div class="info-text">
+        ${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.location_info") : "Location coordinates will be used to fetch weather data directly from Met.no API."}
+        ${defaultLat ? trnslt(hass, "ui.editor.meteogram.using_ha_location", "Using Home Assistant's location by default.") : ""}
+      </div>
+
+      <div class="side-by-side">
+        <ha-textfield
+          label="${trnslt(hass, "ui.editor.meteogram.latitude", "Latitude")}"
+          id="latitude-input"
+          type="number"
+          step="any"
+          .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
+          placeholder="${defaultLat ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLat}` : ""}"
+          ${isWeatherEntitySelected ? "disabled" : ""}
+        ></ha-textfield>
+
+        <ha-textfield
+          label="${trnslt(hass, "ui.editor.meteogram.longitude", "Longitude")}"
+          id="longitude-input"
+          type="number"
+          step="any"
+          .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
+          placeholder="${defaultLon ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : ""}"
+          ${isWeatherEntitySelected ? "disabled" : ""}
+        ></ha-textfield>
+      </div>
+      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.leave_empty", "Leave empty to use Home Assistant's configured location")}</p>
+
+      <div class="toggle-section">
+        <h3>${trnslt(hass, "ui.editor.meteogram.display_options", "Display Options")}</h3>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.cloud_coverage", "Show Cloud Cover")}</div>
+          <ha-switch
+            id="show-cloud-cover"
+            .checked="${showCloudCover}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.air_pressure", "Show Pressure")}</div>
+          <ha-switch
+            id="show-pressure"
+            .checked="${showPressure}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.precipitation", "Show Rain")}</div>
+          <ha-switch
+            id="show-rain"
+            .checked="${showRain}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.weather_icons", "Show Weather Icons")}</div>
+          <ha-switch
+            id="show-weather-icons"
+            .checked="${showWeatherIcons}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.wind", "Show Wind")}</div>
+          <ha-switch
+            id="show-wind"
+            .checked="${showWind}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.dense_icons", "Dense Weather Icons (every hour)")}</div>
+          <ha-switch
+            id="dense-weather-icons"
+            .checked="${denseWeatherIcons}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.fill_container", "Fill Container")}</div>
+          <ha-switch
+            id="fill-container"
+            .checked="${fillContainer}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-label">Diagnostics (debug logging)</div>
+          <ha-switch
+            id="diagnostics"
+            .checked="${diagnostics}"
+          ></ha-switch>
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="meteogram-hours-select" style="margin-right:8px;">${trnslt(hass, "ui.editor.meteogram.meteogram_length", "Meteogram Length")}</label>
+        <select id="meteogram-hours-select">
+          <option value="8h" ${meteogramHours === "8h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_8", "8 hours")}</option>
+          <option value="12h" ${meteogramHours === "12h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_12", "12 hours")}</option>
+          <option value="24h" ${meteogramHours === "24h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_24", "24 hours")}</option>
+          <option value="48h" ${meteogramHours === "48h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_48", "48 hours")}</option>
+          <option value="54h" ${meteogramHours === "54h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_54", "54 hours")}</option>
+          <option value="max" ${meteogramHours === "max" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_max", "Max available")}</option>
+        </select>
+      </div>
+      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
+    </div>
+  </ha-card>
+`;
+        // Clear previous content
+        this.innerHTML = '';
+        // Append new content
+        this.appendChild(div);
+        // Set up event listeners after DOM is updated
+        setTimeout(() => {
+            // Get and store references to all input elements with proper type casting
+            const titleInput = this.querySelector('#title-input');
+            if (titleInput) {
+                titleInput.configValue = 'title';
+                titleInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('title', titleInput);
+            }
+            const latInput = this.querySelector('#latitude-input');
+            if (latInput) {
+                latInput.configValue = 'latitude';
+                latInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('latitude', latInput);
+            }
+            const lonInput = this.querySelector('#longitude-input');
+            if (lonInput) {
+                lonInput.configValue = 'longitude';
+                lonInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('longitude', lonInput);
+            }
+            // Set up toggle switches
+            const cloudCoverSwitch = this.querySelector('#show-cloud-cover');
+            if (cloudCoverSwitch) {
+                cloudCoverSwitch.configValue = 'show_cloud_cover';
+                cloudCoverSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_cloud_cover', cloudCoverSwitch);
+            }
+            const pressureSwitch = this.querySelector('#show-pressure');
+            if (pressureSwitch) {
+                pressureSwitch.configValue = 'show_pressure';
+                pressureSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_pressure', pressureSwitch);
+            }
+            const rainSwitch = this.querySelector('#show-rain');
+            if (rainSwitch) {
+                rainSwitch.configValue = 'show_rain';
+                rainSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_rain', rainSwitch);
+            }
+            const weatherIconsSwitch = this.querySelector('#show-weather-icons');
+            if (weatherIconsSwitch) {
+                weatherIconsSwitch.configValue = 'show_weather_icons';
+                weatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_weather_icons', weatherIconsSwitch);
+            }
+            const windSwitch = this.querySelector('#show-wind');
+            if (windSwitch) {
+                windSwitch.configValue = 'show_wind';
+                windSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_wind', windSwitch);
+            }
+            const denseWeatherIconsSwitch = this.querySelector('#dense-weather-icons');
+            if (denseWeatherIconsSwitch) {
+                denseWeatherIconsSwitch.configValue = 'dense_weather_icons';
+                denseWeatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('dense_weather_icons', denseWeatherIconsSwitch);
+            }
+            const meteogramHoursSelect = this.querySelector('#meteogram-hours-select');
+            if (meteogramHoursSelect) {
+                meteogramHoursSelect.configValue = 'meteogram_hours';
+                meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('meteogram_hours', meteogramHoursSelect);
+            }
+            const fillContainerSwitch = this.querySelector('#fill-container');
+            if (fillContainerSwitch) {
+                fillContainerSwitch.configValue = 'fill_container';
+                fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('fill_container', fillContainerSwitch);
+            }
+            const diagnosticsSwitch = this.querySelector('#diagnostics');
+            if (diagnosticsSwitch) {
+                diagnosticsSwitch.configValue = 'diagnostics';
+                diagnosticsSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('diagnostics', diagnosticsSwitch);
+            }
+            const weatherEntitySelect = this.querySelector('#weather-entity-select');
+            if (weatherEntitySelect) {
+                weatherEntitySelect.configValue = 'entity_id';
+                weatherEntitySelect.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('entity_id', weatherEntitySelect);
+            }
+            // Disable/enable lat/lon fields based on weather entity selection
+            if (latInput)
+                latInput.disabled = isWeatherEntitySelected;
+            if (lonInput)
+                lonInput.disabled = isWeatherEntitySelected;
+            // Update values after setting up elements and listeners
+            this._updateValues();
+        }, 0);
+    }
+    // Add the missing _valueChanged method
+    _valueChanged(ev) {
+        var _a;
+        const target = ev.target;
+        if (!this._config || !target || !target.configValue)
+            return;
+        let newValue = target.value;
+        // List of boolean config fields
+        const boolFields = [
+            'show_cloud_cover', 'show_pressure', 'show_rain', 'show_weather_icons',
+            'show_wind', 'dense_weather_icons', 'fill_container', 'diagnostics'
+        ];
+        // Handle different input types
+        if (target.tagName === 'HA-SWITCH') {
+            newValue = target.checked;
+        }
+        else if (target.type === 'number') {
+            if (newValue === '') {
+                newValue = undefined;
+            }
+            else {
+                const numValue = parseFloat((_a = newValue === null || newValue === void 0 ? void 0 : newValue.toString()) !== null && _a !== void 0 ? _a : '');
+                if (!isNaN(numValue)) {
+                    newValue = numValue;
+                }
+            }
+        }
+        else if (newValue === '') {
+            // For boolean fields, set undefined instead of empty string
+            if (boolFields.includes(target.configValue)) {
+                newValue = undefined;
+            }
+            else {
+                newValue = undefined;
+            }
+        }
+        // Ensure boolean config fields never receive an empty string ("")
+        if (boolFields.includes(target.configValue)) {
+            if (newValue === "") {
+                newValue = undefined;
+            }
+            else if (typeof newValue !== "boolean" && typeof newValue !== "undefined") {
+                newValue = Boolean(newValue);
+            }
+        }
+        // Special handling for weather entity selection
+        if (target.configValue === 'entity_id') {
+            if (newValue === 'none') {
+                newValue = undefined;
+            }
+            setTimeout(() => {
+                const latInput = this.querySelector('#latitude-input');
+                const lonInput = this.querySelector('#longitude-input');
+                const isWeatherEntitySelected = !!(newValue && newValue !== 'none');
+                if (latInput)
+                    latInput.disabled = isWeatherEntitySelected;
+                if (lonInput)
+                    lonInput.disabled = isWeatherEntitySelected;
+            }, 0);
+        }
+        // TS18048: Ensure newValue is not undefined for boolean fields
+        const configValue = boolFields.includes(target.configValue)
+            ? (typeof newValue === "undefined" ? undefined : !!newValue)
+            : newValue;
+        this._config = {
+            ...this._config,
+            [target.configValue]: configValue
+        };
+        this.dispatchEvent(new CustomEvent('config-changed', {
+            detail: { config: this._config }
+        }));
+    }
+};
+__decorate([
+    n({ type: Object })
+], MeteogramCardEditor.prototype, "_config", void 0);
+__decorate([
+    n({ type: Object })
+], MeteogramCardEditor.prototype, "hass", void 0);
+__decorate([
+    r()
+], MeteogramCardEditor.prototype, "_initialized", void 0);
+MeteogramCardEditor = __decorate([
+    t('meteogram-card-editor')
+], MeteogramCardEditor);
+
 // Helper to detect client name from user agent
 function getClientName() {
     const ua = navigator.userAgent;
@@ -455,734 +1240,11 @@ class WeatherEntityAPI {
     }
 }
 
-var enLocale = {
-	"ui.card.meteogram.attribution": "Data from",
-	"ui.card.meteogram.status.cached": "cached",
-	"ui.card.meteogram.status.success": "success",
-	"ui.card.meteogram.status.failed": "failed",
-	"ui.card.meteogram.status_panel": "Status Panel",
-	"ui.card.meteogram.status.expires_at": "Expires At",
-	"ui.card.meteogram.status.last_render": "Last Render",
-	"ui.card.meteogram.status.last_fingerprint_miss": "Last Fingerprint Miss",
-	"ui.card.meteogram.status.last_data_fetch": "Last Data Fetch",
-	"ui.card.meteogram.status.last_cached": "Last cached",
-	"ui.card.meteogram.status.api_success": "API Success",
-	"ui.card.meteogram.error": "Weather data not available",
-	"ui.card.meteogram.attributes.temperature": "Temperature",
-	"ui.card.meteogram.attributes.air_pressure": "Pressure",
-	"ui.card.meteogram.attributes.precipitation": "Rain",
-	"ui.card.meteogram.attributes.snow": "Snow",
-	"ui.card.meteogram.attributes.cloud_coverage": "Cloud Cover",
-	"ui.card.meteogram.attributes.weather_icons": "Show Weather Icons",
-	"ui.card.meteogram.attributes.wind": "Show Wind",
-	"ui.card.meteogram.attributes.dense_icons": "Dense Weather Icons (every hour)",
-	"ui.card.meteogram.attributes.fill_container": "Fill Container",
-	"ui.editor.meteogram.title": "Meteogram Card Settings",
-	"ui.editor.meteogram.title_label": "Title",
-	"ui.editor.meteogram.location_info": "Location coordinates will be used to fetch weather data directly from Met.no API.",
-	"ui.editor.meteogram.using_ha_location": "Using Home Assistant's location by default.",
-	"ui.editor.meteogram.latitude": "Latitude",
-	"ui.editor.meteogram.longitude": "Longitude",
-	"ui.editor.meteogram.default": "Default",
-	"ui.editor.meteogram.leave_empty": "Leave empty to use Home Assistant's configured location",
-	"ui.editor.meteogram.display_options": "Display Options",
-	"ui.editor.meteogram.meteogram_length": "Meteogram Length",
-	"ui.editor.meteogram.hours_8": "8 hours",
-	"ui.editor.meteogram.hours_12": "12 hours",
-	"ui.editor.meteogram.hours_24": "24 hours",
-	"ui.editor.meteogram.hours_48": "48 hours",
-	"ui.editor.meteogram.hours_54": "54 hours",
-	"ui.editor.meteogram.hours_max": "Max available",
-	"ui.editor.meteogram.choose_hours": "Choose how many hours to show in the meteogram",
-	"ui.editor.meteogram.attributes.cloud_coverage": "Show Cloud Cover",
-	"ui.editor.meteogram.attributes.air_pressure": "Show Pressure",
-	"ui.editor.meteogram.attributes.precipitation": "Show Rain",
-	"ui.editor.meteogram.attributes.weather_icons": "Show Weather Icons",
-	"ui.editor.meteogram.attributes.wind": "Show Wind",
-	"ui.editor.meteogram.attributes.dense_icons": "Dense Weather Icons (every hour)",
-	"ui.editor.meteogram.attributes.fill_container": "Fill Container"
-};
-
-var nbLocale = {
-	"ui.card.meteogram.attribution": "Data fra",
-	"ui.card.meteogram.status.cached": "bufret",
-	"ui.card.meteogram.status.success": "suksess",
-	"ui.card.meteogram.status.failed": "feilet",
-	"ui.card.meteogram.status_panel": "Statuspanel",
-	"ui.card.meteogram.status.expires_at": "Utløper",
-	"ui.card.meteogram.status.last_render": "Sist tegnet",
-	"ui.card.meteogram.status.last_fingerprint_miss": "Siste fingerprint-miss",
-	"ui.card.meteogram.status.last_data_fetch": "Siste datainnhenting",
-	"ui.card.meteogram.status.last_cached": "Sist bufret",
-	"ui.card.meteogram.status.api_success": "API-suksess",
-	"ui.card.meteogram.error": "Værdata ikke tilgjengelig",
-	"ui.card.meteogram.attributes.temperature": "Temperatur",
-	"ui.card.meteogram.attributes.air_pressure": "Lufttrykk",
-	"ui.card.meteogram.attributes.precipitation": "Regn",
-	"ui.card.meteogram.attributes.snow": "Snø",
-	"ui.card.meteogram.attributes.cloud_coverage": "Skydekke",
-	"ui.card.meteogram.attributes.weather_icons": "Vis værikoner",
-	"ui.card.meteogram.attributes.wind": "Vis vind",
-	"ui.card.meteogram.attributes.dense_icons": "Tette værikoner (hver time)",
-	"ui.card.meteogram.attributes.fill_container": "Fyll beholder",
-	"ui.editor.meteogram.title": "Meteogram-kortinnstillinger",
-	"ui.editor.meteogram.title_label": "Tittel",
-	"ui.editor.meteogram.location_info": "Lokasjonskoordinater brukes for å hente værdata direkte fra Met.no API.",
-	"ui.editor.meteogram.using_ha_location": "Bruker Home Assistants lokasjon som standard.",
-	"ui.editor.meteogram.latitude": "Breddegrad",
-	"ui.editor.meteogram.longitude": "Lengdegrad",
-	"ui.editor.meteogram.default": "Standard",
-	"ui.editor.meteogram.leave_empty": "La stå tomt for å bruke Home Assistants konfigurerte lokasjon",
-	"ui.editor.meteogram.display_options": "Visningsvalg",
-	"ui.editor.meteogram.meteogram_length": "Meteogramlengde",
-	"ui.editor.meteogram.hours_8": "8 timer",
-	"ui.editor.meteogram.hours_12": "12 timer",
-	"ui.editor.meteogram.hours_24": "24 timer",
-	"ui.editor.meteogram.hours_48": "48 timer",
-	"ui.editor.meteogram.hours_54": "54 timer",
-	"ui.editor.meteogram.hours_max": "Maks tilgjengelig",
-	"ui.editor.meteogram.choose_hours": "Velg hvor mange timer som skal vises i meteogrammet",
-	"ui.editor.meteogram.attributes.cloud_coverage": "Vis skydekke",
-	"ui.editor.meteogram.attributes.air_pressure": "Vis lufttrykk",
-	"ui.editor.meteogram.attributes.precipitation": "Vis regn",
-	"ui.editor.meteogram.attributes.weather_icons": "Vis værikoner",
-	"ui.editor.meteogram.attributes.wind": "Vis vind",
-	"ui.editor.meteogram.attributes.dense_icons": "Tette værikoner (hver time)",
-	"ui.editor.meteogram.attributes.fill_container": "Fyll beholder"
-};
-
-var esLocale = {
-	"ui.card.meteogram.attribution": "Datos de",
-	"ui.card.meteogram.status.cached": "en caché",
-	"ui.card.meteogram.status.success": "éxito",
-	"ui.card.meteogram.status.failed": "fallido",
-	"ui.card.meteogram.status_panel": "Panel de estado",
-	"ui.card.meteogram.status.expires_at": "Expira en",
-	"ui.card.meteogram.status.last_render": "Última representación",
-	"ui.card.meteogram.status.last_fingerprint_miss": "Última huella fallida",
-	"ui.card.meteogram.status.last_data_fetch": "Última obtención de datos",
-	"ui.card.meteogram.status.last_cached": "Último en caché",
-	"ui.card.meteogram.status.api_success": "Éxito de la API",
-	"ui.card.meteogram.error": "Datos meteorológicos no disponibles",
-	"ui.card.meteogram.attributes.temperature": "Temperatura",
-	"ui.card.meteogram.attributes.air_pressure": "Presión",
-	"ui.card.meteogram.attributes.precipitation": "Lluvia",
-	"ui.card.meteogram.attributes.snow": "Nieve",
-	"ui.card.meteogram.attributes.cloud_coverage": "Cobertura de nubes",
-	"ui.card.meteogram.attributes.weather_icons": "Mostrar iconos meteorológicos",
-	"ui.card.meteogram.attributes.wind": "Mostrar viento",
-	"ui.card.meteogram.attributes.dense_icons": "Iconos meteorológicos densos (cada hora)",
-	"ui.card.meteogram.attributes.fill_container": "Rellenar el contenedor",
-	"ui.editor.meteogram.title": "Configuración de la tarjeta Meteograma",
-	"ui.editor.meteogram.title_label": "Título",
-	"ui.editor.meteogram.location_info": "Las coordenadas se utilizarán para obtener datos meteorológicos directamente de la API de Met.no.",
-	"ui.editor.meteogram.using_ha_location": "Usando la ubicación de Home Assistant por defecto.",
-	"ui.editor.meteogram.latitude": "Latitud",
-	"ui.editor.meteogram.longitude": "Longitud",
-	"ui.editor.meteogram.default": "Predeterminado",
-	"ui.editor.meteogram.leave_empty": "Dejar vacío para usar la ubicación configurada en Home Assistant",
-	"ui.editor.meteogram.display_options": "Opciones de visualización",
-	"ui.editor.meteogram.meteogram_length": "Duración del meteograma",
-	"ui.editor.meteogram.hours_8": "8 horas",
-	"ui.editor.meteogram.hours_12": "12 horas",
-	"ui.editor.meteogram.hours_24": "24 horas",
-	"ui.editor.meteogram.hours_48": "48 horas",
-	"ui.editor.meteogram.hours_54": "54 horas",
-	"ui.editor.meteogram.hours_max": "Máximo disponible",
-	"ui.editor.meteogram.choose_hours": "Elija cuántas horas mostrar en el meteograma",
-	"ui.editor.meteogram.attributes.cloud_coverage": "Mostrar cobertura de nubes",
-	"ui.editor.meteogram.attributes.air_pressure": "Mostrar presión",
-	"ui.editor.meteogram.attributes.precipitation": "Mostrar lluvia",
-	"ui.editor.meteogram.attributes.weather_icons": "Mostrar iconos meteorológicos",
-	"ui.editor.meteogram.attributes.wind": "Mostrar viento",
-	"ui.editor.meteogram.attributes.dense_icons": "Iconos meteorológicos densos (cada hora)",
-	"ui.editor.meteogram.attributes.fill_container": "Rellenar el contenedor"
-};
-
-var itLocale = {
-	"ui.card.meteogram.attribution": "Dati da",
-	"ui.card.meteogram.status.cached": "memorizzato",
-	"ui.card.meteogram.status.success": "successo",
-	"ui.card.meteogram.status.failed": "fallito",
-	"ui.card.meteogram.status_panel": "Pannello di stato",
-	"ui.card.meteogram.status.expires_at": "Scade il",
-	"ui.card.meteogram.status.last_render": "Ultima visualizzazione",
-	"ui.card.meteogram.status.last_fingerprint_miss": "Ultima impronta mancante",
-	"ui.card.meteogram.status.last_data_fetch": "Ultimo recupero dati",
-	"ui.card.meteogram.status.last_cached": "Ultimo memorizzato",
-	"ui.card.meteogram.status.api_success": "Successo API",
-	"ui.card.meteogram.error": "Dati meteorologici non disponibili",
-	"ui.card.meteogram.attributes.temperature": "Temperatura",
-	"ui.card.meteogram.attributes.air_pressure": "Pressione",
-	"ui.card.meteogram.attributes.precipitation": "Pioggia",
-	"ui.card.meteogram.attributes.snow": "Neve",
-	"ui.card.meteogram.attributes.cloud_coverage": "Copertura nuvolosa",
-	"ui.card.meteogram.attributes.weather_icons": "Mostra icone meteo",
-	"ui.card.meteogram.attributes.wind": "Mostra vento",
-	"ui.card.meteogram.attributes.dense_icons": "Icone meteo dense (ogni ora)",
-	"ui.card.meteogram.attributes.fill_container": "Riempi contenitore",
-	"ui.editor.meteogram.title": "Impostazioni della scheda Meteogramma",
-	"ui.editor.meteogram.title_label": "Titolo",
-	"ui.editor.meteogram.location_info": "Le coordinate verranno utilizzate per ottenere i dati meteorologici direttamente dall'API Met.no.",
-	"ui.editor.meteogram.using_ha_location": "Utilizzo della posizione di Home Assistant come predefinita.",
-	"ui.editor.meteogram.latitude": "Latitudine",
-	"ui.editor.meteogram.longitude": "Longitudine",
-	"ui.editor.meteogram.default": "Predefinito",
-	"ui.editor.meteogram.leave_empty": "Lascia vuoto per usare la posizione configurata in Home Assistant",
-	"ui.editor.meteogram.display_options": "Opzioni di visualizzazione",
-	"ui.editor.meteogram.meteogram_length": "Durata meteogramma",
-	"ui.editor.meteogram.hours_8": "8 ore",
-	"ui.editor.meteogram.hours_12": "12 ore",
-	"ui.editor.meteogram.hours_24": "24 ore",
-	"ui.editor.meteogram.hours_48": "48 ore",
-	"ui.editor.meteogram.hours_54": "54 ore",
-	"ui.editor.meteogram.hours_max": "Massimo disponibile",
-	"ui.editor.meteogram.choose_hours": "Scegli quante ore mostrare nel meteogramma",
-	"ui.editor.meteogram.attributes.cloud_coverage": "Mostra copertura nuvolosa",
-	"ui.editor.meteogram.attributes.air_pressure": "Mostra pressione",
-	"ui.editor.meteogram.attributes.precipitation": "Mostra pioggia",
-	"ui.editor.meteogram.attributes.weather_icons": "Mostra icone meteo",
-	"ui.editor.meteogram.attributes.wind": "Mostra vento",
-	"ui.editor.meteogram.attributes.dense_icons": "Icone meteo dense (ogni ora)",
-	"ui.editor.meteogram.attributes.fill_container": "Riempi contenitore"
-};
-
-var deLocale = {
-	"ui.card.meteogram.attribution": "Daten von",
-	"ui.card.meteogram.status.cached": "zwischengespeichert",
-	"ui.card.meteogram.status.success": "Erfolg",
-	"ui.card.meteogram.status.failed": "Fehler",
-	"ui.card.meteogram.status_panel": "Statuspanel",
-	"ui.card.meteogram.status.expires_at": "Ablaufdatum",
-	"ui.card.meteogram.status.last_render": "Letzte Darstellung",
-	"ui.card.meteogram.status.last_fingerprint_miss": "Letzter Fingerabdruck-Fehler",
-	"ui.card.meteogram.status.last_data_fetch": "Letzter Datenabruf",
-	"ui.card.meteogram.status.last_cached": "Zuletzt zwischengespeichert",
-	"ui.card.meteogram.status.api_success": "API-Erfolg",
-	"ui.card.meteogram.error": "Wetterdaten nicht verfügbar",
-	"ui.card.meteogram.attributes.temperature": "Temperatur",
-	"ui.card.meteogram.attributes.air_pressure": "Luftdruck",
-	"ui.card.meteogram.attributes.precipitation": "Regen",
-	"ui.card.meteogram.attributes.snow": "Schnee",
-	"ui.card.meteogram.attributes.cloud_coverage": "Wolkenbedeckung",
-	"ui.card.meteogram.attributes.weather_icons": "Wetter-Symbole anzeigen",
-	"ui.card.meteogram.attributes.wind": "Wind anzeigen",
-	"ui.card.meteogram.attributes.dense_icons": "Dichte Wettersymbole (jede Stunde)",
-	"ui.card.meteogram.attributes.fill_container": "Container ausfüllen",
-	"ui.editor.meteogram.title": "Meteogramm-Karteneinstellungen",
-	"ui.editor.meteogram.title_label": "Titel",
-	"ui.editor.meteogram.location_info": "Die Koordinaten werden verwendet, um Wetterdaten direkt von der Met.no API abzurufen.",
-	"ui.editor.meteogram.using_ha_location": "Standardmäßig wird der Standort von Home Assistant verwendet.",
-	"ui.editor.meteogram.latitude": "Breitengrad",
-	"ui.editor.meteogram.longitude": "Längengrad",
-	"ui.editor.meteogram.default": "Standard",
-	"ui.editor.meteogram.leave_empty": "Leer lassen, um die konfigurierte Position von Home Assistant zu verwenden",
-	"ui.editor.meteogram.display_options": "Anzeigeoptionen",
-	"ui.editor.meteogram.meteogram_length": "Meteogramm-Länge",
-	"ui.editor.meteogram.hours_8": "8 Stunden",
-	"ui.editor.meteogram.hours_12": "12 Stunden",
-	"ui.editor.meteogram.hours_24": "24 Stunden",
-	"ui.editor.meteogram.hours_48": "48 Stunden",
-	"ui.editor.meteogram.hours_54": "54 Stunden",
-	"ui.editor.meteogram.hours_max": "Maximal verfügbar",
-	"ui.editor.meteogram.choose_hours": "Wählen Sie, wie viele Stunden im Meteogramm angezeigt werden sollen",
-	"ui.editor.meteogram.attributes.cloud_coverage": "Wolkenbedeckung anzeigen",
-	"ui.editor.meteogram.attributes.air_pressure": "Luftdruck anzeigen",
-	"ui.editor.meteogram.attributes.precipitation": "Regen anzeigen",
-	"ui.editor.meteogram.attributes.weather_icons": "Wetter-Symbole anzeigen",
-	"ui.editor.meteogram.attributes.wind": "Wind anzeigen",
-	"ui.editor.meteogram.attributes.dense_icons": "Dichte Wettersymbole (jede Stunde)",
-	"ui.editor.meteogram.attributes.fill_container": "Container ausfüllen"
-};
-
-var frLocale = {
-	"ui.card.meteogram.attribution": "Données de",
-	"ui.card.meteogram.status.cached": "mis en cache",
-	"ui.card.meteogram.status.success": "succès",
-	"ui.card.meteogram.status.failed": "échec",
-	"ui.card.meteogram.status_panel": "Panneau d'état",
-	"ui.card.meteogram.status.expires_at": "Expire à",
-	"ui.card.meteogram.status.last_render": "Dernier rendu",
-	"ui.card.meteogram.status.last_fingerprint_miss": "Dernière empreinte manquée",
-	"ui.card.meteogram.status.last_data_fetch": "Dernière récupération de données",
-	"ui.card.meteogram.status.last_cached": "Dernière mise en cache",
-	"ui.card.meteogram.status.api_success": "Succès API",
-	"ui.card.meteogram.error": "Données météo non disponibles",
-	"ui.card.meteogram.attributes.temperature": "Température",
-	"ui.card.meteogram.attributes.air_pressure": "Pression",
-	"ui.card.meteogram.attributes.precipitation": "Pluie",
-	"ui.card.meteogram.attributes.snow": "Neige",
-	"ui.card.meteogram.attributes.cloud_coverage": "Couverture nuageuse",
-	"ui.card.meteogram.attributes.weather_icons": "Afficher les icônes météo",
-	"ui.card.meteogram.attributes.wind": "Afficher le vent",
-	"ui.card.meteogram.attributes.dense_icons": "Icônes météo denses (chaque heure)",
-	"ui.card.meteogram.attributes.fill_container": "Remplir le conteneur",
-	"ui.editor.meteogram.title": "Paramètres de la carte Météogramme",
-	"ui.editor.meteogram.title_label": "Titre",
-	"ui.editor.meteogram.location_info": "Les coordonnées seront utilisées pour obtenir les données météo directement depuis l'API Met.no.",
-	"ui.editor.meteogram.using_ha_location": "Utilisation de la localisation Home Assistant par défaut.",
-	"ui.editor.meteogram.latitude": "Latitude",
-	"ui.editor.meteogram.longitude": "Longitude",
-	"ui.editor.meteogram.default": "Défaut",
-	"ui.editor.meteogram.leave_empty": "Laisser vide pour utiliser la localisation configurée dans Home Assistant",
-	"ui.editor.meteogram.display_options": "Options d'affichage",
-	"ui.editor.meteogram.meteogram_length": "Durée du météogramme",
-	"ui.editor.meteogram.hours_8": "8 heures",
-	"ui.editor.meteogram.hours_12": "12 heures",
-	"ui.editor.meteogram.hours_24": "24 heures",
-	"ui.editor.meteogram.hours_48": "48 heures",
-	"ui.editor.meteogram.hours_54": "54 heures",
-	"ui.editor.meteogram.hours_max": "Maximum disponible",
-	"ui.editor.meteogram.choose_hours": "Choisissez combien d'heures afficher dans le météogramme",
-	"ui.editor.meteogram.attributes.cloud_coverage": "Afficher la couverture nuageuse",
-	"ui.editor.meteogram.attributes.air_pressure": "Afficher la pression",
-	"ui.editor.meteogram.attributes.precipitation": "Afficher la pluie",
-	"ui.editor.meteogram.attributes.weather_icons": "Afficher les icônes météo",
-	"ui.editor.meteogram.attributes.wind": "Afficher le vent",
-	"ui.editor.meteogram.attributes.dense_icons": "Icônes météo denses (chaque heure)",
-	"ui.editor.meteogram.attributes.fill_container": "Remplir le conteneur"
-};
-
-function trnslt(hass, key, fallback) {
-    var _a;
-    // Try hass.localize (used by HA frontend)
-    if (hass && typeof hass.localize === "function") {
-        const result = hass.localize(key);
-        if (result && result !== key)
-            return result;
-    }
-    // Try hass.resources (used by HA backend)
-    if (hass && hass.resources && typeof hass.resources === "object") {
-        const lang = hass.language || "en";
-        const res = (_a = hass.resources[lang]) === null || _a === void 0 ? void 0 : _a[key];
-        if (res)
-            return res;
-    }
-    // Try local translation files
-    const lang = (hass && hass.language) ? hass.language : "en";
-    let localRes;
-    if (lang.startsWith("nb")) {
-        localRes = nbLocale[key];
-    }
-    else if (lang.startsWith("es")) {
-        localRes = esLocale[key];
-    }
-    else if (lang.startsWith("it")) {
-        localRes = itLocale[key];
-    }
-    else if (lang.startsWith("de")) {
-        localRes = deLocale[key];
-    }
-    else if (lang.startsWith("fr")) {
-        localRes = frLocale[key];
-    }
-    else {
-        localRes = enLocale[key];
-    }
-    if (localRes)
-        return localRes;
-    // Return fallback if provided, otherwise the key
-    return fallback !== undefined ? fallback : key;
-}
-
-const DIAGNOSTICS_DEFAULT$1 = version.includes("beta");
-let MeteogramCardEditor = class MeteogramCardEditor extends i {
-    constructor() {
-        super(...arguments);
-        this._config = {};
-        this._initialized = false;
-        this._elements = new Map();
-    }
-    setConfig(config) {
-        this._config = config || {};
-        if (this._initialized) {
-            this._updateValues();
-        }
-        else {
-            this._initialize();
-        }
-    }
-    get config() {
-        return this._config;
-    }
-    connectedCallback() {
-        if (!this._initialized) {
-            this._initialize();
-        }
-    }
-    _initialize() {
-        this.render();
-        this._initialized = true;
-        setTimeout(() => this._updateValues(), 0); // Wait for DOM to be ready
-    }
-    // Update only the values, not the entire DOM
-    _updateValues() {
-        var _a, _b, _c, _d;
-        if (!this._initialized)
-            return;
-        // Helper to update only if value changed
-        const setValue = (el, value, prop = 'value') => {
-            if (!el)
-                return;
-            if (el[prop] !== value)
-                el[prop] = value;
-        };
-        setValue(this._elements.get('title'), this._config.title || '');
-        setValue(this._elements.get('latitude'), this._config.latitude !== undefined
-            ? String(this._config.latitude)
-            : (((_b = (_a = this.hass) === null || _a === void 0 ? void 0 : _a.config) === null || _b === void 0 ? void 0 : _b.latitude) !== undefined ? String(this.hass.config.latitude) : ''));
-        setValue(this._elements.get('longitude'), this._config.longitude !== undefined
-            ? String(this._config.longitude)
-            : (((_d = (_c = this.hass) === null || _c === void 0 ? void 0 : _c.config) === null || _d === void 0 ? void 0 : _d.longitude) !== undefined ? String(this.hass.config.longitude) : ''));
-        setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
-        setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
-        setValue(this._elements.get('show_rain'), this._config.show_rain !== undefined ? this._config.show_rain : true, 'checked');
-        setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
-        setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
-        setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
-        setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
-        setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
-        setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$1, 'checked');
-    }
-    render() {
-        var _a, _b, _c, _d;
-        const hass = this.hass;
-        const config = this._config;
-        // Wait for both hass and config to be set before rendering
-        if (!hass || !config) {
-            this.innerHTML = '<ha-card><div style="padding:16px;">Loading Home Assistant context...</div></ha-card>';
-            setTimeout(() => this.render(), 300); // Retry every 300ms until both are set
-            return;
-        }
-        // Get default coordinates from Home Assistant config if available
-        const defaultLat = (_b = (_a = hass === null || hass === void 0 ? void 0 : hass.config) === null || _a === void 0 ? void 0 : _a.latitude) !== null && _b !== void 0 ? _b : '';
-        const defaultLon = (_d = (_c = hass === null || hass === void 0 ? void 0 : hass.config) === null || _c === void 0 ? void 0 : _c.longitude) !== null && _d !== void 0 ? _d : '';
-        // Get current toggle values or default to true
-        const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
-        const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
-        const showRain = this._config.show_rain !== undefined ? this._config.show_rain : true;
-        const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
-        const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
-        const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
-        const meteogramHours = this._config.meteogram_hours || "48h";
-        const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
-        const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$1;
-        const div = document.createElement('div');
-        div.innerHTML = `
-  <style>
-    ha-card {
-      padding: 16px;
-    }
-    .values {
-      padding-left: 16px;
-      margin: 8px 0;
-    }
-    .row {
-      display: flex;
-      margin-bottom: 12px;
-      align-items: center;
-    }
-    ha-textfield {
-      width: 100%;
-    }
-    .side-by-side {
-      display: flex;
-      gap: 12px;
-    }
-    .side-by-side > * {
-      flex: 1;
-    }
-    h3 {
-      font-size: 18px;
-      color: var(--primary-text-color);
-      font-weight: 500;
-      margin-bottom: 12px;
-      margin-top: 0;
-    }
-    .help-text {
-      color: var(--secondary-text-color);
-      font-size: 0.875rem;
-      margin-top: 4px;
-    }
-    .info-text {
-      color: var(--primary-text-color);
-      opacity: 0.8;
-      font-size: 0.9rem;
-      font-style: italic;
-      margin: 4px 0 16px 0;
-    }
-    .toggle-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .toggle-label {
-      flex-grow: 1;
-    }
-    .toggle-section {
-      margin-top: 16px;
-      border-top: 1px solid var(--divider-color);
-      padding-top: 16px;
-    }
-  </style>
-  <ha-card>
-    <h3>${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.title") : "Meteogram Card Settings"}</h3>
-    <div class="values">
-      <div class="row">
-        <ha-textfield
-          label="${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.title_label") : "Title"}"
-          id="title-input"
-          .value="${this._config.title || ''}"
-        ></ha-textfield>
-      </div>
-
-      <p class="info-text">
-        ${(hass === null || hass === void 0 ? void 0 : hass.localize) ? hass.localize("ui.editor.meteogram.location_info") : "Location coordinates will be used to fetch weather data directly from Met.no API."}
-        ${defaultLat ? trnslt(hass, "ui.editor.meteogram.using_ha_location", "Using Home Assistant's location by default.") : ""}
-      </p>
-
-      <div class="side-by-side">
-        <ha-textfield
-          label="${trnslt(hass, "ui.editor.meteogram.latitude", "Latitude")}"
-          id="latitude-input"
-          type="number"
-          step="any"
-          .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
-          placeholder="${defaultLat ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLat}` : ""}"
-        ></ha-textfield>
-
-        <ha-textfield
-          label="${trnslt(hass, "ui.editor.meteogram.longitude", "Longitude")}"
-          id="longitude-input"
-          type="number"
-          step="any"
-          .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
-          placeholder="${defaultLon ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : ""}"
-        ></ha-textfield>
-      </div>
-      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.leave_empty", "Leave empty to use Home Assistant's configured location")}</p>
-
-      <div class="toggle-section">
-        <h3>${trnslt(hass, "ui.editor.meteogram.display_options", "Display Options")}</h3>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.cloud_coverage", "Show Cloud Cover")}</div>
-          <ha-switch
-            id="show-cloud-cover"
-            .checked="${showCloudCover}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.air_pressure", "Show Pressure")}</div>
-          <ha-switch
-            id="show-pressure"
-            .checked="${showPressure}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.precipitation", "Show Rain")}</div>
-          <ha-switch
-            id="show-rain"
-            .checked="${showRain}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.weather_icons", "Show Weather Icons")}</div>
-          <ha-switch
-            id="show-weather-icons"
-            .checked="${showWeatherIcons}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.wind", "Show Wind")}</div>
-          <ha-switch
-            id="show-wind"
-            .checked="${showWind}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.dense_icons", "Dense Weather Icons (every hour)")}</div>
-          <ha-switch
-            id="dense-weather-icons"
-            .checked="${denseWeatherIcons}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.fill_container", "Fill Container")}</div>
-          <ha-switch
-            id="fill-container"
-            .checked="${fillContainer}"
-          ></ha-switch>
-        </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">Diagnostics (debug logging)</div>
-          <ha-switch
-            id="diagnostics"
-            .checked="${diagnostics}"
-          ></ha-switch>
-        </div>
-      </div>
-
-      <div class="row">
-        <label for="meteogram-hours-select" style="margin-right:8px;">${trnslt(hass, "ui.editor.meteogram.meteogram_length", "Meteogram Length")}</label>
-        <select id="meteogram-hours-select">
-          <option value="8h" ${meteogramHours === "8h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_8", "8 hours")}</option>
-          <option value="12h" ${meteogramHours === "12h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_12", "12 hours")}</option>
-          <option value="24h" ${meteogramHours === "24h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_24", "24 hours")}</option>
-          <option value="48h" ${meteogramHours === "48h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_48", "48 hours")}</option>
-          <option value="54h" ${meteogramHours === "54h" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_54", "54 hours")}</option>
-          <option value="max" ${meteogramHours === "max" ? "selected" : ""}>${trnslt(hass, "ui.editor.meteogram.hours_max", "Max available")}</option>
-        </select>
-      </div>
-      <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
-    </div>
-  </ha-card>
-`;
-        // Clear previous content
-        this.innerHTML = '';
-        // Append new content
-        this.appendChild(div);
-        // Set up event listeners after DOM is updated
-        setTimeout(() => {
-            // Get and store references to all input elements with proper type casting
-            const titleInput = this.querySelector('#title-input');
-            if (titleInput) {
-                titleInput.configValue = 'title';
-                titleInput.addEventListener('input', this._valueChanged.bind(this));
-                this._elements.set('title', titleInput);
-            }
-            const latInput = this.querySelector('#latitude-input');
-            if (latInput) {
-                latInput.configValue = 'latitude';
-                latInput.addEventListener('input', this._valueChanged.bind(this));
-                this._elements.set('latitude', latInput);
-            }
-            const lonInput = this.querySelector('#longitude-input');
-            if (lonInput) {
-                lonInput.configValue = 'longitude';
-                lonInput.addEventListener('input', this._valueChanged.bind(this));
-                this._elements.set('longitude', lonInput);
-            }
-            // Set up toggle switches
-            const cloudCoverSwitch = this.querySelector('#show-cloud-cover');
-            if (cloudCoverSwitch) {
-                cloudCoverSwitch.configValue = 'show_cloud_cover';
-                cloudCoverSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_cloud_cover', cloudCoverSwitch);
-            }
-            const pressureSwitch = this.querySelector('#show-pressure');
-            if (pressureSwitch) {
-                pressureSwitch.configValue = 'show_pressure';
-                pressureSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_pressure', pressureSwitch);
-            }
-            const rainSwitch = this.querySelector('#show-rain');
-            if (rainSwitch) {
-                rainSwitch.configValue = 'show_rain';
-                rainSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_rain', rainSwitch);
-            }
-            const weatherIconsSwitch = this.querySelector('#show-weather-icons');
-            if (weatherIconsSwitch) {
-                weatherIconsSwitch.configValue = 'show_weather_icons';
-                weatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_weather_icons', weatherIconsSwitch);
-            }
-            const windSwitch = this.querySelector('#show-wind');
-            if (windSwitch) {
-                windSwitch.configValue = 'show_wind';
-                windSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_wind', windSwitch);
-            }
-            const denseWeatherIconsSwitch = this.querySelector('#dense-weather-icons');
-            if (denseWeatherIconsSwitch) {
-                denseWeatherIconsSwitch.configValue = 'dense_weather_icons';
-                denseWeatherIconsSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('dense_weather_icons', denseWeatherIconsSwitch);
-            }
-            const meteogramHoursSelect = this.querySelector('#meteogram-hours-select');
-            if (meteogramHoursSelect) {
-                meteogramHoursSelect.configValue = 'meteogram_hours';
-                meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('meteogram_hours', meteogramHoursSelect);
-            }
-            const fillContainerSwitch = this.querySelector('#fill-container');
-            if (fillContainerSwitch) {
-                fillContainerSwitch.configValue = 'fill_container';
-                fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('fill_container', fillContainerSwitch);
-            }
-            const diagnosticsSwitch = this.querySelector('#diagnostics');
-            if (diagnosticsSwitch) {
-                diagnosticsSwitch.configValue = 'diagnostics';
-                diagnosticsSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('diagnostics', diagnosticsSwitch);
-            }
-            // Update values after setting up elements and listeners
-            this._updateValues();
-        }, 0);
-    }
-    // Add the missing _valueChanged method
-    _valueChanged(ev) {
-        const target = ev.target;
-        if (!this._config || !target || !target.configValue)
-            return;
-        let newValue = target.value || '';
-        // Handle different input types
-        if (target.tagName === 'HA-SWITCH') {
-            newValue = target.checked;
-        }
-        else if (target.type === 'number') {
-            if (newValue === '') {
-                // If field is cleared, set to undefined to use defaults
-                newValue = undefined;
-            }
-            else {
-                const numValue = parseFloat(newValue.toString());
-                if (!isNaN(numValue)) {
-                    newValue = numValue;
-                }
-            }
-        }
-        else if (newValue === '') {
-            newValue = undefined;
-        }
-        // Update config without re-rendering the entire form
-        this._config = {
-            ...this._config,
-            [target.configValue]: newValue
-        };
-        this.dispatchEvent(new CustomEvent('config-changed', {
-            detail: { config: this._config }
-        }));
-    }
-};
-__decorate([
-    n({ type: Object })
-], MeteogramCardEditor.prototype, "_config", void 0);
-__decorate([
-    n({ type: Object })
-], MeteogramCardEditor.prototype, "hass", void 0);
-__decorate([
-    r()
-], MeteogramCardEditor.prototype, "_initialized", void 0);
-MeteogramCardEditor = __decorate([
-    t('meteogram-card-editor')
-], MeteogramCardEditor);
-
 var MeteogramCard_1;
 const DIAGNOSTICS_DEFAULT = version.includes("beta");
 const CARD_NAME$1 = "Meteogram Card";
 const METEOGRAM_CARD_STARTUP_TIME = new Date();
-let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
+let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     constructor() {
         super();
         this.title = "";
@@ -1343,7 +1405,6 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
     }
     // Required for Home Assistant
     setConfig(config) {
-        console.log(`[${CARD_NAME$1}] setConfig called with:`, config);
         // Truncate to 4 decimals for comparison
         const configLat = config.latitude !== undefined ? parseFloat(Number(config.latitude).toFixed(4)) : undefined;
         const configLon = config.longitude !== undefined ? parseFloat(Number(config.longitude).toFixed(4)) : undefined;
@@ -1368,13 +1429,14 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
         this.styles = config.styles || {};
         // Add diagnostics option
         this.diagnostics = config.diagnostics !== undefined ? config.diagnostics : DIAGNOSTICS_DEFAULT;
+        // Set entityId from config
+        this.entityId = config.entity_id || undefined;
     }
     // Required for HA visual editor support
     static getConfigElement() {
         // Pre-initialize the editor component for faster display
         const editor = document.createElement("meteogram-card-editor");
         // Create a basic config to start with
-        console.log(`[${CARD_NAME$1}] getConfigElement called, pre-initializing editor.`);
         editor.setConfig({
             show_cloud_cover: true,
             show_pressure: true,
@@ -1386,7 +1448,6 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             fill_container: false,
             diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
         });
-        console.log(`[${CARD_NAME$1}] Editor pre-initialized with default config.`);
         return editor;
     }
     // Define card configuration type
@@ -1650,9 +1711,14 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             this.loadD3AndDraw();
         }, 50);
         this._updateDarkMode(); // Ensure dark mode is set on first update
-        // Only create WeatherEntityAPI once and reuse it
-        const entityId = "weather.forecast_home";
-        if (!this._weatherEntityApiInstance) {
+        // Use entityId from config or fallback to first available weather entity
+        let entityId = this.entityId;
+        if (!entityId && this.hass && this.hass.states) {
+            const weatherEntities = Object.keys(this.hass.states).filter(eid => eid.startsWith('weather.'));
+            entityId = weatherEntities.length > 0 ? weatherEntities[0] : undefined;
+        }
+        // Only use weather entity if it's set and not "none"
+        if (entityId && entityId !== 'none' && !this._weatherEntityApiInstance) {
             this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, entityId);
             // Subscribe to forecast updates from weather entity and log them
             // this._weatherEntityApiInstance.subscribeForecast((forecastArr: any[]) => {
@@ -1660,8 +1726,9 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
             // });
         }
         // Call sampleFetchWeatherEntityForecast to log weather entity data
-        console.log("sampleFetchWeatherEntityForecast called", this.hass);
-        MeteogramCard_1.sampleFetchWeatherEntityForecast(this.hass);
+        if (entityId && entityId !== 'none') {
+            MeteogramCard_1.sampleFetchWeatherEntityForecast(this.hass, entityId);
+        }
     }
     updated(changedProps) {
         var _a, _b;
@@ -1930,8 +1997,10 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
                 this._statusApiSuccess = true;
                 this._lastApiSuccess = true;
                 // --- NEW: Also fetch from WeatherEntityAPI and log ---
-                const entityForecast = (_a = this._weatherEntityApiInstance) === null || _a === void 0 ? void 0 : _a.getForecastData();
-                console.log(`[WeatherEntityAPI] getForecastData for weather.forecast_home:`, entityForecast);
+                if (this.entityId && this.entityId !== 'none') {
+                    const entityForecast = (_a = this._weatherEntityApiInstance) === null || _a === void 0 ? void 0 : _a.getForecastData();
+                    console.debug(`[WeatherEntityAPI] getForecastData for ${this.entityId}:`, entityForecast);
+                }
                 // -----------------------------------------------------
                 // Filter result by meteogramHours
                 let hours = 48;
@@ -1969,12 +2038,12 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
         })();
         return this.weatherDataPromise;
     }
-    // SAMPLE: Fetch forecast data from weather entity and log it
-    static sampleFetchWeatherEntityForecast(hass) {
-        const entityId = "weather.forecast_home";
+    // // SAMPLE: Fetch forecast data from weather entity and log it
+    static sampleFetchWeatherEntityForecast(hass, entityId) {
+        if (!entityId)
+            return;
         const api = new WeatherEntityAPI(hass, entityId);
-        const data = api.getForecastData();
-        console.log("WeatherEntityAPI forecast data for", entityId, data);
+        api.getForecastData();
     }
     // Keep the cleanupChart method as is
     cleanupChart() {
@@ -2880,7 +2949,7 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
                     : "❌"}
                                                 </span>
                                                 <br>
-                                                <span>Card version: <code>${version}</code></span><br>
+                                                <span>Card version: <code>${MeteogramCard_1.meteogramCardVersion}</code></span><br>
                                                 <span>Client type: <code>${getClientName()}</code></span><br>
                                                 <span>${successTooltip}</span>
 
@@ -2980,8 +3049,9 @@ let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
         return tempC;
     }
 };
-MeteogramCard.lastD3RetryTime = 0;
-MeteogramCard.styles = i$3 `
+MeteogramCard$1.meteogramCardVersion = version;
+MeteogramCard$1.lastD3RetryTime = 0;
+MeteogramCard$1.styles = i$3 `
             :host {
                 --meteogram-grid-color: #b8c4d9;
                 --meteogram-grid-color-dark: #b8c4d9;
@@ -3393,75 +3463,77 @@ MeteogramCard.styles = i$3 `
         `;
 __decorate([
     n({ type: String })
-], MeteogramCard.prototype, "title", void 0);
+], MeteogramCard$1.prototype, "title", void 0);
 __decorate([
     n({ type: Number })
-], MeteogramCard.prototype, "latitude", void 0);
+], MeteogramCard$1.prototype, "latitude", void 0);
 __decorate([
     n({ type: Number })
-], MeteogramCard.prototype, "longitude", void 0);
+], MeteogramCard$1.prototype, "longitude", void 0);
 __decorate([
     n({ attribute: false })
-], MeteogramCard.prototype, "hass", void 0);
+], MeteogramCard$1.prototype, "hass", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard.prototype, "showCloudCover", void 0);
+], MeteogramCard$1.prototype, "showCloudCover", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard.prototype, "showPressure", void 0);
+], MeteogramCard$1.prototype, "showPressure", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard.prototype, "showRain", void 0);
+], MeteogramCard$1.prototype, "showRain", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard.prototype, "showWeatherIcons", void 0);
+], MeteogramCard$1.prototype, "showWeatherIcons", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard.prototype, "showWind", void 0);
+], MeteogramCard$1.prototype, "showWind", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard.prototype, "denseWeatherIcons", void 0);
+], MeteogramCard$1.prototype, "denseWeatherIcons", void 0);
 __decorate([
     n({ type: String })
-], MeteogramCard.prototype, "meteogramHours", void 0);
+], MeteogramCard$1.prototype, "meteogramHours", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard.prototype, "fillContainer", void 0);
+], MeteogramCard$1.prototype, "fillContainer", void 0);
 __decorate([
     n({ type: Object })
-], MeteogramCard.prototype, "styles", void 0);
+], MeteogramCard$1.prototype, "styles", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard.prototype, "diagnostics", void 0);
+], MeteogramCard$1.prototype, "diagnostics", void 0);
+__decorate([
+    n({ type: String })
+], MeteogramCard$1.prototype, "entityId", void 0);
 __decorate([
     r()
-], MeteogramCard.prototype, "chartLoaded", void 0);
+], MeteogramCard$1.prototype, "chartLoaded", void 0);
 __decorate([
     r()
-], MeteogramCard.prototype, "meteogramError", void 0);
+], MeteogramCard$1.prototype, "meteogramError", void 0);
 __decorate([
     r()
-], MeteogramCard.prototype, "errorCount", void 0);
+], MeteogramCard$1.prototype, "errorCount", void 0);
 __decorate([
     r()
-], MeteogramCard.prototype, "lastErrorTime", void 0);
+], MeteogramCard$1.prototype, "lastErrorTime", void 0);
 __decorate([
     r()
-], MeteogramCard.prototype, "_statusExpiresAt", void 0);
+], MeteogramCard$1.prototype, "_statusExpiresAt", void 0);
 __decorate([
     r()
-], MeteogramCard.prototype, "_statusLastRender", void 0);
+], MeteogramCard$1.prototype, "_statusLastRender", void 0);
 __decorate([
     r()
-], MeteogramCard.prototype, "_statusLastFetch", void 0);
+], MeteogramCard$1.prototype, "_statusLastFetch", void 0);
 __decorate([
     r()
-], MeteogramCard.prototype, "_statusApiSuccess", void 0);
-MeteogramCard = MeteogramCard_1 = __decorate([
+], MeteogramCard$1.prototype, "_statusApiSuccess", void 0);
+MeteogramCard$1 = MeteogramCard_1 = __decorate([
     t("meteogram-card")
-], MeteogramCard);
+], MeteogramCard$1);
 
-// // Version info - update this when releasing new versions
 const CARD_NAME = "Meteogram Card";
 // Print version info - based on mushroom cards implementation
 const printVersionInfo = () => {

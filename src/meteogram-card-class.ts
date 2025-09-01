@@ -1,13 +1,11 @@
 import { LitElement, css, html, PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { MeteogramCardConfig, MeteogramCardEditorElement } from "./types";
+import { MeteogramCardConfig, MeteogramCardEditorElement, DayRange, ConfigurableHTMLElement } from "./types";
 import { version } from "../package.json";
-import { formatDiagnosticError, getClientName, getVersion } from "./diagnostics";
+import { getClientName} from "./diagnostics";
 import { WeatherAPI, ForecastData } from "./weather-api";
 import { WeatherEntityAPI } from "./weather-entity";
 import { trnslt } from "./translations";
-import { DayRange, ConfigurableHTMLElement } from "./types";
-import './meteogram-card-editor';
 
 const DIAGNOSTICS_DEFAULT = version.includes("beta");
 const CARD_NAME = "Meteogram Card";
@@ -59,6 +57,9 @@ export class MeteogramCard extends LitElement {
     @property({type: Boolean}) fillContainer = false; // NEW: fill container option
     @property({type: Object}) styles: Record<string, string> = {}; // NEW: styles override
     @property({type: Boolean}) diagnostics: boolean = DIAGNOSTICS_DEFAULT; // Initialize here
+    @property({type: String}) entityId?: string; // NEW: entity_id for weather integration
+    static meteogramCardVersion: string = version;
+
 
     @state() private chartLoaded = false;
     @state() private meteogramError = "";
@@ -605,7 +606,6 @@ export class MeteogramCard extends LitElement {
 
     // Required for Home Assistant
     setConfig(config: MeteogramCardConfig): void {
-        console.log(`[${CARD_NAME}] setConfig called with:`, config);
         // Truncate to 4 decimals for comparison
         const configLat = config.latitude !== undefined ? parseFloat(Number(config.latitude).toFixed(4)) : undefined;
         const configLon = config.longitude !== undefined ? parseFloat(Number(config.longitude).toFixed(4)) : undefined;
@@ -635,6 +635,8 @@ export class MeteogramCard extends LitElement {
         // Add diagnostics option
         this.diagnostics = config.diagnostics !== undefined ? config.diagnostics : DIAGNOSTICS_DEFAULT;
 
+        // Set entityId from config
+        this.entityId = config.entity_id || undefined;
     }
 
     // Required for HA visual editor support
@@ -642,7 +644,6 @@ export class MeteogramCard extends LitElement {
         // Pre-initialize the editor component for faster display
         const editor = document.createElement("meteogram-card-editor") as MeteogramCardEditorElement;
         // Create a basic config to start with
-        console.log(`[${CARD_NAME}] getConfigElement called, pre-initializing editor.`);
         editor.setConfig({
             show_cloud_cover: true,
             show_pressure: true,
@@ -654,7 +655,6 @@ export class MeteogramCard extends LitElement {
             fill_container: false,
             diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
         });
-        console.log(`[${CARD_NAME}] Editor pre-initialized with default config.`);
         return editor;
     }
 
@@ -974,10 +974,15 @@ export class MeteogramCard extends LitElement {
 
         this._updateDarkMode(); // Ensure dark mode is set on first update
 
-        // Only create WeatherEntityAPI once and reuse it
-        const entityId = "weather.forecast_home";
-        if (!this._weatherEntityApiInstance) {
-            this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, entityId);
+        // Use entityId from config or fallback to first available weather entity
+        let entityId = this.entityId;
+        if (!entityId && this.hass && this.hass.states) {
+            const weatherEntities = Object.keys(this.hass.states).filter(eid => eid.startsWith('weather.'));
+            entityId = weatherEntities.length > 0 ? weatherEntities[0] : undefined;
+        }
+        // Only use weather entity if it's set and not "none"
+        if (entityId && entityId !== 'none' && !this._weatherEntityApiInstance) {
+            this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, entityId as string);
             // Subscribe to forecast updates from weather entity and log them
             // this._weatherEntityApiInstance.subscribeForecast((forecastArr: any[]) => {
             //     console.log(`[WeatherEntityAPI] subscribeForecast update for ${entityId}:`, forecastArr);
@@ -985,8 +990,9 @@ export class MeteogramCard extends LitElement {
         }
 
         // Call sampleFetchWeatherEntityForecast to log weather entity data
-        console.log("sampleFetchWeatherEntityForecast called", this.hass);
-        MeteogramCard.sampleFetchWeatherEntityForecast(this.hass);
+        if (entityId && entityId !== 'none') {
+            MeteogramCard.sampleFetchWeatherEntityForecast(this.hass, entityId as string);
+        }
     }
 
     protected updated(changedProps: PropertyValues) {
@@ -1292,8 +1298,10 @@ export class MeteogramCard extends LitElement {
                 this._lastApiSuccess = true;
 
                 // --- NEW: Also fetch from WeatherEntityAPI and log ---
-                const entityForecast = this._weatherEntityApiInstance?.getForecastData();
-                console.log(`[WeatherEntityAPI] getForecastData for weather.forecast_home:`, entityForecast);
+                if (this.entityId && this.entityId !== 'none') {
+                    const entityForecast = this._weatherEntityApiInstance?.getForecastData();
+                    console.debug(`[WeatherEntityAPI] getForecastData for ${this.entityId}:`, entityForecast);
+                }
                 // -----------------------------------------------------
 
                 // Filter result by meteogramHours
@@ -1327,12 +1335,11 @@ export class MeteogramCard extends LitElement {
         return this.weatherDataPromise;
     }
 
-    // SAMPLE: Fetch forecast data from weather entity and log it
-    static sampleFetchWeatherEntityForecast(hass: any) {
-        const entityId = "weather.forecast_home";
+    // // SAMPLE: Fetch forecast data from weather entity and log it
+    static sampleFetchWeatherEntityForecast(hass: any, entityId?: string) {
+        if (!entityId) return;
         const api = new WeatherEntityAPI(hass, entityId);
         const data = api.getForecastData();
-        console.log("WeatherEntityAPI forecast data for", entityId, data);
     }
 
     // Keep the cleanupChart method as is
@@ -2373,7 +2380,7 @@ export class MeteogramCard extends LitElement {
             }
                                                 </span>
                                                 <br>
-                                                <span>Card version: <code>${version}</code></span><br>
+                                                <span>Card version: <code>${MeteogramCard.meteogramCardVersion}</code></span><br>
                                                 <span>Client type: <code>${getClientName()}</code></span><br>
                                                 <span>${successTooltip}</span>
 

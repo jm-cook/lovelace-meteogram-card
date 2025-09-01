@@ -13,6 +13,7 @@ export interface MeteogramCardConfig {
     fill_container?: boolean; // <-- Add this line
     styles?: Record<string, string>; // <-- Add this line for style overrides
     diagnostics?: boolean; // Add this line
+    entity_id?: string; // Add this line for weather entity selection
 }
 
 export interface MeteogramData {
@@ -74,6 +75,7 @@ export interface ConfigurableHTMLElement extends HTMLElement {
   configValue?: string;
   value?: string | number;
   checked?: boolean; // Add the checked property for switches
+  disabled?: boolean; // Add the disabled property for textfields/selects
 }
 
 // // Define editor interface with required methods

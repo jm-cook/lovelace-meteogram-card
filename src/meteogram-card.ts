@@ -1,21 +1,7 @@
-// Use only the imports that are actually needed for type checking
-// import { css, html, PropertyValues } from "lit";
-// import { customElement, property, state } from "lit/decorators.js";
-// // Import our local types
 import { MeteogramCardConfig, MeteogramCardEditorElement } from "./types";
-// // Version info - update this when releasing new versions
 import { version } from "../package.json";
-// Add diagnostics helpers
-// import { formatDiagnosticError, getClientName, getVersion } from "./diagnostics";
-// // Import the external API fetcher
-// import { WeatherAPI, ForecastData } from "./weather-api";
-// import { WeatherEntityAPI } from "./weather-entity";
-
-import { MeteogramCard } from "./meteogram-card-class";
-import { MeteogramCardEditor } from "./meteogram-card-editor";
-
-const DIAGNOSTICS_DEFAULT = version.includes("beta"); // true if version contains "beta"
-
+import './meteogram-card-editor';
+import './meteogram-card-class';
 const CARD_NAME = "Meteogram Card";
 
 // Initialize these variables when JS is loaded
