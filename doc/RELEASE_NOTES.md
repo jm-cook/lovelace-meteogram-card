@@ -1,3 +1,21 @@
+## v3.0.0 – Weather Entity Support & Entity Caching (Upcoming)
+
+**Highlights:**
+- **Weather Entity Support:**  
+  You can now use any Home Assistant weather entity as the data source for the meteogram. 
+  Set `entity_id` in your card config. See [README.md](../README.md) for details and limitations.
+- **Entity Caching:**  
+  Forecasts from weather entities are cached in localStorage under `meteogram-card-entity-weather-cache`, keyed by entity ID. Multiple entities can be cached and retrieved independently.
+- **Met.no API remains supported:**  
+  If no `entity_id` is specified, the card uses the Met.no API as before.
+- **Focus Mode:**  
+  New `focussed` option for a minimal chart display. When enabled, the card hides the title and attribution, showing only the chart—ideal for dashboards and kiosk views.
+- **Improved error handling and diagnostics.**
+- **No more fillContainer option:**  
+  The card now automatically sizes to its container.
+
+---
+
 ## v2.1.0 – Language Support & API Migration
 
 Meteogram Card v2.1.0 introduces multi-language support and migrates all weather data requests to a dedicated Met.no API subdomain for improved reliability and compliance.
@@ -204,4 +222,3 @@ Improved logic reducing unnecessary calls to api.
 
 **Upgrade Recommendation:**  
 Update to this release if you encountered "Failed to fetch weather data" errors, issues with API connectivity, or want improved dark mode support.
-

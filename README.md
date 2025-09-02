@@ -5,11 +5,9 @@
 [![release][release-badge]][release-url]
 ![downloads][downloads-badge]
 
-A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API.
+A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API or Home Assistant weather entity.
 
-
-
-
+---
 
 ![Meteogram Card](https://raw.githubusercontent.com/jm-cook/lovelace-meteogram-card/main/images/meteogram-card.png)
 
@@ -21,7 +19,7 @@ A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API
 - Cloud coverage visualization
 - Professional-style wind barbs showing wind speed and direction
 - Barometric pressure trend
-- Automatically uses Home Assistant's configured location
+- Automatically uses Home Assistant's configured location or weather entity
 
 ## Installation (HACS)
 
@@ -43,6 +41,8 @@ title: Weather Forecast
 # Optional: specify coordinates, or use Home Assistant's default location
 latitude: 51.5074
 longitude: -0.1278
+# Optional: use a Home Assistant weather entity
+entity_id: weather.home
 # Optional: toggle display components
 show_cloud_cover: true
 show_pressure: true
@@ -51,9 +51,29 @@ show_wind: true
 show_rain: true
 ```
 
+### Weather Entity Mode
+
+If you set `entity_id`, the card will use the forecast from that entity.  
+Supported entities: any Home Assistant weather entity with a `forecast` attribute.
+
+**Important Note:**  
+Most Home Assistant weather integrations do **not** provide the full set of attributes that meteogram-card can display.  
+For example, some integrations may lack cloud cover, `precipitation_max`, or even wind speed and direction.  
+Additionally, weather integration entities may only provide data for a limited number of hours (often 24 or 48), which may restrict the length of the meteogram.  
+For best functionality and a complete meteogram, passing `latitude` and `longitude` (to use the Met.no API) is recommended.  
+However, if you are on a device such as iOS and have trouble retrieving weather data via the API, using the weather integration entity option (`entity_id`) may be your best option.
+
+**Caching:**  
+Forecasts are cached in localStorage under `meteogram-card-entity-weather-cache`, keyed by entity ID.  
+Multiple entities can be cached and retrieved independently.
+
+### Met.no API Mode
+
+If no `entity_id` is set, the card uses the Met.no API and caches per location.
+
 ## Features in detail
 
-The meteogram retrieves weather data from the Met.no API and displays it in a visually appealing format. 
+The meteogram retrieves weather data from the Met.no API or a Home Assistant weather entity and displays it in a visually appealing format. 
 
 ### Graphical elements
 - **Temperature Curve**  
@@ -78,7 +98,7 @@ The meteogram retrieves weather data from the Met.no API and displays it in a vi
 
 ### Functionality
 - **Dynamic Location**  
-  Automatically uses Home Assistant's configured location or specified coordinates.
+  Automatically uses Home Assistant's configured location, specified coordinates, or weather entity.
 - **Responsive Design**  
   Automatically resizes to fit the card/container, ensuring a good layout on both wide and narrow screens.
 - **Error Handling**  
@@ -88,7 +108,7 @@ The meteogram retrieves weather data from the Met.no API and displays it in a vi
 - **Visual Editor Support**  
   Fully compatible with Home Assistant's visual editor for easy configuration.
 - **Caching**  
-  Caches weather data per location to reduce API calls and improve performance. Uses an aggressive caching strategy to ensure compliance with Terms and Conditions for the MET API service.
+  Caches weather data per location or per entity to reduce API calls and improve performance.
 - **Location Handling**  
   Uses configured coordinates, Home Assistant's location, or falls back to a default location (London).
 
@@ -100,18 +120,32 @@ The meteogram retrieves weather data from the Met.no API and displays it in a vi
 | title | string | Weather Forecast | Optional title for the card |
 | latitude | string | HA's default | Latitude for weather data |
 | longitude | string | HA's default | Longitude for weather data |
+| entity_id | string | none | Weather entity to use as data source |
 | show_cloud_cover | boolean | true | Show/hide cloud cover visualization |
 | show_pressure | boolean | true | Show/hide pressure curve |
 | show_weather_icons | boolean | true | Show/hide weather icons |
 | show_wind | boolean | true | Show/hide wind barbs section |
 | show_rain | boolean | true | Show/hide precipitation visualization |
 | meteogram_length | string | 48h | Number of hours to display in the meteogram (`12h`, `24h`, `48h`, `54h`, or `max`) |
+| focussed | boolean | false | Enable focus mode for a minimal chart display |
 | styles | object | {} | Custom CSS variables for card styling |
+
+### Focus Mode
+
+Set `focussed: true` in your card config to enable focus mode.  
+Focus mode hides the card title, attribution and other text, and displays only the chart itself, 
+making it ideal for dashboards or kiosk views.
+
+**Example:**
+```yaml
+type: custom:meteogram-card
+focussed: true
+```
 
 ### meteogram_length
 
 The `meteogram_length` option allows you to specify the number of hours to display in the meteogram.  
-Accepted values: **12h**, **24h**, **48h**, **54h**, or **max** (as provided by the Met.no location forecast).  
+Accepted values: **12h**, **24h**, **48h**, **54h**, or **max** (as provided by the Met.no location forecast or entity).  
 If not set, the default value is **48h**.
 
 **Example:**
@@ -123,7 +157,7 @@ meteogram_length: 24h  # Shows 24 hours in the meteogram
 **Example (max available):**
 ```yaml
 type: 'custom:meteogram-card'
-meteogram_length: max  # Shows the maximum available hours from Met.no
+meteogram_length: max  # Shows the maximum available hours from Met.no or entity
 ```
 
 ### styles
@@ -238,12 +272,12 @@ For more details and examples, see [doc/STYLES.md][styledoc-url].
 
 ## Weather Data
 
-This card fetches weather data directly from the Met.no API using the provided coordinates. If no coordinates are specified, it will use your Home Assistant's configured location.
+This card fetches weather data from the Met.no API or from a Home Assistant weather entity.  
+If no coordinates or entity are specified, it will use your Home Assistant's configured location.
 
 The card uses the "complete" API endpoint to retrieve precipitation probability data, which allows visualization of rain/snow uncertainty.
 
 ## Development
-
 
 For developers, the Meteogram Card is built with TypeScript and uses modern web technologies. 
 
