@@ -6,16 +6,17 @@ export class WeatherEntityAPI {
     private _forecastData: ForecastData | null = null;
     private _unsubForecast: (() => void) | null = null;
 
-    constructor(hass: any, entityId: string) {
+    constructor(hass: any, entityId: string, from: string) {
+        // Instrumentation: log caller stack and arguments
+        console.debug(`[WeatherEntityAPI] from ${from} Constructor called for entityId: ${entityId}`);
         this.hass = hass;
         this.entityId = entityId;
-        console.debug(`[WeatherEntityAPI] Initialized for entityId: ${this.entityId}`, this.hass);
         // Subscribe to forecast updates if hass and entityId are available
         if (this.hass && this.entityId) {
-            console.debug(`[WeatherEntityAPI] Subscribing to forecast updates for ${this.entityId}`);
+            // console.debug(`[WeatherEntityAPI] from ${from} Subscribing to forecast updates for ${this.entityId}`);
             this.subscribeForecast((forecastArr: any[]) => {
                 this._forecastData = this._parseForecastArray(forecastArr);
-                console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
+                // console.debug(`[WeatherEntityAPI] from ${from} subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
                 // Force chart update by dispatching a custom event
                 const card = document.querySelector('meteogram-card') as any;
                 if (card && typeof card._scheduleDrawMeteogram === "function") {
@@ -26,6 +27,8 @@ export class WeatherEntityAPI {
             });
         }
     }
+
+
 
     private _parseForecastArray(forecast: any[]): ForecastData {
         const result: ForecastData = {
@@ -84,10 +87,21 @@ export class WeatherEntityAPI {
             } else if ('pressure_hpa' in item && typeof item.pressure_hpa === 'number') {
                 result.pressure.push(item.pressure_hpa);
             }
-
-            // Log each forecast item for debugging
-            // console.debug(`[WeatherEntityAPI] Forecast[${idx}]:`, item);
         });
+
+        // Store the parsed forecast in localStorage using a shared cache object
+        try {
+            const cacheKey = 'meteogram-card-entity-weather-cache';
+            let cache: Record<string, ForecastData> = {};
+            const rawCache = localStorage.getItem(cacheKey);
+            if (rawCache) {
+                cache = JSON.parse(rawCache);
+            }
+            cache[this.entityId] = result;
+            localStorage.setItem(cacheKey, JSON.stringify(cache));
+        } catch (e) {
+            console.warn(`[WeatherEntityAPI] Failed to store forecast for ${this.entityId} in localStorage:`, e);
+        }
 
         return result;
     }
@@ -95,7 +109,7 @@ export class WeatherEntityAPI {
     getForecast(): ForecastData | null {
         console.debug(`[WeatherEntityAPI] getForecastData called for entityId=${this.entityId}`);
         if (this._forecastData) {
-            console.debug(`[WeatherEntityAPI] Returning stored ForecastData for ${this.entityId}`, this._forecastData);
+            // console.debug(`[WeatherEntityAPI] Returning stored ForecastData for ${this.entityId}`, this._forecastData);
             return this._forecastData;
         }
         const entity = this.hass.states[this.entityId];
@@ -107,14 +121,14 @@ export class WeatherEntityAPI {
             console.debug(`[WeatherEntityAPI] Entity has no attributes: ${this.entityId}`);
             return null;
         }
-        console.debug(`[WeatherEntityAPI] Entity contents:`, entity);
+        // console.debug(`[WeatherEntityAPI] Entity contents:`, entity);
         if (!Array.isArray(entity.attributes.forecast)) {
             console.debug(`[WeatherEntityAPI] Entity forecast attribute is not an array:`, entity.attributes.forecast);
             return null;
         }
 
         this._forecastData = this._parseForecastArray(entity.attributes.forecast);
-        console.debug(`[WeatherEntityAPI] getForecastData result:`, this._forecastData);
+        // console.debug(`[WeatherEntityAPI] getForecastData result:`, this._forecastData);
         return this._forecastData;
     }
 
@@ -124,8 +138,9 @@ export class WeatherEntityAPI {
      * @returns Unsubscribe function.
      */
     subscribeForecast(callback: (forecast: any[]) => void): Promise<() => void> {
+        console.debug(`[WeatherEntityAPI] subscribeForecast called for entityId=${this.entityId}`);
         if (!this.hass?.connection) {
-            console.debug(`[WeatherEntityAPI] subscribeForecast: hass.connection not available`);
+            // console.debug(`[WeatherEntityAPI] subscribeForecast: hass.connection not available`);
             return Promise.resolve(() => {});
         }
         const unsubPromise = this.hass.connection.subscribeMessage(
@@ -148,9 +163,50 @@ export class WeatherEntityAPI {
 
     /**
      * Get the latest ForecastData received from subscribeForecast.
+     * If _forecastData is null, try to fill it from localStorage.
      */
     getForecastData(): ForecastData | null {
-        return this._forecastData;
+        if (this._forecastData) {
+            return this._forecastData;
+        }
+        // Try to load from localStorage cache object
+        try {
+            const cacheKey = 'meteogram-card-entity-weather-cache';
+            const rawCache = localStorage.getItem(cacheKey);
+            if (rawCache) {
+                const cache = JSON.parse(rawCache);
+                const stored = cache[this.entityId];
+                if (stored) {
+                    // Restore Date objects in time array
+                    if (Array.isArray(stored.time)) {
+                        stored.time = stored.time.map((t: string | Date) =>
+                            typeof t === "string" ? new Date(t) : t
+                        );
+                    }
+                    this._forecastData = stored;
+                    // console.debug(`[WeatherEntityAPI] Loaded forecast for ${this.entityId} from localStorage cache`, this._forecastData);
+                    return this._forecastData;
+                }
+            }
+        } catch (e) {
+            console.warn(`[WeatherEntityAPI] Failed to load forecast for ${this.entityId} from localStorage cache:`, e);
+        }
+        return null;
+    }
+
+    /**
+     * Destructor: Unsubscribe from forecast updates.
+     */
+    destroy(from: string) {
+        if (this._unsubForecast) {
+            try {
+                this._unsubForecast();
+                this._unsubForecast = null;
+                // console.debug(`[WeatherEntityAPI] from ${from} Unsubscribed from forecast updates for ${this.entityId}`);
+            } catch (err) {
+                console.warn(`[WeatherEntityAPI] from ${from} Error during unsubscribe for ${this.entityId}:`, err);
+            }
+        }
     }
 }
 

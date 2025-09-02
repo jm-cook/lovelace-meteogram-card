@@ -10,7 +10,6 @@ export interface MeteogramCardConfig {
     show_wind?: boolean;
     dense_weather_icons?: boolean; // Add this line
     meteogram_hours?: string; // "8h", "12h", "24h", "48h", "54h", "max"
-    fill_container?: boolean; // <-- Add this line
     styles?: Record<string, string>; // <-- Add this line for style overrides
     diagnostics?: boolean; // Add this line
     entity_id?: string; // Add this line for weather entity selection

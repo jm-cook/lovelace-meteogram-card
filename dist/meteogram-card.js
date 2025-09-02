@@ -455,7 +455,7 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
         setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
         setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
-        setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
+        // REMOVED: fillContainer
         setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$2, 'checked');
         setValue(this._elements.get('entity_id'), this._config.entity_id || '');
         setValue(this._elements.get('focussed'), this._config.focussed !== undefined ? this._config.focussed : false, 'checked');
@@ -481,7 +481,6 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
         const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
         const meteogramHours = this._config.meteogram_hours || "48h";
-        const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
         const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT$2;
         const focussed = this._config.focussed !== undefined ? this._config.focussed : false;
         const div = document.createElement('div');
@@ -649,14 +648,6 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
             .checked="${denseWeatherIcons}"
           ></ha-switch>
         </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.fill_container", "Fill Container")}</div>
-          <ha-switch
-            id="fill-container"
-            .checked="${fillContainer}"
-          ></ha-switch>
-        </div>
       
         <div class="toggle-row">
           <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.focussed", "Focussed Mode (minimal chart)")}</div>
@@ -759,12 +750,6 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
                 meteogramHoursSelect.addEventListener('change', this._valueChanged.bind(this));
                 this._elements.set('meteogram_hours', meteogramHoursSelect);
             }
-            const fillContainerSwitch = this.querySelector('#fill-container');
-            if (fillContainerSwitch) {
-                fillContainerSwitch.configValue = 'fill_container';
-                fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('fill_container', fillContainerSwitch);
-            }
             const diagnosticsSwitch = this.querySelector('#diagnostics');
             if (diagnosticsSwitch) {
                 diagnosticsSwitch.configValue = 'diagnostics';
@@ -802,7 +787,7 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         // List of boolean config fields
         const boolFields = [
             'show_cloud_cover', 'show_pressure', 'show_rain', 'show_weather_icons',
-            'show_wind', 'dense_weather_icons', 'fill_container', 'diagnostics',
+            'show_wind', 'dense_weather_icons', /* 'fill_container', */ 'diagnostics',
             'focussed'
         ];
         // Handle different input types
@@ -1167,18 +1152,19 @@ WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT = 0;
 WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT = 0;
 
 class WeatherEntityAPI {
-    constructor(hass, entityId) {
+    constructor(hass, entityId, from) {
         this._forecastData = null;
         this._unsubForecast = null;
+        // Instrumentation: log caller stack and arguments
+        console.debug(`[WeatherEntityAPI] from ${from} Constructor called for entityId: ${entityId}`);
         this.hass = hass;
         this.entityId = entityId;
-        console.debug(`[WeatherEntityAPI] Initialized for entityId: ${this.entityId}`, this.hass);
         // Subscribe to forecast updates if hass and entityId are available
         if (this.hass && this.entityId) {
-            console.debug(`[WeatherEntityAPI] Subscribing to forecast updates for ${this.entityId}`);
+            // console.debug(`[WeatherEntityAPI] from ${from} Subscribing to forecast updates for ${this.entityId}`);
             this.subscribeForecast((forecastArr) => {
                 this._forecastData = this._parseForecastArray(forecastArr);
-                console.debug(`[WeatherEntityAPI] subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
+                // console.debug(`[WeatherEntityAPI] from ${from} subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
                 // Force chart update by dispatching a custom event
                 const card = document.querySelector('meteogram-card');
                 if (card && typeof card._scheduleDrawMeteogram === "function") {
@@ -1242,15 +1228,27 @@ class WeatherEntityAPI {
             else if ('pressure_hpa' in item && typeof item.pressure_hpa === 'number') {
                 result.pressure.push(item.pressure_hpa);
             }
-            // Log each forecast item for debugging
-            // console.debug(`[WeatherEntityAPI] Forecast[${idx}]:`, item);
         });
+        // Store the parsed forecast in localStorage using a shared cache object
+        try {
+            const cacheKey = 'meteogram-card-entity-weather-cache';
+            let cache = {};
+            const rawCache = localStorage.getItem(cacheKey);
+            if (rawCache) {
+                cache = JSON.parse(rawCache);
+            }
+            cache[this.entityId] = result;
+            localStorage.setItem(cacheKey, JSON.stringify(cache));
+        }
+        catch (e) {
+            console.warn(`[WeatherEntityAPI] Failed to store forecast for ${this.entityId} in localStorage:`, e);
+        }
         return result;
     }
     getForecast() {
         console.debug(`[WeatherEntityAPI] getForecastData called for entityId=${this.entityId}`);
         if (this._forecastData) {
-            console.debug(`[WeatherEntityAPI] Returning stored ForecastData for ${this.entityId}`, this._forecastData);
+            // console.debug(`[WeatherEntityAPI] Returning stored ForecastData for ${this.entityId}`, this._forecastData);
             return this._forecastData;
         }
         const entity = this.hass.states[this.entityId];
@@ -1262,13 +1260,13 @@ class WeatherEntityAPI {
             console.debug(`[WeatherEntityAPI] Entity has no attributes: ${this.entityId}`);
             return null;
         }
-        console.debug(`[WeatherEntityAPI] Entity contents:`, entity);
+        // console.debug(`[WeatherEntityAPI] Entity contents:`, entity);
         if (!Array.isArray(entity.attributes.forecast)) {
             console.debug(`[WeatherEntityAPI] Entity forecast attribute is not an array:`, entity.attributes.forecast);
             return null;
         }
         this._forecastData = this._parseForecastArray(entity.attributes.forecast);
-        console.debug(`[WeatherEntityAPI] getForecastData result:`, this._forecastData);
+        // console.debug(`[WeatherEntityAPI] getForecastData result:`, this._forecastData);
         return this._forecastData;
     }
     /**
@@ -1278,8 +1276,9 @@ class WeatherEntityAPI {
      */
     subscribeForecast(callback) {
         var _a;
+        console.debug(`[WeatherEntityAPI] subscribeForecast called for entityId=${this.entityId}`);
         if (!((_a = this.hass) === null || _a === void 0 ? void 0 : _a.connection)) {
-            console.debug(`[WeatherEntityAPI] subscribeForecast: hass.connection not available`);
+            // console.debug(`[WeatherEntityAPI] subscribeForecast: hass.connection not available`);
             return Promise.resolve(() => { });
         }
         const unsubPromise = this.hass.connection.subscribeMessage((event) => {
@@ -1299,9 +1298,49 @@ class WeatherEntityAPI {
     }
     /**
      * Get the latest ForecastData received from subscribeForecast.
+     * If _forecastData is null, try to fill it from localStorage.
      */
     getForecastData() {
-        return this._forecastData;
+        if (this._forecastData) {
+            return this._forecastData;
+        }
+        // Try to load from localStorage cache object
+        try {
+            const cacheKey = 'meteogram-card-entity-weather-cache';
+            const rawCache = localStorage.getItem(cacheKey);
+            if (rawCache) {
+                const cache = JSON.parse(rawCache);
+                const stored = cache[this.entityId];
+                if (stored) {
+                    // Restore Date objects in time array
+                    if (Array.isArray(stored.time)) {
+                        stored.time = stored.time.map((t) => typeof t === "string" ? new Date(t) : t);
+                    }
+                    this._forecastData = stored;
+                    // console.debug(`[WeatherEntityAPI] Loaded forecast for ${this.entityId} from localStorage cache`, this._forecastData);
+                    return this._forecastData;
+                }
+            }
+        }
+        catch (e) {
+            console.warn(`[WeatherEntityAPI] Failed to load forecast for ${this.entityId} from localStorage cache:`, e);
+        }
+        return null;
+    }
+    /**
+     * Destructor: Unsubscribe from forecast updates.
+     */
+    destroy(from) {
+        if (this._unsubForecast) {
+            try {
+                this._unsubForecast();
+                this._unsubForecast = null;
+                // console.debug(`[WeatherEntityAPI] from ${from} Unsubscribed from forecast updates for ${this.entityId}`);
+            }
+            catch (err) {
+                console.warn(`[WeatherEntityAPI] from ${from} Error during unsubscribe for ${this.entityId}:`, err);
+            }
+        }
     }
 }
 /**
@@ -1346,7 +1385,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this.showWind = true;
         this.denseWeatherIcons = true; // NEW: icon density config
         this.meteogramHours = "48h"; // Default is now 48h
-        this.fillContainer = false; // NEW: fill container option
         this.styles = {}; // NEW: styles override
         this.diagnostics = DIAGNOSTICS_DEFAULT$1; // Initialize here
         this.focussed = false; // NEW: Focussed mode
@@ -1360,20 +1398,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this._chartRenderInProgress = false;
         this._pendingRender = false;
         this._lastApiSuccess = false;
-        // // Assuming 'hass' is available in your custom element
-        // // Subscribe to weather forecast events
-        // private unsubscribe = this.hass.connection.subscribeMessage(
-        //     (event: any) => {
-        //         // event.data contains the forecast data
-        //         console.log("Received forecast event:", event.data);
-        //         // You can update your card state here
-        //     },
-        //     {
-        //         type: "weather/subscribe_forecast",
-        //         entity_id: "weather.forecast_home", // Replace with your entity
-        //         forecast_type: "hourly" // or "daily"
-        //     }
-        // );
         this.iconCache = new Map();
         this.iconBasePath = 'https://raw.githubusercontent.com/metno/weathericons/refs/heads/main/weather/svg/';
         // Keep reference to the D3 selection to clean it up properly
@@ -1432,7 +1456,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this.showWind = true;
         this.denseWeatherIcons = true;
         this.meteogramHours = "48h";
-        this.fillContainer = false;
         this.styles = {};
         this.diagnostics = DIAGNOSTICS_DEFAULT$1;
         // Initialize state properties
@@ -1515,7 +1538,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this.showWind = config.show_wind !== undefined ? config.show_wind : true;
         this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
         this.meteogramHours = config.meteogram_hours || "48h";
-        this.fillContainer = config.fill_container !== undefined ? config.fill_container : false;
         // Add styles override from config
         this.styles = config.styles || {};
         // Add diagnostics option
@@ -1524,22 +1546,28 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this.entityId = config.entity_id || undefined;
         // Ensure boolean for focussed mode
         this.focussed = !!config.focussed;
-        // Only initialize WeatherEntityAPI if entityId is set and not "none" AND hass is available
-        // If hass is not available yet, defer initialization until it is set
-        if (this.entityId && this.entityId !== 'none') {
-            if (this.hass) {
-                if (!this._weatherEntityApiInstance || this._weatherEntityApiInstance.entityId !== this.entityId) {
-                    console.debug(`[${CARD_NAME$1}] setConfig Initializing WeatherEntityAPI for entity: ${this.entityId}`, this.hass);
-                    this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId);
+        // Track previous entityId
+        const prevEntityId = this.entityId;
+        const newEntityId = config.entity_id || undefined;
+        const entityIdChanged = prevEntityId !== newEntityId;
+        // Update entityId
+        this.entityId = newEntityId;
+        // Handle WeatherEntityAPI lifecycle based on entityId changes
+        if (entityIdChanged) {
+            if (prevEntityId != null) {
+                // Was set, now changed: destroy old
+                if (this._weatherEntityApiInstance) {
+                    this._weatherEntityApiInstance.destroy("entityId changed");
+                    this._weatherEntityApiInstance = null;
                 }
             }
-            else {
-                // Defer WeatherEntityAPI initialization until hass is set
-                this._weatherEntityApiInstance = null;
-            }
-        }
-        else {
-            this._weatherEntityApiInstance = null;
+            if (newEntityId) {
+                // now set: construct new API
+                if (this.hass) {
+                    console.debug(`[${CARD_NAME$1}] setConfig Initializing WeatherEntityAPI for entity: ${this.entityId}`, this.hass);
+                    this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, newEntityId, "setConfig");
+                }
+            } // else remains null
         }
     }
     // Required for HA visual editor support
@@ -1555,7 +1583,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             show_wind: true,
             dense_weather_icons: true,
             meteogram_hours: "48h",
-            fill_container: false,
             diagnostics: DIAGNOSTICS_DEFAULT$1 // Default to DIAGNOSTICS_DEFAULT
         });
         return editor;
@@ -1571,7 +1598,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             show_wind: true,
             dense_weather_icons: true,
             meteogram_hours: "48h",
-            fill_container: false,
             diagnostics: DIAGNOSTICS_DEFAULT$1 // Default to DIAGNOSTICS_DEFAULT
             // Coordinates will be fetched from HA configuration
         };
@@ -1609,6 +1635,10 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this._teardownResizeObserver();
         this._teardownVisibilityObserver();
         this._teardownMutationObserver();
+        if (this._weatherEntityApiInstance) {
+            this._weatherEntityApiInstance.destroy("disconnectedCallback");
+            this._weatherEntityApiInstance = null;
+        }
         document.removeEventListener('visibilitychange', this._onVisibilityChange.bind(this));
         window.removeEventListener('location-changed', this._onLocationChanged.bind(this));
         this.cleanupChart();
@@ -1821,17 +1851,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             this.loadD3AndDraw();
         }, 50);
         this._updateDarkMode(); // Ensure dark mode is set on first update
-        // Use entityId from config or fallback to first available weather entity
-        let entityId = this.entityId;
-        if (!entityId && this.hass && this.hass.states) {
-            const weatherEntities = Object.keys(this.hass.states).filter(eid => eid.startsWith('weather.'));
-            entityId = weatherEntities.length > 0 ? weatherEntities[0] : undefined;
-        }
-        // Only use weather entity if it's set and not "none"
-        if (this.entityId && this.entityId !== 'none' && !this._weatherEntityApiInstance) {
-            console.debug(`[${CARD_NAME$1}] Initializing WeatherEntityAPI for entity: ${this.entityId}`, this.hass);
-            this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId);
-        }
         // Call sampleFetchWeatherEntityForecast to log weather entity data
         // if (entityId && entityId !== 'none') {
         //     MeteogramCard.sampleFetchWeatherEntityForecast(this.hass, entityId as string);
@@ -1849,8 +1868,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             changedProps.has('showWeatherIcons') ||
             changedProps.has('showWind') ||
             changedProps.has('denseWeatherIcons') ||
-            changedProps.has('meteogramHours') ||
-            changedProps.has('fillContainer');
+            changedProps.has('meteogramHours');
         if (needsRedraw) {
             console.debug(`[${CARD_NAME$1}] updated(): needsRedraw because:`, {
                 latitude: changedProps.has('latitude'),
@@ -1863,7 +1881,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 showWind: changedProps.has('showWind'),
                 denseWeatherIcons: changedProps.has('denseWeatherIcons'),
                 meteogramHours: changedProps.has('meteogramHours'),
-                fillContainer: changedProps.has('fillContainer'),
             });
         }
         if (!needsRedraw) {
@@ -2064,12 +2081,24 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
     }
     async fetchWeatherData() {
+        if (this.entityId && this.entityId !== 'none' && !this._weatherEntityApiInstance) {
+            if (this.hass) {
+                console.debug(`[${CARD_NAME$1}] Initializing WeatherEntityAPI for entity: ${this.entityId}`, this._weatherEntityApiInstance);
+                this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId, "fetchWeatherData");
+            }
+        }
+        else {
+            if (this.entityId && this.entityId == 'none' && this._weatherEntityApiInstance) {
+                this._weatherEntityApiInstance.destroy("fetchWeatherData");
+                this._weatherEntityApiInstance = null;
+            }
+        }
         // If weather entity is set and not "none", use WeatherEntityAPI
         if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
             // Always fetch fresh data from the entity, not from any cache
             const entityData = this._weatherEntityApiInstance.getForecastData();
             // Detect if entity is unavailable (null or empty time array)
-            console.debug(`[${CARD_NAME$1}] fetchWeatherData from entity ${this.entityId}:`, entityData);
+            // console.debug(`[${CARD_NAME}] fetchWeatherData from entity ${this.entityId}:`, entityData);
             if (!entityData || !entityData.time || entityData.time.length === 0) {
                 throw new Error(`Weather entity ${this.entityId} is unavailable. Waiting for it to become available...`);
             }
@@ -2119,12 +2148,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 this.apiExpiresAt = weatherApi.expiresAt;
                 this._statusApiSuccess = true;
                 this._lastApiSuccess = true;
-                // --- NEW: Also fetch from WeatherEntityAPI and log ---
-                // if (this.entityId && this.entityId !== 'none') {
-                //     const entityForecast = this._weatherEntityApiInstance?.getForecastData();
-                //     console.debug(`[WeatherEntityAPI] getForecastData for ${this.entityId}:`, entityForecast);
-                // }
-                // -----------------------------------------------------
                 // Filter result by meteogramHours
                 let hours = 48;
                 if (this.meteogramHours === "8h")
@@ -2310,11 +2333,10 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 Array.isArray(data.windSpeed) &&
                 data.windSpeed.length > 0 &&
                 data.windSpeed.some(v => typeof v === "number");
-            // Set windBarbBand based on wind availability
-            const windBarbBand = windAvailable ? 55 : 0;
-            const hourLabelBand = 24;
+            // Set windBand based on wind availability
+            const windBandHeight = windAvailable ? 45 : 0;
+            const hourLabelBand = 30;
             // --- ADJUST: Remove chartHeight cap and use full height ---
-            const chartHeight = height - windBarbBand - hourLabelBand - 80; // Subtract hour label band and small padding
             // Store dimensions for resize detection
             this._lastWidth = availableWidth;
             this._lastHeight = availableHeight;
@@ -2353,7 +2375,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 symbolCode: sliceData(data.symbolCode),
                 pressure: sliceData(data.pressure)
             };
-            this.renderMeteogram(this.svg, slicedData, width, chartHeight, windBarbBand, hourLabelBand);
+            this.renderMeteogram(this.svg, slicedData, width, height, windBandHeight, hourLabelBand);
             // Reset error tracking on success
             this.errorCount = 0;
             // Clear retry timer if successful
@@ -2429,10 +2451,11 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         return (this.hass && this.hass.language) ? this.hass.language : "en";
     }
     // Update renderMeteogram to add windBarbBand and hourLabelBand as arguments
-    renderMeteogram(svg, data, width, height, windBarbBand = 0, hourLabelBand = 24) {
+    renderMeteogram(svg, data, width, height, windBandHeight = 0, hourLabelBand = 24) {
         const d3 = window.d3;
         const { time, temperature, rain, rainMin, rainMax, snow, cloudCover, windSpeed, windDirection, symbolCode, pressure } = data;
         const N = time.length;
+        // console.debug(`[${CARD_NAME}] renderMeteogram with ${N} data points, width=${width}, height=${height}, windBandHeight=${windBandHeight}, hourLabelBand=${hourLabelBand}`);
         // --- CHANGED: Get system temperature unit and convert values ---
         const tempUnit = this.getSystemTemperatureUnit();
         const temperatureConverted = temperature.map(t => this.convertTemperature(t));
@@ -2443,8 +2466,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             ? { top: 20, left: 40 }
             : { top: 70, left: 70 };
         const chartHeight = this.focussed
-            ? height + 50 - windBarbBand
-            : height - windBarbBand;
+            ? height - windBandHeight - hourLabelBand - 10
+            : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
+        // console.debug(`[${CARD_NAME}] chartHeight calculated as: ${chartHeight}`);
         // --- CHANGED: Calculate chartWidth based on number of hours ---
         // Cap the chart width to only what's needed for the data
         const maxHourSpacing = 90;
@@ -2454,6 +2478,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // -------------------------------------------------------------
         const windAvailable = this.showWind && windDirection && windSpeed.length > 0 && windDirection.length > 0;
         const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
+        const snowAvailable = this.showRain && snow && snow.length > 0;
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
         let dx = chartWidth / (N - 1);
         // X scale - for wider charts, maintain reasonable hour spacing
@@ -2545,7 +2570,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             const windBandYOffset = margin.top + chartHeight;
             const windBand = svg.append('g')
                 .attr('transform', `translate(${margin.left},${windBandYOffset})`);
-            const windBandHeight = windBarbBand - 10;
+            // const windBandHeight = windBarbBand - 10;
             // Even hour grid lines
             const twoHourIdx = [];
             for (let i = 0; i < N; i++) {
@@ -2680,6 +2705,13 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                     .attr("x", 0).attr("y", -45)
                     .text(trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + ` (%)`);
             }
+            // Only add snow legend if snow data is available
+            if (snowAvailable) {
+                chart.append("text")
+                    .attr("class", "legend legend-snow")
+                    .attr("x", 630).attr("y", -45)
+                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)');
+            }
             chart.append("text")
                 .attr("class", "legend legend-temp")
                 .attr("x", 200).attr("y", -45)
@@ -2688,10 +2720,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 .attr("class", "legend legend-rain")
                 .attr("x", 480).attr("y", -45)
                 .text(trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Rain") + ` (mm)`);
-            chart.append("text")
-                .attr("class", "legend legend-snow")
-                .attr("x", 630).attr("y", -45)
-                .text(trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)');
         }
         // Temperature line
         const line = d3.line()
@@ -2838,29 +2866,31 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 return d < 1 ? d.toFixed(1) : d.toFixed(0);
             })
                 .attr("opacity", (d, i) => (d > rain[i]) ? 1 : 0);
-            chart.selectAll(".snow-bar")
-                .data(snow.slice(0, N - 1))
-                .enter().append("rect")
-                .attr("class", "snow-bar")
-                .attr("x", (_, i) => x(i) + dx / 2 - barWidth / 2)
-                .attr("y", (_, i) => {
-                const h = chartHeight - yPrecip(snow[i]);
-                const scaledH = h < 2 && snow[i] > 0 ? 2 : h * 0.7;
-                return yPrecip(0) - scaledH;
-            })
-                .attr("width", barWidth)
-                .attr("height", (d) => {
-                const h = chartHeight - yPrecip(d);
-                return h < 2 && d > 0 ? 2 : h * 0.7;
-            })
-                .attr("fill", "currentColor");
+            if (snowAvailable) {
+                chart.selectAll(".snow-bar")
+                    .data(snow.slice(0, N - 1))
+                    .enter().append("rect")
+                    .attr("class", "snow-bar")
+                    .attr("x", (_, i) => x(i) + dx / 2 - barWidth / 2)
+                    .attr("y", (_, i) => {
+                    const h = chartHeight - yPrecip(snow[i]);
+                    const scaledH = h < 2 && snow[i] > 0 ? 2 : h * 0.7;
+                    return yPrecip(0) - scaledH;
+                })
+                    .attr("width", barWidth)
+                    .attr("height", (d) => {
+                    const h = chartHeight - yPrecip(d);
+                    return h < 2 && d > 0 ? 2 : h * 0.7;
+                })
+                    .attr("fill", "currentColor");
+            }
         }
         // Wind band - only if enabled
         if (windAvailable) {
             const windBandYOffset = margin.top + chartHeight;
             const windBand = svg.append('g')
                 .attr('transform', `translate(${margin.left},${windBandYOffset})`);
-            const windBandHeight = windBarbBand - 10;
+            // const windBandHeight = windBarbBand - 10;
             const windBarbY = windBandHeight / 2;
             windBand.append("rect")
                 .attr("class", "wind-band-bg")
@@ -2936,7 +2966,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 .attr("fill", "none");
         }
         // Bottom hour labels - always placed below the chart area
-        const hourLabelY = margin.top + chartHeight + windBarbBand + hourLabelBand - 6;
+        const hourLabelY = margin.top + chartHeight + windBandHeight + 15;
         // FIX: Place hour labels at the same x as their vertical grid line (i.e., x(i))
         svg.selectAll(".bottom-hour-label")
             .data(data.time)
@@ -3699,9 +3729,6 @@ __decorate([
 __decorate([
     n({ type: String })
 ], MeteogramCard$1.prototype, "meteogramHours", void 0);
-__decorate([
-    n({ type: Boolean })
-], MeteogramCard$1.prototype, "fillContainer", void 0);
 __decorate([
     n({ type: Object })
 ], MeteogramCard$1.prototype, "styles", void 0);

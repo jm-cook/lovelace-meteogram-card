@@ -32,7 +32,6 @@ export class MeteogramCard extends LitElement {
         this.showWind = true;
         this.denseWeatherIcons = true;
         this.meteogramHours = "48h";
-        this.fillContainer = false;
         this.styles = {};
         this.diagnostics = DIAGNOSTICS_DEFAULT;
         // Initialize state properties
@@ -58,7 +57,6 @@ export class MeteogramCard extends LitElement {
     @property({type: Boolean}) showWind = true;
     @property({type: Boolean}) denseWeatherIcons = true; // NEW: icon density config
     @property({type: String}) meteogramHours: string = "48h"; // Default is now 48h
-    @property({type: Boolean}) fillContainer = false; // NEW: fill container option
     @property({type: Object}) styles: Record<string, string> = {}; // NEW: styles override
     @property({type: Boolean}) diagnostics: boolean = DIAGNOSTICS_DEFAULT; // Initialize here
     @property({type: String}) entityId?: string; // NEW: entity_id for weather integration
@@ -77,21 +75,6 @@ export class MeteogramCard extends LitElement {
     private _pendingRender = false;
     private _lastApiSuccess = false;
     static lastD3RetryTime = 0;
-
-    // // Assuming 'hass' is available in your custom element
-    // // Subscribe to weather forecast events
-    // private unsubscribe = this.hass.connection.subscribeMessage(
-    //     (event: any) => {
-    //         // event.data contains the forecast data
-    //         console.log("Received forecast event:", event.data);
-    //         // You can update your card state here
-    //     },
-    //     {
-    //         type: "weather/subscribe_forecast",
-    //         entity_id: "weather.forecast_home", // Replace with your entity
-    //         forecast_type: "hourly" // or "daily"
-    //     }
-    // );
 
     private iconCache = new Map<string, string>();
     private iconBasePath = 'https://raw.githubusercontent.com/metno/weathericons/refs/heads/main/weather/svg/';
@@ -632,7 +615,6 @@ export class MeteogramCard extends LitElement {
         this.showWind = config.show_wind !== undefined ? config.show_wind : true;
         this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
         this.meteogramHours = config.meteogram_hours || "48h";
-        this.fillContainer = config.fill_container !== undefined ? config.fill_container : false;
 
         // Add styles override from config
         this.styles = config.styles || {};
@@ -643,21 +625,33 @@ export class MeteogramCard extends LitElement {
         // Ensure boolean for focussed mode
         this.focussed = !!config.focussed;
 
-        // Only initialize WeatherEntityAPI if entityId is set and not "none" AND hass is available
-        // If hass is not available yet, defer initialization until it is set
-        if (this.entityId && this.entityId !== 'none') {
-            if (this.hass) {
-                if (!this._weatherEntityApiInstance || this._weatherEntityApiInstance.entityId !== this.entityId) {
-                    console.debug(`[${CARD_NAME}] setConfig Initializing WeatherEntityAPI for entity: ${this.entityId}`, this.hass);
-                    this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId as string);
+        // Track previous entityId
+        const prevEntityId = this.entityId;
+        const newEntityId = config.entity_id || undefined;
+        const entityIdChanged = prevEntityId !== newEntityId;
+
+        // Update entityId
+        this.entityId = newEntityId;
+
+        // Handle WeatherEntityAPI lifecycle based on entityId changes
+        if (entityIdChanged) {
+            if (prevEntityId != null) {
+                // Was set, now changed: destroy old
+                if (this._weatherEntityApiInstance) {
+                    this._weatherEntityApiInstance.destroy("entityId changed");
+                    this._weatherEntityApiInstance = null;
                 }
-            } else {
-                // Defer WeatherEntityAPI initialization until hass is set
-                this._weatherEntityApiInstance = null;
             }
-        } else {
-            this._weatherEntityApiInstance = null;
+            if (newEntityId) {
+                // now set: construct new API
+                if (this.hass) {
+                    console.debug(`[${CARD_NAME}] setConfig Initializing WeatherEntityAPI for entity: ${this.entityId}`, this.hass);
+                    this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, newEntityId as string,"setConfig");
+                }
+            } // else remains null
         }
+
+
     }
 
     // Required for HA visual editor support
@@ -673,7 +667,6 @@ export class MeteogramCard extends LitElement {
             show_wind: true,
             dense_weather_icons: true,
             meteogram_hours: "48h",
-            fill_container: false,
             diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
         });
         return editor;
@@ -690,7 +683,6 @@ export class MeteogramCard extends LitElement {
             show_wind: true,
             dense_weather_icons: true,
             meteogram_hours: "48h",
-            fill_container: false,
             diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
             // Coordinates will be fetched from HA configuration
         };
@@ -734,6 +726,10 @@ export class MeteogramCard extends LitElement {
         this._teardownResizeObserver();
         this._teardownVisibilityObserver();
         this._teardownMutationObserver();
+        if (this._weatherEntityApiInstance) {
+            this._weatherEntityApiInstance.destroy("disconnectedCallback");
+            this._weatherEntityApiInstance = null;
+        }
 
         document.removeEventListener('visibilitychange', this._onVisibilityChange.bind(this));
         window.removeEventListener('location-changed', this._onLocationChanged.bind(this));
@@ -995,17 +991,7 @@ export class MeteogramCard extends LitElement {
 
         this._updateDarkMode(); // Ensure dark mode is set on first update
 
-        // Use entityId from config or fallback to first available weather entity
-        let entityId = this.entityId;
-        if (!entityId && this.hass && this.hass.states) {
-            const weatherEntities = Object.keys(this.hass.states).filter(eid => eid.startsWith('weather.'));
-            entityId = weatherEntities.length > 0 ? weatherEntities[0] : undefined;
-        }
-        // Only use weather entity if it's set and not "none"
-        if (this.entityId && this.entityId !== 'none' && !this._weatherEntityApiInstance) {
-            console.debug(`[${CARD_NAME}] Initializing WeatherEntityAPI for entity: ${this.entityId}`, this.hass);
-            this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId as string);
-        }
+
 
         // Call sampleFetchWeatherEntityForecast to log weather entity data
         // if (entityId && entityId !== 'none') {
@@ -1025,8 +1011,7 @@ export class MeteogramCard extends LitElement {
             changedProps.has('showWeatherIcons') ||
             changedProps.has('showWind') ||
             changedProps.has('denseWeatherIcons') ||
-            changedProps.has('meteogramHours') ||
-            changedProps.has('fillContainer') ;
+            changedProps.has('meteogramHours')
 
         if (needsRedraw) {
             console.debug(`[${CARD_NAME}] updated(): needsRedraw because:`, {
@@ -1040,7 +1025,6 @@ export class MeteogramCard extends LitElement {
                 showWind: changedProps.has('showWind'),
                 denseWeatherIcons: changedProps.has('denseWeatherIcons'),
                 meteogramHours: changedProps.has('meteogramHours'),
-                fillContainer: changedProps.has('fillContainer'),
             });
         }
 
@@ -1269,12 +1253,26 @@ export class MeteogramCard extends LitElement {
 
 
     async fetchWeatherData(): Promise<ForecastData> {
+
+        if (this.entityId && this.entityId !== 'none' && !this._weatherEntityApiInstance) {
+            if (this.hass) {
+                console.debug(`[${CARD_NAME}] Initializing WeatherEntityAPI for entity: ${this.entityId}`, this._weatherEntityApiInstance);
+                this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId as string, "fetchWeatherData");
+
+            }
+        } else {
+            if (this.entityId && this.entityId == 'none' && this._weatherEntityApiInstance) {
+                this._weatherEntityApiInstance.destroy("fetchWeatherData");
+                this._weatherEntityApiInstance = null;
+            }
+        }
+
         // If weather entity is set and not "none", use WeatherEntityAPI
         if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
             // Always fetch fresh data from the entity, not from any cache
             const entityData = this._weatherEntityApiInstance.getForecastData();
             // Detect if entity is unavailable (null or empty time array)
-            console.debug(`[${CARD_NAME}] fetchWeatherData from entity ${this.entityId}:`, entityData);
+            // console.debug(`[${CARD_NAME}] fetchWeatherData from entity ${this.entityId}:`, entityData);
             if (!entityData || !entityData.time || entityData.time.length === 0) {
                 throw new Error(`Weather entity ${this.entityId} is unavailable. Waiting for it to become available...`);
             }
@@ -1332,13 +1330,6 @@ export class MeteogramCard extends LitElement {
                 this.apiExpiresAt = weatherApi.expiresAt;
                 this._statusApiSuccess = true;
                 this._lastApiSuccess = true;
-
-                // --- NEW: Also fetch from WeatherEntityAPI and log ---
-                // if (this.entityId && this.entityId !== 'none') {
-                //     const entityForecast = this._weatherEntityApiInstance?.getForecastData();
-                //     console.debug(`[WeatherEntityAPI] getForecastData for ${this.entityId}:`, entityForecast);
-                // }
-                // -----------------------------------------------------
 
                 // Filter result by meteogramHours
                 let hours = 48;
@@ -1540,12 +1531,11 @@ export class MeteogramCard extends LitElement {
                 data.windSpeed.length > 0 &&
                 data.windSpeed.some(v => typeof v === "number");
 
-            // Set windBarbBand based on wind availability
-            const windBarbBand = windAvailable ? 55 : 0;
-            const hourLabelBand = 24;
+            // Set windBand based on wind availability
+            const windBandHeight = windAvailable ? 45 : 0;
+            const hourLabelBand = 30;
 
             // --- ADJUST: Remove chartHeight cap and use full height ---
-            const chartHeight = height - windBarbBand - hourLabelBand - 80; // Subtract hour label band and small padding
 
             // Store dimensions for resize detection
             this._lastWidth = availableWidth;
@@ -1588,8 +1578,8 @@ export class MeteogramCard extends LitElement {
                 this.svg,
                 slicedData,
                 width,
-                chartHeight,
-                windBarbBand,
+                height,
+                windBandHeight,
                 hourLabelBand
             );
             // Reset error tracking on success
@@ -1672,7 +1662,7 @@ export class MeteogramCard extends LitElement {
         data: ForecastData,
         width: number,
         height: number,
-        windBarbBand: number = 0,
+        windBandHeight: number = 0,
         hourLabelBand: number = 24
     ): void {
         const d3 = window.d3;
@@ -1690,6 +1680,8 @@ export class MeteogramCard extends LitElement {
             pressure
         } = data;
         const N = time.length;
+        // console.debug(`[${CARD_NAME}] renderMeteogram with ${N} data points, width=${width}, height=${height}, windBandHeight=${windBandHeight}, hourLabelBand=${hourLabelBand}`);
+
 
         // --- CHANGED: Get system temperature unit and convert values ---
         const tempUnit = this.getSystemTemperatureUnit();
@@ -1702,8 +1694,9 @@ export class MeteogramCard extends LitElement {
             ? {top: 20, right: 40, bottom: hourLabelBand + 10, left: 40}
             : {top: 70, right: 70, bottom: hourLabelBand + 10, left: 70};
         const chartHeight = this.focussed
-            ? height + 50 - windBarbBand
-            : height - windBarbBand;
+            ? height - windBandHeight - hourLabelBand - 10
+            : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
+        // console.debug(`[${CARD_NAME}] chartHeight calculated as: ${chartHeight}`);
 
         // --- CHANGED: Calculate chartWidth based on number of hours ---
         // Cap the chart width to only what's needed for the data
@@ -1715,6 +1708,7 @@ export class MeteogramCard extends LitElement {
 
         const windAvailable = this.showWind && windDirection && windSpeed.length > 0 && windDirection.length > 0
         const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
+        const snowAvailable = this.showRain && snow && snow.length > 0;
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
         let dx = chartWidth / (N - 1);
         // If the chart is very wide, adjust spacing so elements don't get too stretched
@@ -1824,7 +1818,7 @@ export class MeteogramCard extends LitElement {
             const windBand = svg.append('g')
                 .attr('transform', `translate(${margin.left},${windBandYOffset})`);
 
-            const windBandHeight = windBarbBand - 10;
+            // const windBandHeight = windBarbBand - 10;
             // Even hour grid lines
             const twoHourIdx: number[] = [];
             for (let i = 0; i < N; i++) {
@@ -1975,6 +1969,14 @@ export class MeteogramCard extends LitElement {
                     .text(trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + ` (%)`);
             }
 
+            // Only add snow legend if snow data is available
+            if (snowAvailable) {
+                chart.append("text")
+                    .attr("class", "legend legend-snow")
+                    .attr("x", 630).attr("y", -45)
+                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)');
+            }
+
             chart.append("text")
                 .attr("class", "legend legend-temp")
                 .attr("x", 200).attr("y", -45)
@@ -1984,11 +1986,6 @@ export class MeteogramCard extends LitElement {
                 .attr("class", "legend legend-rain")
                 .attr("x", 480).attr("y", -45)
                 .text(trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Rain") + ` (mm)`);
-
-            chart.append("text")
-                .attr("class", "legend legend-snow")
-                .attr("x", 630).attr("y", -45)
-                .text(trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)');
 
         }
 
@@ -2145,22 +2142,24 @@ export class MeteogramCard extends LitElement {
                 })
                 .attr("opacity", (d: number, i: number) => (d > rain[i]) ? 1 : 0);
 
-            chart.selectAll(".snow-bar")
-                .data(snow.slice(0, N - 1))
-                .enter().append("rect")
-                .attr("class", "snow-bar")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                .attr("y", (_: number, i: number) => {
-                    const h = chartHeight - yPrecip(snow[i]);
-                    const scaledH = h < 2 && snow[i] > 0 ? 2 : h * 0.7;
-                    return yPrecip(0) - scaledH;
-                })
-                .attr("width", barWidth)
-                .attr("height", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
-                    return h < 2 && d > 0 ? 2 : h * 0.7;
-                })
-                .attr("fill", "currentColor");
+            if (snowAvailable) {
+                chart.selectAll(".snow-bar")
+                    .data(snow.slice(0, N - 1))
+                    .enter().append("rect")
+                    .attr("class", "snow-bar")
+                    .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
+                    .attr("y", (_: number, i: number) => {
+                        const h = chartHeight - yPrecip(snow[i]);
+                        const scaledH = h < 2 && snow[i] > 0 ? 2 : h * 0.7;
+                        return yPrecip(0) - scaledH;
+                    })
+                    .attr("width", barWidth)
+                    .attr("height", (d: number) => {
+                        const h = chartHeight - yPrecip(d);
+                        return h < 2 && d > 0 ? 2 : h * 0.7;
+                    })
+                    .attr("fill", "currentColor");
+            }
         }
 
         // Wind band - only if enabled
@@ -2169,7 +2168,7 @@ export class MeteogramCard extends LitElement {
             const windBand = svg.append('g')
                 .attr('transform', `translate(${margin.left},${windBandYOffset})`);
 
-            const windBandHeight = windBarbBand - 10;
+            // const windBandHeight = windBarbBand - 10;
             const windBarbY = windBandHeight / 2;
 
             windBand.append("rect")
@@ -2255,7 +2254,7 @@ export class MeteogramCard extends LitElement {
         }
 
         // Bottom hour labels - always placed below the chart area
-        const hourLabelY = margin.top + chartHeight + windBarbBand + hourLabelBand - 6;
+        const hourLabelY = margin.top + chartHeight + windBandHeight + 15;
 
         // FIX: Place hour labels at the same x as their vertical grid line (i.e., x(i))
         svg.selectAll(".bottom-hour-label")

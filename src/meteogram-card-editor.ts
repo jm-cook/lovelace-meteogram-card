@@ -65,7 +65,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
         setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
         setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
-        setValue(this._elements.get('fill_container'), this._config.fill_container !== undefined ? this._config.fill_container : false, 'checked');
+        // REMOVED: fillContainer
         setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT, 'checked');
         setValue(this._elements.get('entity_id'), this._config.entity_id || '');
         setValue(this._elements.get('focussed'), this._config.focussed !== undefined ? this._config.focussed : false, 'checked');
@@ -94,7 +94,6 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
         const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
         const meteogramHours = this._config.meteogram_hours || "48h";
-        const fillContainer = this._config.fill_container !== undefined ? this._config.fill_container : false;
         const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT;
         const focussed = this._config.focussed !== undefined ? this._config.focussed : false;
         const div = document.createElement('div');
@@ -266,14 +265,6 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
             .checked="${denseWeatherIcons}"
           ></ha-switch>
         </div>
-
-        <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.fill_container", "Fill Container")}</div>
-          <ha-switch
-            id="fill-container"
-            .checked="${fillContainer}"
-          ></ha-switch>
-        </div>
       
         <div class="toggle-row">
           <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.focussed", "Focussed Mode (minimal chart)")}</div>
@@ -388,13 +379,6 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 this._elements.set('meteogram_hours', meteogramHoursSelect);
             }
 
-            const fillContainerSwitch = this.querySelector('#fill-container') as ConfigurableHTMLElement;
-            if (fillContainerSwitch) {
-                fillContainerSwitch.configValue = 'fill_container';
-                fillContainerSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('fill_container', fillContainerSwitch);
-            }
-
             const diagnosticsSwitch = this.querySelector('#diagnostics') as ConfigurableHTMLElement;
             if (diagnosticsSwitch) {
                 diagnosticsSwitch.configValue = 'diagnostics';
@@ -435,7 +419,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         // List of boolean config fields
         const boolFields = [
             'show_cloud_cover', 'show_pressure', 'show_rain', 'show_weather_icons',
-            'show_wind', 'dense_weather_icons', 'fill_container', 'diagnostics',
+            'show_wind', 'dense_weather_icons', /* 'fill_container', */ 'diagnostics',
             'focussed'
         ];
 
