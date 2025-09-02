@@ -6,17 +6,9 @@ import { getClientName} from "./diagnostics";
 import { WeatherAPI, ForecastData } from "./weather-api";
 import { WeatherEntityAPI, mapHaConditionToMetnoSymbol } from "./weather-entity";
 import { trnslt } from "./translations";
+import { CARD_NAME, METEOGRAM_CARD_STARTUP_TIME, DIAGNOSTICS_DEFAULT } from "./constants";
 
-
-// import { METEOGRAM_CARD_STARTUP_TIME, DIAGNOSTICS_DEFAULT, CARD_NAME } from "./meteogram-card"; // Import from meteogram-card.ts
-
-export const CARD_NAME = "Meteogram Card";
-export const METEOGRAM_CARD_STARTUP_TIME = new Date();
-
-export const DIAGNOSTICS_DEFAULT = version.includes("beta");
-
-
-@customElement("meteogram-card")
+@customElement('meteogram-card')
 export class MeteogramCard extends LitElement {
     constructor(
 
@@ -1056,17 +1048,6 @@ export class MeteogramCard extends LitElement {
                 }
             }
         }
-
-        // if (changedProps.has('latitude') || changedProps.has('longitude')) {
-        //     MeteogramCard.apiExpiresAt = null;
-        //     MeteogramCard.cachedWeatherData = null;
-        //     try {
-        //         localStorage.removeItem('meteogram-card-weather-cache');
-        //     } catch (e) {
-        //         // Ignore storage errors
-        //     }
-        // }
-
         this._updateDarkMode(); // Always check dark mode after update
     }
 
@@ -1251,9 +1232,7 @@ export class MeteogramCard extends LitElement {
         }
     }
 
-
     async fetchWeatherData(): Promise<ForecastData> {
-
         if (this.entityId && this.entityId !== 'none' && !this._weatherEntityApiInstance) {
             if (this.hass) {
                 console.debug(`[${CARD_NAME}] Initializing WeatherEntityAPI for entity: ${this.entityId}`, this._weatherEntityApiInstance);
@@ -1369,13 +1348,6 @@ export class MeteogramCard extends LitElement {
         })();
         return this.weatherDataPromise;
     }
-
-    // // SAMPLE: Fetch forecast data from weather entity and log it
-    // static sampleFetchWeatherEntityForecast(hass: any, entityId?: string) {
-    //     if (!entityId) return;
-    //     const api = new WeatherEntityAPI(hass, entityId);
-    //     const data = api.getForecastData();
-    // }
 
     // Keep the cleanupChart method as is
     cleanupChart(): void {
@@ -1624,32 +1596,6 @@ export class MeteogramCard extends LitElement {
         });
     }
 
-    // // Translation helper
-    // private trnslt = (key: string, fallback?: string): string => {
-    //     // Try hass.localize (used by HA frontend)
-    //     if (this.hass && typeof this.hass.localize === "function") {
-    //         const result = this.hass.localize(key);
-    //         if (result && result !== key) return result;
-    //     }
-    //     // Try hass.resources (used by HA backend)
-    //     if (this.hass && this.hass.resources && typeof this.hass.resources === "object") {
-    //         const lang = this.hass.language || "en";
-    //         const res = this.hass.resources[lang]?.[key];
-    //         if (res) return res;
-    //     }
-    //     // Try local translation files
-    //     const lang = (this.hass && this.hass.language) ? this.hass.language : "en";
-    //     let localRes: string | undefined;
-    //     if (lang.startsWith("nb")) {
-    //         localRes = (nbLocale as Record<string, string>)[key];
-    //     } else {
-    //         localRes = (enLocale as Record<string, string>)[key];
-    //     }
-    //     if (localRes) return localRes;
-    //     // Return fallback if provided, otherwise the key
-    //     return fallback !== undefined ? fallback : key;
-    // };
-
     // Add a helper to get the HA locale string for date formatting
     private getHaLocale(): string {
         // Use hass.language if available, fallback to "en"
@@ -1682,8 +1628,6 @@ export class MeteogramCard extends LitElement {
         const N = time.length;
         // console.debug(`[${CARD_NAME}] renderMeteogram with ${N} data points, width=${width}, height=${height}, windBandHeight=${windBandHeight}, hourLabelBand=${hourLabelBand}`);
 
-
-        // --- CHANGED: Get system temperature unit and convert values ---
         const tempUnit = this.getSystemTemperatureUnit();
         const temperatureConverted = temperature.map(t => this.convertTemperature(t));
         // -------------------------------------------------------------
@@ -1698,7 +1642,6 @@ export class MeteogramCard extends LitElement {
             : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
         // console.debug(`[${CARD_NAME}] chartHeight calculated as: ${chartHeight}`);
 
-        // --- CHANGED: Calculate chartWidth based on number of hours ---
         // Cap the chart width to only what's needed for the data
         const maxHourSpacing = 90;
         const chartWidth = this.focussed
@@ -1752,8 +1695,6 @@ export class MeteogramCard extends LitElement {
             .attr("height", chartHeight + 42)
             .attr("opacity", (_: DayRange, i: number) => i % 2 === 0 ? 0.16 : 0);
 
-
-
         // Day boundary ticks
         svg.selectAll(".day-tic")
             .data(dayStarts)
@@ -1768,7 +1709,6 @@ export class MeteogramCard extends LitElement {
             .attr("stroke-width", 3)
             .attr("opacity", 0.6);
 
-        // --- Move grid drawing BEFORE chart data rendering ---
         const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
         // Temperature Y scale, handling null values
@@ -1849,8 +1789,6 @@ export class MeteogramCard extends LitElement {
                 .attr("fill", "none");
         }
 
-
-        // --- Restore vertical day divider lines ---
         chart.selectAll(".twentyfourh-line")
             .data(dayStarts.slice(1)) // skip first, draw at each new day
             .enter()
@@ -2285,14 +2223,6 @@ export class MeteogramCard extends LitElement {
                .attr("transform", `translate(-50,${chartHeight / 2}) rotate(-90)`)
                .text(trnslt(this.hass, "ui.card.weather.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
 
-           // if (hasPressure && yPressure) {
-           //     chart.append("text")
-           //         .attr("class", "axis-label")
-           //         .attr("text-anchor", "middle")
-           //         .attr("transform", `translate(${chartWidth + 50},${chartHeight / 2}) rotate(90)`)
-           //         .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)");
-           // }
-
            // Date labels at top - with spacing check to prevent overlap
            svg.selectAll(".top-date-label")
                .data(dayStarts)
@@ -2479,22 +2409,19 @@ export class MeteogramCard extends LitElement {
                                             </div>
                                             <div>
                                                 <span
-                                                        title="${
-                this._lastApiSuccess
-                    ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
-                    : this._statusApiSuccess === null
-                        ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
-                        : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
-            }"
-                                                >
+                                                        title="${this._lastApiSuccess
+                                                                ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
+                                                                : this._statusApiSuccess === null
+                                                                    ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
+                                                                    : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
+                                                        }" >
                                                     ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}
-                                                        : ${
-                this._lastApiSuccess
-                    ? "✅"
-                    : this._statusApiSuccess === null
-                        ? "❎"
-                        : "❌"
-            }
+                                                        : ${this._lastApiSuccess
+                                                                ? "✅"
+                                                                : this._statusApiSuccess === null
+                                                                    ? "❎"
+                                                                    : "❌"
+                                                           }
                                                 </span>
                                                 <br>
                                                 <span>Card version: <code>${MeteogramCard.meteogramCardVersion}</code></span><br>
@@ -2597,6 +2524,4 @@ export class MeteogramCard extends LitElement {
         }
         return tempC;
     }
-
-
 }

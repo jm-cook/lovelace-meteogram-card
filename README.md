@@ -5,7 +5,7 @@
 [![release][release-badge]][release-url]
 ![downloads][downloads-badge]
 
-A custom card showing a 48-hour meteogram with wind barbs, powered by Met.no API or Home Assistant weather entity.
+A custom card showing a meteogram with wind barbs, powered by Met.no API or Home Assistant weather entity.
 
 ---
 
@@ -60,8 +60,9 @@ Supported entities: any Home Assistant weather entity with a `forecast` attribut
 Most Home Assistant weather integrations do **not** provide the full set of attributes that meteogram-card can display.  
 For example, some integrations may lack cloud cover, `precipitation_max`, or even wind speed and direction.  
 Additionally, weather integration entities may only provide data for a limited number of hours (often 24 or 48), which may restrict the length of the meteogram.  
+For example some Weather integrations for Home Assistant only provide 24 hours of forecast data, which gives a 23 hour meteogram.
 For best functionality and a complete meteogram, passing `latitude` and `longitude` (to use the Met.no API) is recommended.  
-However, if you are on a device such as iOS and have trouble retrieving weather data via the API, using the weather integration entity option (`entity_id`) may be your best option.
+However, if you are on a device such as iOS and have received error messages when retrieving weather data via the API, using the weather integration entity option (`entity_id`) may be your best option.
 
 **Caching:**  
 Forecasts are cached in localStorage under `meteogram-card-entity-weather-cache`, keyed by entity ID.  

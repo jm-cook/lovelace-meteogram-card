@@ -12,12 +12,9 @@ If you have a feature request, bug report, or improvement suggestion, please ope
 
 ## Logging and Status Panel
 
-If the version number in `package.json` contains `"beta"`, the card will:
-- Enable verbose logging to the browser console (`logEnabled` is true).
-- Display a status panel in the UI below the chart, showing:
+If the version number in `package.json` contains `"beta"`, the card will Display a status panel in the UI below the chart, showing:
   - API cache expiry (`expiresAt`)
   - Last render time
-  - Last fingerprint miss (when a redraw was forced)
   - Last data fetch timestamp
   - Last cached data timestamp
   - Whether the last API call was successful. "Unsuccessful" may also mean that it hasn't been called yet
@@ -33,7 +30,7 @@ for the requested location (including new locations), or when the cache has expi
 information provided by the previous API response.
 
 
-### `meteogram-card-weather-cache` Cache Documentation
+### Cache Documentation for`meteogram-card-weather-cache` 
 
 
 **Cache Location:**  

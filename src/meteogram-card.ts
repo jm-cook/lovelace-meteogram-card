@@ -1,16 +1,7 @@
-import { MeteogramCardConfig, MeteogramCardEditorElement } from "./types";
+import { CARD_NAME } from "./constants";
 import { version } from "../package.json";
-
-export const CARD_NAME = "Meteogram Card";
-export const METEOGRAM_CARD_STARTUP_TIME = new Date();
-// Declare DIAGNOSTICS_DEFAULT here only
-export const DIAGNOSTICS_DEFAULT = version.includes("beta");
-
 import './meteogram-card-editor';
 import './meteogram-card-class';
-// Declare litModulesPromise to avoid TypeScript error
-// This will be defined in the banner added by rollup
-declare const litModulesPromise: Promise<any>;
 
 // Add TypeScript declarations for window extensions
 declare global {
@@ -88,33 +79,11 @@ const cleanupExpiredForecastCache = () => {
         // Ignore storage errors
     }
 };
-// This wrapper ensures modules are loaded before code execution
-// const runWhenLitLoaded = () => {
 
-    // Clean up expired cache entries before anything else
-    // cleanupExpiredForecastCache();
 
-    // Print version info on startup
-    printVersionInfo();
+// Print version info on startup
+printVersionInfo();
 
-    // // Get Lit modules from the global variable set in the banner
-    // const {LitElement, css, customElement, property, state, html} = window.litElementModules || {};
-
-// // Define interfaces for better type safety
-//     interface ForecastData {
-//         pressure: number[];
-//         time: Date[];
-//         temperature: (number | null)[];
-//         rain: number[];
-//         rainMin: number[]; // Add min precipitation array
-//         rainMax: number[]; // Add max precipitation array
-//         snow: number[];
-//         cloudCover: number[];
-//         windSpeed: number[];
-//         windDirection: number[];
-//         symbolCode: string[];
-//         fetchTimestamp?: string; // Add this property
-//     }
 
 
 
@@ -122,30 +91,17 @@ const cleanupExpiredForecastCache = () => {
 
 // Tell TypeScript that the class is being used
 // @ts-ignore: Used by customElement decorator
-    window.customElements.get('meteogram-card') || customElements.define('meteogram-card', MeteogramCard);
+window.customElements.get('meteogram-card') || customElements.define('meteogram-card', MeteogramCard);
 
 
 // Home Assistant requires this for custom cards
-    (window as any).customCards = (window as any).customCards || [];
-    (window as any).customCards.push({
-        type: "meteogram-card",
-        name: CARD_NAME,
-        description: "A custom card showing a meteogram with wind barbs.",
-        version: version,
-        preview: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/images/meteogram-card.png",
-        documentationURL: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/README.md"
+(window as any).customCards = (window as any).customCards || [];
+(window as any).customCards.push({
+    type: "meteogram-card",
+    name: CARD_NAME,
+    description: "A custom card showing a meteogram with wind barbs.",
+    version: version,
+    preview: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/images/meteogram-card.png",
+    documentationURL: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/README.md"
     });
-// }
-// // Wait for Lit modules to be loaded before running the code
-// if (window.litElementModules) {
-//     runWhenLitLoaded();
-// } else {
-//     // If the banner has already set up the promise, wait for it to resolve
-//     if (typeof litModulesPromise !== 'undefined') {
-//         litModulesPromise.then(() => {
-//             runWhenLitLoaded();
-//         });
-//     } else {
-//         console.error("Lit modules not found and litModulesPromise not available");
-//     }
-// }
+
