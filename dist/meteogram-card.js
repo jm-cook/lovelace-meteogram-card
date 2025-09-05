@@ -3746,7 +3746,7 @@ let TroubleshootMessageCard = class TroubleshootMessageCard extends i$1 {
         this.statusTimer = null;
     }
     setConfig(config) {
-        this.message = config.message || "No message provided.";
+        this.message = config.message || "troubleshoot-message-card";
     }
     getCardSize() {
         return 1;

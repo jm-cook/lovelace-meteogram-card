@@ -49,7 +49,7 @@ export class TroubleshootMessageCard extends LitElement {
     `;
 
     setConfig(config: { message?: string }) {
-        this.message = config.message || "No message provided.";
+        this.message = config.message || "troubleshoot-message-card";
     }
 
     getCardSize() {
