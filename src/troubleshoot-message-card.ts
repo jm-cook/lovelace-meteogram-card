@@ -163,7 +163,7 @@ export class TroubleshootMessageCard extends LitElement {
                 const statusData = await statusResp.json();
                 statusResult = `<div class="status">
                     <b>Met.no Status Response:</b><br>
-                    <pre>${JSON.stringify(statusData, null, 2).slice(0, 200)}${JSON.stringify(statusData, null, 2).length > 200 ? "..." : ""}</pre>
+                    <pre>${JSON.stringify(statusData).slice(0, 200)}${JSON.stringify(statusData).length > 200 ? "..." : ""}</pre>
                     <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
                 </div>`;
                 this.appendLog("Status API call successful.");
@@ -206,7 +206,7 @@ export class TroubleshootMessageCard extends LitElement {
                 this.appendLog(`Forecast error: ${resp.status} ${resp.statusText}${errText ? " - " + errText : ""}`);
             } else {
                 const data = await resp.json();
-                const forecastStr = JSON.stringify(data, null, 2);
+                const forecastStr = JSON.stringify(data);
                 forecastResult = `<div class="status">
                     <b>Met.no Forecast Response:</b><br>
                     <pre>${forecastStr.slice(0, 200)}${forecastStr.length > 200 ? "..." : ""}</pre>
