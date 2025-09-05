@@ -17,6 +17,8 @@ export class TroubleshootMessageCard extends LitElement {
     @state() private statusText: string = "Checking Met.no forecast for Bergen...";
     @state() private lastFetchTime: number = 0;
     private statusTimer: number | null = null;
+    private testStartTime: number = Date.now();
+    private testCompleted: boolean = false;
 
     static styles = css`
         ha-card {
@@ -59,9 +61,9 @@ export class TroubleshootMessageCard extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this.appendLog("Card loaded, starting forecast check...");
-        // Detect and log client type and iOS version if possible
         const clientInfo = this.getClientInfo();
         this.appendLog(`Client info: ${clientInfo}`);
+        this.testStartTime = Date.now();
         this.fetchForecast();
         this.statusTimer = window.setInterval(() => this.fetchForecast(), 30000);
    }
@@ -116,7 +118,18 @@ export class TroubleshootMessageCard extends LitElement {
     }
 
     async fetchForecast() {
+        // Stop further API calls after 5 minutes
+        if (this.testCompleted) return;
         const now = Date.now();
+        if (now - this.testStartTime > 5 * 60 * 1000) {
+            this.appendLog("test completed");
+            this.testCompleted = true;
+            if (this.statusTimer) {
+                clearInterval(this.statusTimer);
+                this.statusTimer = null;
+            }
+            return;
+        }
         if (now - this.lastFetchTime < 10000) {
             this.appendLog("Fetch skipped (rate limit: 10s)");
             return;
@@ -161,14 +174,15 @@ export class TroubleshootMessageCard extends LitElement {
                 this.appendLog(`Status error: ${statusResp.status} ${statusResp.statusText}${errText ? " - " + errText : ""}`);
             } else {
                 const statusData = await statusResp.json();
-                const statusStr = JSON.stringify(statusData);
+                const statusStrFlat = JSON.stringify(statusData);
+                const statusStr = JSON.stringify(statusData, null, 2);
                 statusResult = `<div class="status">
                     <b>Met.no Status Response:</b><br>
                     <pre>${statusStr.slice(0, 200)}${statusStr.length > 200 ? "..." : ""}</pre>
                     <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
                 </div>`;
                 this.appendLog("Status API call successful.");
-                this.appendLog(`Status JSON: ${statusStr}`);
+                this.appendLog(`Status JSON: ${statusStrFlat}`);
             }
         } catch (err: any) {
             statusResult = `<div class="error">Status fetch error:<br>
@@ -208,14 +222,16 @@ export class TroubleshootMessageCard extends LitElement {
                 this.appendLog(`Forecast error: ${resp.status} ${resp.statusText}${errText ? " - " + errText : ""}`);
             } else {
                 const data = await resp.json();
-                const forecastStr = JSON.stringify(data);
+                // Prettyprint JSON for blue forecast response
+                const forecastStr = JSON.stringify(data, null, 2);
+                const forecastStrFlat = JSON.stringify(data);
                 forecastResult = `<div class="status">
                     <b>Met.no Forecast Response:</b><br>
                     <pre>${forecastStr.slice(0, 200)}${forecastStr.length > 200 ? "..." : ""}</pre>
                     <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
                 </div>`;
                 this.appendLog("Forecast API call successful, forecast data received.");
-                this.appendLog(`Forecast JSON: ${forecastStr}`);
+                this.appendLog(`Forecast JSON: ${forecastStrFlat.slice(0, 50)}${forecastStr.length > 50 ? "..." : ""}`);
             }
         } catch (err: any) {
             forecastResult = `<div class="error">Forecast fetch error:<br>

@@ -3744,6 +3744,8 @@ let TroubleshootMessageCard = class TroubleshootMessageCard extends i$1 {
         this.statusText = "Checking Met.no forecast for Bergen...";
         this.lastFetchTime = 0;
         this.statusTimer = null;
+        this.testStartTime = Date.now();
+        this.testCompleted = false;
     }
     setConfig(config) {
         this.message = config.message || "troubleshoot-message-card";
@@ -3754,9 +3756,9 @@ let TroubleshootMessageCard = class TroubleshootMessageCard extends i$1 {
     connectedCallback() {
         super.connectedCallback();
         this.appendLog("Card loaded, starting forecast check...");
-        // Detect and log client type and iOS version if possible
         const clientInfo = this.getClientInfo();
         this.appendLog(`Client info: ${clientInfo}`);
+        this.testStartTime = Date.now();
         this.fetchForecast();
         this.statusTimer = window.setInterval(() => this.fetchForecast(), 30000);
     }
@@ -3813,7 +3815,19 @@ let TroubleshootMessageCard = class TroubleshootMessageCard extends i$1 {
         this.requestUpdate();
     }
     async fetchForecast() {
+        // Stop further API calls after 5 minutes
+        if (this.testCompleted)
+            return;
         const now = Date.now();
+        if (now - this.testStartTime > 5 * 60 * 1000) {
+            this.appendLog("test completed");
+            this.testCompleted = true;
+            if (this.statusTimer) {
+                clearInterval(this.statusTimer);
+                this.statusTimer = null;
+            }
+            return;
+        }
         if (now - this.lastFetchTime < 10000) {
             this.appendLog("Fetch skipped (rate limit: 10s)");
             return;
@@ -3857,14 +3871,15 @@ let TroubleshootMessageCard = class TroubleshootMessageCard extends i$1 {
             }
             else {
                 const statusData = await statusResp.json();
-                const statusStr = JSON.stringify(statusData);
+                const statusStrFlat = JSON.stringify(statusData);
+                const statusStr = JSON.stringify(statusData, null, 2);
                 statusResult = `<div class="status">
                     <b>Met.no Status Response:</b><br>
                     <pre>${statusStr.slice(0, 200)}${statusStr.length > 200 ? "..." : ""}</pre>
                     <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
                 </div>`;
                 this.appendLog("Status API call successful.");
-                this.appendLog(`Status JSON: ${statusStr}`);
+                this.appendLog(`Status JSON: ${statusStrFlat}`);
             }
         }
         catch (err) {
@@ -3906,14 +3921,16 @@ let TroubleshootMessageCard = class TroubleshootMessageCard extends i$1 {
             }
             else {
                 const data = await resp.json();
-                const forecastStr = JSON.stringify(data);
+                // Prettyprint JSON for blue forecast response
+                const forecastStr = JSON.stringify(data, null, 2);
+                const forecastStrFlat = JSON.stringify(data);
                 forecastResult = `<div class="status">
                     <b>Met.no Forecast Response:</b><br>
                     <pre>${forecastStr.slice(0, 200)}${forecastStr.length > 200 ? "..." : ""}</pre>
                     <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
                 </div>`;
                 this.appendLog("Forecast API call successful, forecast data received.");
-                this.appendLog(`Forecast JSON: ${forecastStr}`);
+                this.appendLog(`Forecast JSON: ${forecastStrFlat.slice(0, 50)}${forecastStr.length > 50 ? "..." : ""}`);
             }
         }
         catch (err) {
