@@ -3857,12 +3857,14 @@ let TroubleshootMessageCard = class TroubleshootMessageCard extends i$1 {
             }
             else {
                 const statusData = await statusResp.json();
+                const statusStr = JSON.stringify(statusData);
                 statusResult = `<div class="status">
                     <b>Met.no Status Response:</b><br>
-                    <pre>${JSON.stringify(statusData, null, 2).slice(0, 200)}${JSON.stringify(statusData, null, 2).length > 200 ? "..." : ""}</pre>
+                    <pre>${statusStr.slice(0, 200)}${statusStr.length > 200 ? "..." : ""}</pre>
                     <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
                 </div>`;
                 this.appendLog("Status API call successful.");
+                this.appendLog(`Status JSON: ${statusStr}`);
             }
         }
         catch (err) {
@@ -3904,13 +3906,14 @@ let TroubleshootMessageCard = class TroubleshootMessageCard extends i$1 {
             }
             else {
                 const data = await resp.json();
-                const forecastStr = JSON.stringify(data, null, 2);
+                const forecastStr = JSON.stringify(data);
                 forecastResult = `<div class="status">
                     <b>Met.no Forecast Response:</b><br>
                     <pre>${forecastStr.slice(0, 200)}${forecastStr.length > 200 ? "..." : ""}</pre>
                     <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
                 </div>`;
                 this.appendLog("Forecast API call successful, forecast data received.");
+                this.appendLog(`Forecast JSON: ${forecastStr}`);
             }
         }
         catch (err) {
