@@ -29,6 +29,7 @@ export interface MeteogramData {
   symbolCode: string[];
   pressure: number[];
   fetchTimestamp?: string; // Add this property
+  pressureAvailable?: boolean; // Indicates whether pressure should be shown
 }
 
 export interface WeatherDataPoint {

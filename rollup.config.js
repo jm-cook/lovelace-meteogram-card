@@ -22,20 +22,21 @@ export default {
       compilerOptions: {
         skipLibCheck: true,
         allowSyntheticDefaultImports: true,
+        sourceMap: dev ? true : false,
       }
     }),
-    // !dev && terser({
-    //   format: {
-    //     comments: false // Keep comments to preserve the banner
-    //   },
-    //   ecma: 2020,
-    //   compress: true,
-    //   // mangle: {
-    //   //   properties: {
-    //   //     regex: /^_/,
-    //   //   },
-    //   // },
-    // }),
+    !dev && terser({
+      format: {
+        comments: false // Keep comments to preserve the banner
+      },
+      ecma: 2020,
+      compress: true,
+      // mangle: {
+      //   properties: {
+      //     regex: /^_/,
+      //   },
+      // },
+    }),
   ],
   external: [
     // Remove 'lit' and 'lit/decorators.js' from externals so they are bundled

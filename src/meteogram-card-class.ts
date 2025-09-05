@@ -1631,6 +1631,11 @@ export class MeteogramCard extends LitElement {
         const tempUnit = this.getSystemTemperatureUnit();
         const temperatureConverted = temperature.map(t => this.convertTemperature(t));
         // -------------------------------------------------------------
+        const pressureAvailable = this.showPressure && pressure && pressure.length > 0
+        const windAvailable = this.showWind && windDirection && windSpeed.length > 0 && windDirection.length > 0
+        const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
+        const snowAvailable = this.showRain && snow && snow.length > 0;
+        // -------------------------------------------------------------
 
         // SVG and chart parameters
         // In focussed mode, remove top margin for legends
@@ -1647,11 +1652,7 @@ export class MeteogramCard extends LitElement {
         const chartWidth = this.focussed
             ? Math.min(width, Math.max(300, maxHourSpacing * (N - 1))) + 60
             : Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
-        // -------------------------------------------------------------
 
-        const windAvailable = this.showWind && windDirection && windSpeed.length > 0 && windDirection.length > 0
-        const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
-        const snowAvailable = this.showRain && snow && snow.length > 0;
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
         let dx = chartWidth / (N - 1);
         // If the chart is very wide, adjust spacing so elements don't get too stretched

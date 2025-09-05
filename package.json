@@ -6,6 +6,7 @@
   "main": "dist/meteogram-card.js",
   "scripts": {
     "build": "rollup -c --bundleConfigAsCjs",
+    "build:dev": "cross-env ROLLUP_WATCH=true rollup -c --bundleConfigAsCjs",
     "watch": "rollup -c --watch --bundleConfigAsCjs",
     "lint": "eslint --ext .ts --ext .js --fix src",
     "start": "npm run build && serve"
@@ -36,6 +37,7 @@
     "@rollup/plugin-typescript": "^12.1.4",
     "rollup": "^4.9.5",
     "tslib": "^2.6.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "cross-env": "^7.0.3"
   }
 }
