@@ -38,9 +38,6 @@ export class WeatherAPI {
     async getForecastData(): Promise<ForecastData | null> {
         console.debug(`[weather-api] getForecastData called for lat=${this.lat}, lon=${this.lon}`);
 
-
-
-
         // If no data loaded, try to load from cache first
         if (!this._forecastData) {
             this.loadCacheFromStorage();
