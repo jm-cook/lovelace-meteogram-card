@@ -2,6 +2,7 @@ import { CARD_NAME } from "./constants";
 import { version } from "../package.json";
 import './meteogram-card-editor';
 import './meteogram-card-class';
+import './troubleshoot-message-card';
 
 // Add TypeScript declarations for window extensions
 declare global {
@@ -80,14 +81,8 @@ const cleanupExpiredForecastCache = () => {
     }
 };
 
-
 // Print version info on startup
 printVersionInfo();
-
-
-
-
-
 
 // Tell TypeScript that the class is being used
 // @ts-ignore: Used by customElement decorator
@@ -104,4 +99,3 @@ window.customElements.get('meteogram-card') || customElements.define('meteogram-
     preview: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/images/meteogram-card.png",
     documentationURL: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/README.md"
     });
-

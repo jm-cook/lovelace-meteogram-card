@@ -1294,6 +1294,7 @@ export class MeteogramCard extends LitElement {
                     this._statusLastFetch = new Date(lastFetch).toISOString();
                 }
             }
+            console.debug(`[${CARD_NAME}] fetchWeatherData: returning existing in-progress promise.`);
             return this.weatherDataPromise;
         }
         // Cache the promise so repeated calls during chart draw use the same one
@@ -1564,6 +1565,19 @@ export class MeteogramCard extends LitElement {
             this._setupResizeObserver();
             this._setupVisibilityObserver();
             this._setupMutationObserver();
+
+            // --- SCHEDULE REFRESH 60s AFTER expiresAt ---
+            if (this.apiExpiresAt) {
+                const now = Date.now();
+                const delay = Math.max(this.apiExpiresAt + 60000 - now, 0);
+                if (this._weatherRefreshTimeout) clearTimeout(this._weatherRefreshTimeout);
+                console.debug(`[${CARD_NAME}] Setting scheduled-refresh-after-expiresAt in ${Math.round(delay / 1000)}s (at ${new Date(this.apiExpiresAt + 60000).toISOString()})`);
+                this._weatherRefreshTimeout = window.setTimeout(() => {
+                    // Just force a redraw, which will trigger a fetch and then a draw
+
+                    this._scheduleDrawMeteogram("scheduled-refresh-after-expiresAt", true);
+                }, delay);
+            }
         }).catch((err: Error) => {
             // If error is due to unavailable entity, show waiting message
             if (err.message && err.message.includes("is unavailable. Waiting for it to become available")) {
@@ -1584,6 +1598,8 @@ export class MeteogramCard extends LitElement {
             }
         }).finally(() => {
             this._chartRenderInProgress = false;
+            // --- RESET weatherDataPromise after chart draw completes ---
+            this.weatherDataPromise = null;
             // Assign _statusLastRender with a date string when rendering completes
             this._statusLastRender = new Date().toISOString();
             console.debug(`[${CARD_NAME}] _renderChart: finished render.`);
@@ -1631,6 +1647,11 @@ export class MeteogramCard extends LitElement {
         const tempUnit = this.getSystemTemperatureUnit();
         const temperatureConverted = temperature.map(t => this.convertTemperature(t));
         // -------------------------------------------------------------
+        const pressureAvailable = this.showPressure && pressure && pressure.length > 0
+        const windAvailable = this.showWind && windDirection && windSpeed.length > 0 && windDirection.length > 0
+        const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
+        const snowAvailable = this.showRain && snow && snow.length > 0;
+        // -------------------------------------------------------------
 
         // SVG and chart parameters
         // In focussed mode, remove top margin for legends
@@ -1647,11 +1668,7 @@ export class MeteogramCard extends LitElement {
         const chartWidth = this.focussed
             ? Math.min(width, Math.max(300, maxHourSpacing * (N - 1))) + 60
             : Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
-        // -------------------------------------------------------------
 
-        const windAvailable = this.showWind && windDirection && windSpeed.length > 0 && windDirection.length > 0
-        const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
-        const snowAvailable = this.showRain && snow && snow.length > 0;
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
         let dx = chartWidth / (N - 1);
         // If the chart is very wide, adjust spacing so elements don't get too stretched

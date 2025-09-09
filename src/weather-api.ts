@@ -38,9 +38,6 @@ export class WeatherAPI {
     async getForecastData(): Promise<ForecastData | null> {
         console.debug(`[weather-api] getForecastData called for lat=${this.lat}, lon=${this.lon}`);
 
-
-
-
         // If no data loaded, try to load from cache first
         if (!this._forecastData) {
             this.loadCacheFromStorage();
@@ -184,11 +181,23 @@ export class WeatherAPI {
             // log impending call to fetch
             console.debug(`[weather-api] Fetching weather data from ${urlToUse} with Origin ${headers['Origin']}`);
             WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT++;
-            const response = await fetch(urlToUse, { headers, mode: 'cors' });
+            const response = await fetch(urlToUse, {
+                headers,
+                mode: 'cors',
+                method: 'GET'
+            });
 
             this.lastStatusCode = response.status;
 
             const expiresHeader = response.headers.get("Expires");
+            // --- SPOOF: Always set expires to now + 3 minutes for testing ---
+            // const spoofedExpires = new Date(Date.now() + 1 * 60 * 1000);
+            // let expires: Date | null = spoofedExpires;
+            // // If you want to log the spoof:
+            // console.debug(`[weather-api] Spoofing expiresHeader to ${spoofedExpires.toISOString()}`);
+            // --- END SPOOF ---
+
+            // If you want to keep the original logic for reference, comment it out:
             let expires: Date | null = null;
             if (expiresHeader) {
                 const expiresDate = new Date(expiresHeader);
