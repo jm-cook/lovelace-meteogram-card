@@ -1521,8 +1521,20 @@ export class MeteogramCard extends LitElement {
                 .attr("viewBox", `0 0 ${width + 140} ${height}`)
                 .attr("preserveAspectRatio", "none"); // Fill container, no aspect ratio
 
-            const maxHourSpacing = 90;
-            const chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (data.time.length - 1)));
+            // const maxHourSpacing = 90;
+            // // Adjust chartWidth depending on pressureAvailable so that there is not a big gap on the right when it is not shown
+            // let chartWidth: number;
+            // if (this.focussed) {
+            //     chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (data.time.length - 1))) + 60;
+            // } else {
+            //     // If pressure is available, use extra space for right axis; otherwise, reduce width to avoid gap
+            //     if (pressureAvailable) {
+            //         chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (data.time.length - 1)));
+            //     } else {
+            //         // Remove extra right margin if pressure is not shown
+            //         chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (data.time.length - 1)) - 50);
+            //     }
+            // }
 
             let hours = 48;
             if (this.meteogramHours === "8h") hours = 8;
@@ -1665,9 +1677,21 @@ export class MeteogramCard extends LitElement {
 
         // Cap the chart width to only what's needed for the data
         const maxHourSpacing = 90;
-        const chartWidth = this.focussed
-            ? Math.min(width, Math.max(300, maxHourSpacing * (N - 1))) + 60
-            : Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
+        // Adjust chartWidth depending on pressureAvailable so that there is not a big gap on the right when it is not shown
+        let chartWidth: number;
+        if (this.focussed) {
+            chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1))) + 60;
+        } else {
+            // If pressure is available, use extra space for right axis; otherwise, use full width
+            if (pressureAvailable) {
+                chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
+            } else {
+                // Use the full available width when pressure is not shown
+                chartWidth = width;
+            }
+            console.debug(`[${CARD_NAME}] pressure-available: ${pressureAvailable}, chartWidth calculated as: ${chartWidth}, width=${width}`);
+
+        }
 
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
         let dx = chartWidth / (N - 1);
