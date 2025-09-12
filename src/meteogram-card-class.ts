@@ -1667,30 +1667,29 @@ export class MeteogramCard extends LitElement {
 
         // SVG and chart parameters
         // In focussed mode, remove top margin for legends
-        const margin = this.focussed
-            ? {top: 20, right: 40, bottom: hourLabelBand + 10, left: 40}
-            : {top: 70, right: 70, bottom: hourLabelBand + 10, left: 70};
+        let margin;
+        if (this.focussed) {
+            margin = {top: 20, right: 40, bottom: hourLabelBand + 10, left: 40};
+        } else if (!pressureAvailable) {
+            margin = {top: 70, right: 40, bottom: hourLabelBand + 10, left: 70};
+        } else {
+            margin = {top: 70, right: 70, bottom: hourLabelBand + 10, left: 70};
+        }
         const chartHeight = this.focussed
             ? height - windBandHeight - hourLabelBand - 10
             : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
-        // console.debug(`[${CARD_NAME}] chartHeight calculated as: ${chartHeight}`);
-
         // Cap the chart width to only what's needed for the data
         const maxHourSpacing = 90;
-        // Adjust chartWidth depending on pressureAvailable so that there is not a big gap on the right when it is not shown
-        let chartWidth: number;
+        let chartWidth;
+        const baseWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
         if (this.focussed) {
-            chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1))) + 60;
+            chartWidth = pressureAvailable
+                ? baseWidth + 60
+                : baseWidth + 60 + margin.right;
         } else {
-            // If pressure is available, use extra space for right axis; otherwise, use full width
-            if (pressureAvailable) {
-                chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
-            } else {
-                // Use the full available width when pressure is not shown
-                chartWidth = width;
-            }
-            console.debug(`[${CARD_NAME}] pressure-available: ${pressureAvailable}, chartWidth calculated as: ${chartWidth}, width=${width}`);
-
+            chartWidth = !pressureAvailable
+                ? baseWidth + margin.right
+                : baseWidth;
         }
 
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
