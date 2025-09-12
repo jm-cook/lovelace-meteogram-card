@@ -1,11 +1,11 @@
-## v3.0.0 – Weather Entity Support & Entity Caching (Upcoming)
+## v3.0.0 – Weather Entity Support & Entity Caching
 
 **Highlights:**
 - **Weather Entity Support:**  
   You can now use any Home Assistant weather entity as the data source for the meteogram. 
   Set `entity_id` in your card config. See [README.md](../README.md) for details and limitations.
 - **Entity Caching:**  
-  Forecasts from weather entities are cached in localStorage under `meteogram-card-entity-weather-cache`, keyed by entity ID. Multiple entities can be cached and retrieved independently.
+  Forecasts from weather entities are cached in localStorage keyed by entity ID. Multiple entities can be cached and retrieved independently.
 - **Met.no API remains supported:**  
   If no `entity_id` is specified, the card uses the Met.no API as before.
 - **Focus Mode:**  
