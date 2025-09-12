@@ -176,7 +176,7 @@ export class MeteogramCard extends LitElement {
     static styles = css`
             :host {
                 --meteogram-grid-color: #b8c4d9;
-                --meteogram-grid-color-dark: #b8c4d9;
+                --meteogram-grid-color-dark: #444;
                 --meteogram-temp-line-color: orange;
                 --meteogram-temp-line-color-dark: orange;
                 --meteogram-pressure-line-color: #90caf9;
@@ -1743,8 +1743,8 @@ export class MeteogramCard extends LitElement {
             .attr("class", "day-tic")
             .attr("x1", (d: number) => margin.left + x(d))
             .attr("x2", (d: number) => margin.left + x(d))
-            .attr("y1", dateLabelY + 22)
-            .attr("y2", dateLabelY + 42)
+            .attr("y1", 0)
+            .attr("y2", chartHeight)
             .attr("stroke", "#1a237e")
             .attr("stroke-width", 3)
             .attr("opacity", 0.6);
@@ -1843,7 +1843,7 @@ export class MeteogramCard extends LitElement {
             .attr("stroke-dasharray", "6,5")
             .attr("opacity", 0.7);
 
-        // Chart data rendering...
+        // --- MOVE CLOUD COVER BAND DRAWING HERE ---
         // Cloud cover band - only if enabled
         if (cloudAvailable) {
             const bandTop = chartHeight * 0.01;
@@ -1883,11 +1883,6 @@ export class MeteogramCard extends LitElement {
                     .attr("class", "axis-label")
                     .attr("text-anchor", "middle")
                     .attr("transform", `translate(${chartWidth + 50},${chartHeight / 2}) rotate(90)`)
-                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)");
-
-                chart.append("text")
-                    .attr("class", "legend legend-pressure")
-                    .attr("x", 340).attr("y", -45)
                     .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)");
             }
         }
@@ -1939,32 +1934,49 @@ export class MeteogramCard extends LitElement {
             .attr("stroke-width", 3);
 
         if (!this.focussed) {
-            // Only add cloud cover legend if enabled
+            // Build a list of enabled legends
+            const enabledLegends = [];
             if (cloudAvailable) {
-                chart.append("text")
-                    .attr("class", "legend legend-cloud")
-                    .attr("x", 0).attr("y", -45)
-                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + ` (%)`);
+                enabledLegends.push({
+                    class: "legend legend-cloud",
+                    label: trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + ` (%)`
+                });
             }
-
-            // Only add snow legend if snow data is available
+            enabledLegends.push({
+                class: "legend legend-temp",
+                label: trnslt(this.hass, "ui.card.meteogram.attributes.temperature", `Temperature`) + ` (${tempUnit})`
+            });
+            if (this.showRain) {
+                enabledLegends.push({
+                    class: "legend legend-rain",
+                    label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Rain") + ` (mm)`
+                });
+            }
             if (snowAvailable) {
-                chart.append("text")
-                    .attr("class", "legend legend-snow")
-                    .attr("x", 630).attr("y", -45)
-                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)');
+                enabledLegends.push({
+                    class: "legend legend-snow",
+                    label: trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)'
+                });
             }
-
-            chart.append("text")
-                .attr("class", "legend legend-temp")
-                .attr("x", 200).attr("y", -45)
-                .text(trnslt(this.hass, "ui.card.meteogram.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
-
-            chart.append("text")
-                .attr("class", "legend legend-rain")
-                .attr("x", 480).attr("y", -45)
-                .text(trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Rain") + ` (mm)`);
-
+            if (hasPressure && yPressure) {
+                enabledLegends.push({
+                    class: "legend legend-pressure",
+                    label: trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)"
+                });
+            }
+            // Evenly space legends across the full chart width, but left-aligned in their slots
+            const numLegends = enabledLegends.length;
+            enabledLegends.forEach((legend, i) => {
+                // Left-aligned: slot width is chartWidth/numLegends, legendX is margin.left + i*slotWidth
+                const slotWidth = chartWidth / numLegends;
+                const legendX = i * slotWidth + 2; // +2 for a small left margin in each slot
+                chart.append("text")
+                    .attr("class", legend.class)
+                    .attr("x", legendX)
+                    .attr("y", -45)
+                    .attr("text-anchor", "start")
+                    .text(legend.label);
+            });
         }
 
         // Temperature line

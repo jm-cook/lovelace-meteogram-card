@@ -14,6 +14,23 @@
 - **No more fillContainer option:**  
   The card now automatically sizes to its container.
 
+**Additional Changes:**
+- **Chart Sizing & Margin Fixes:**  
+  The chart now fills the card correctly in all configurations, especially when pressure is not shown. Previous issues with excessive gaps or margins have been resolved.
+- **Responsive Rendering:**  
+  Improved logic for chart width and margins ensures the meteogram adapts smoothly to all container sizes and modes.
+- **Bug Fixes:**  
+  - Fixed chart layout issues when pressure is not displayed.
+  - Improved handling of edge cases for chart rendering and data availability.
+- **Codebase Improvements:**  
+  - Refactored margin and sizing logic for clarity and maintainability.
+  - Enhanced error reporting and diagnostics for easier troubleshooting.
+- **Theme & Style Support:**  
+  - Continued support for CSS variables and dark mode.
+  - Improved handling of custom properties for better compatibility with Home Assistant themes.
+- **Documentation Updates:**  
+  - README and STYLES.md updated to reflect new features, options, and usage examples.
+
 ---
 
 ## v2.1.0 – Language Support & API Migration

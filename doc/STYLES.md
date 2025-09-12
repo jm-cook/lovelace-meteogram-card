@@ -12,7 +12,7 @@ This document describes the CSS styles used in the Meteogram Card, including how
   ```css
   :host {
       --meteogram-grid-color: #b8c4d9;
-      --meteogram-grid-color-dark: #b8c4d9;
+      --meteogram-grid-color-dark: #444;
       --meteogram-temp-line-color: orange;
       --meteogram-temp-line-color-dark: orange;
       --meteogram-pressure-line-color: #90caf9;
@@ -30,7 +30,7 @@ This document describes the CSS styles used in the Meteogram Card, including how
       --meteogram-wind-barb-color: #1976d2;
       --meteogram-wind-barb-color-dark: #1976d2;
       --meteogram-snow-bar-color: #b3e6ff;
-      --meteogram-snow-bar-color-dark: #b3e6ff;
+      --meteogram-snow-bar-color-dark: #e0f7fa;
       --meteogram-label-font-size: 13px;
       --meteogram-legend-font-size: 14px;
       --meteogram-tick-font-size: 13px;
@@ -48,6 +48,29 @@ This document describes the CSS styles used in the Meteogram Card, including how
   ```
 
 - All chart element rules now reference only the variable, without fallback values in the rule itself.
+
+## Default Configuration Properties
+
+The following are the default configuration properties for the Meteogram Card (as of the latest version):
+
+| Property             | Default Value |
+|----------------------|--------------|
+| title                | ""           |
+| latitude             | undefined    |
+| longitude            | undefined    |
+| showCloudCover       | true         |
+| showPressure         | true         |
+| showRain             | true         |
+| showWeatherIcons     | true         |
+| showWind             | true         |
+| denseWeatherIcons    | true         |
+| meteogramHours       | "48h"        |
+| styles               | {{}}         |
+| diagnostics          | DIAGNOSTICS_DEFAULT |
+| entityId             | undefined    |
+| focussed             | false        |
+
+*Note: `DIAGNOSTICS_DEFAULT` is defined in the code and typically defaults to `false` for production builds.*
 
 ## Chart Elements
 

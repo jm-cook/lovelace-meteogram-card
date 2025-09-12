@@ -294,3 +294,64 @@ For developers, the Meteogram Card is built with TypeScript and uses modern web 
 [release-url]: https://github.com/jm-cook/lovelace-meteogram-card/releases
 [devdoc-url]: https://github.com/jm-cook/lovelace-meteogram-card/blob/main/doc/DEV.md
 [styledoc-url]: https://github.com/jm-cook/lovelace-meteogram-card/blob/main/doc/STYLES.md
+
+## Default Configuration Properties
+
+The following are the default configuration properties for the Meteogram Card (as of the latest version):
+
+| Property             | Default Value |
+|----------------------|--------------|
+| title                | ""           |
+| latitude             | undefined    |
+| longitude            | undefined    |
+| showCloudCover       | true         |
+| showPressure         | true         |
+| showRain             | true         |
+| showWeatherIcons     | true         |
+| showWind             | true         |
+| denseWeatherIcons    | true         |
+| meteogramHours       | "48h"        |
+| styles               | {{}}         |
+| diagnostics          | DIAGNOSTICS_DEFAULT |
+| entityId             | undefined    |
+| focussed             | false        |
+
+*Note: `DIAGNOSTICS_DEFAULT` is defined in the code and typically defaults to `false` for production builds.*
+
+## CSS Variable Defaults
+
+The following are the default CSS variables for the card. You can override these in your Home Assistant theme or via the `styles` property:
+
+```css
+:host {
+    --meteogram-grid-color: #b8c4d9;
+    --meteogram-grid-color-dark: #444;
+    --meteogram-temp-line-color: orange;
+    --meteogram-temp-line-color-dark: orange;
+    --meteogram-pressure-line-color: #90caf9;
+    --meteogram-pressure-line-color-dark: #90caf9;
+    --meteogram-rain-bar-color: deepskyblue;
+    --meteogram-rain-bar-color-dark: deepskyblue;
+    --meteogram-rain-max-bar-color: #7fdbff;
+    --meteogram-rain-max-bar-color-dark: #7fdbff;
+    --meteogram-rain-label-color: #0058a3;
+    --meteogram-rain-label-color-dark: #a3d8ff;
+    --meteogram-rain-max-label-color: #2693e6;
+    --meteogram-rain-max-label-color-dark: #2693e6;
+    --meteogram-cloud-color: #b0bec5;
+    --meteogram-cloud-color-dark: #eceff1;
+    --meteogram-wind-barb-color: #1976d2;
+    --meteogram-wind-barb-color-dark: #1976d2;
+    --meteogram-snow-bar-color: #b3e6ff;
+    --meteogram-snow-bar-color-dark: #e0f7fa;
+    --meteogram-label-font-size: 13px;
+    --meteogram-legend-font-size: 14px;
+    --meteogram-tick-font-size: 13px;
+    --meteogram-axis-label-color: #000;
+    --meteogram-axis-label-color-dark: #fff;
+    --meteogram-timescale-color: #ffb300;
+    --meteogram-timescale-color-dark: #ffd54f;
+}
+```
+
+*Note: The default grid color in dark mode is now a dark grey (`#444`). This improves contrast and visual clarity in dark mode. Override with `--meteogram-grid-color-dark` if desired.*
