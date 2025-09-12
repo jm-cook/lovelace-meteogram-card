@@ -174,14 +174,19 @@ styles:
   --primary-text-color: "#fff"
 ```
 
+## Note on Color Codes in Documentation
+
+> **Why are some colors named instead of hex codes?**
+> To avoid HACS/GitHub auto-linking hex codes like `#333` and `#444` as issue references, these have been replaced with named CSS colors (e.g., `darkgray`, `dimgray`, `gray`, `black`) in documentation examples. You can safely copy-paste these values—they will work in Home Assistant and CSS. Other hex codes remain unchanged.
+
 **Example: Customize chart colors**
 ```yaml
 type: custom:meteogram-card
 styles:
   --meteogram-cloud-color: "#ffb300"
   --meteogram-grid-color: "#1976d2"
-  --meteogram-cloud-color-dark: "#333"
-  --meteogram-grid-color-dark: "#444"   # Dark mode grid color
+  --meteogram-cloud-color-dark: "darkgray"
+  --meteogram-grid-color-dark: "dimgray"   # Dark mode grid color
 ```
 
 **Example: Change font size for labels, legends, and axis ticks**
@@ -212,18 +217,8 @@ styles:
   --meteogram-rain-max-label-color: "#1976d2"
   --meteogram-rain-max-label-color-dark: "#90caf9"
   --meteogram-cloud-color: red
-```
-
-![img.png](images/meteogram-example2.png)
-
-
-**Example: Customizing Snow Bar Color**
-
-```yaml
-type: custom:meteogram-card
-styles:
-  --meteogram-snow-bar-color: "lightblue"
-  --meteogram-snow-bar-color-dark: "white"
+  --meteogram-cloud-color-dark: darkgray
+  --meteogram-grid-color-dark: dimgray
 ```
 
 
