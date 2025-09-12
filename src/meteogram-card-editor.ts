@@ -58,7 +58,9 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
 
         setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
         setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
-        setValue(this._elements.get('show_rain'), this._config.show_rain !== undefined ? this._config.show_rain : true, 'checked');
+        // Use show_precipitation if present, else fallback to show_rain for legacy support
+        const precipitationValue = this._config.show_precipitation !== undefined ? this._config.show_precipitation : (this._config.show_rain !== undefined ? this._config.show_rain : true);
+        setValue(this._elements.get('show_precipitation'), precipitationValue, 'checked');
         setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
         setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
         setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
@@ -93,6 +95,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const meteogramHours = this._config.meteogram_hours || "48h";
         const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT;
         const focussed = this._config.focussed !== undefined ? this._config.focussed : false;
+        const precipitationValue = this._config.show_precipitation !== undefined ? this._config.show_precipitation : (this._config.show_rain !== undefined ? this._config.show_rain : true);
         const div = document.createElement('div');
 
         // Get all weather entities from hass
@@ -232,10 +235,10 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         </div>
 
         <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.precipitation", "Show Rain")}</div>
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.precipitation", "Show Precipitation (Rain & Snow)")}</div>
           <ha-switch
-            id="show-rain"
-            .checked="${showRain}"
+            id="show-precipitation"
+            .checked="${precipitationValue}"
           ></ha-switch>
         </div>
 
@@ -341,11 +344,11 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 this._elements.set('show_pressure', pressureSwitch);
             }
 
-            const rainSwitch = this.querySelector('#show-rain') as ConfigurableHTMLElement;
+            const rainSwitch = this.querySelector('#show-precipitation') as ConfigurableHTMLElement;
             if (rainSwitch) {
-                rainSwitch.configValue = 'show_rain';
+                rainSwitch.configValue = 'show_precipitation';
                 rainSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('show_rain', rainSwitch);
+                this._elements.set('show_precipitation', rainSwitch);
             }
 
             const weatherIconsSwitch = this.querySelector('#show-weather-icons') as ConfigurableHTMLElement;
@@ -415,7 +418,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
 
         // List of boolean config fields
         const boolFields = [
-            'show_cloud_cover', 'show_pressure', 'show_rain', 'show_weather_icons',
+            'show_cloud_cover', 'show_pressure', 'show_precipitation', 'show_rain', 'show_weather_icons',
             'show_wind', 'dense_weather_icons', /* 'fill_container', */ 'diagnostics',
             'focussed'
         ];
@@ -465,14 +468,30 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         }
 
         // TS18048: Ensure newValue is not undefined for boolean fields
-        const configValue = boolFields.includes(target.configValue)
-            ? (typeof newValue === "undefined" ? undefined : !!newValue)
-            : newValue;
+        let configValue: boolean | string | number | undefined;
+        if (boolFields.includes(target.configValue)) {
+            if (typeof newValue === "undefined") {
+                configValue = undefined;
+            } else {
+                configValue = Boolean(newValue);
+            }
+        } else {
+            configValue = newValue;
+        }
 
-        this._config = {
-            ...this._config,
-            [target.configValue]: configValue
-        };
+        // Special handling for precipitation: update both show_precipitation and legacy show_rain for compatibility
+        if (target.configValue === 'show_precipitation') {
+            this._config = {
+                ...this._config,
+                show_precipitation: configValue as boolean | undefined,
+                show_rain: configValue as boolean | undefined // legacy support
+            };
+        } else {
+            this._config = {
+                ...this._config,
+                [target.configValue]: configValue
+            };
+        }
 
         this.dispatchEvent(new CustomEvent('config-changed', {
             detail: {config: this._config}

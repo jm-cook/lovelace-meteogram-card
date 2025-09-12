@@ -599,16 +599,14 @@ export class MeteogramCard extends LitElement {
         if (config.latitude !== undefined) this.latitude = configLat;
         if (config.longitude !== undefined) this.longitude = configLon;
 
-        // Set the display options from config, using defaults if not specified
+        // Use show_precipitation if present, else fallback to show_rain for legacy support
         this.showCloudCover = config.show_cloud_cover !== undefined ? config.show_cloud_cover : true;
         this.showPressure = config.show_pressure !== undefined ? config.show_pressure : true;
-        this.showRain = config.show_rain !== undefined ? config.show_rain : true;
+        this.showRain = config.show_precipitation !== undefined ? config.show_precipitation : (config.show_rain !== undefined ? config.show_rain : true);
         this.showWeatherIcons = config.show_weather_icons !== undefined ? config.show_weather_icons : true;
         this.showWind = config.show_wind !== undefined ? config.show_wind : true;
         this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
         this.meteogramHours = config.meteogram_hours || "48h";
-
-        // Add styles override from config
         this.styles = config.styles || {};
         // Add diagnostics option
         this.diagnostics = config.diagnostics !== undefined ? config.diagnostics : DIAGNOSTICS_DEFAULT;
@@ -654,7 +652,7 @@ export class MeteogramCard extends LitElement {
         editor.setConfig({
             show_cloud_cover: true,
             show_pressure: true,
-            show_rain: true,
+            show_precipitation: true, // Use new option
             show_weather_icons: true,
             show_wind: true,
             dense_weather_icons: true,
@@ -670,7 +668,7 @@ export class MeteogramCard extends LitElement {
             title: "Weather Forecast",
             show_cloud_cover: true,
             show_pressure: true,
-            show_rain: true,
+            show_precipitation: true, // Use new option
             show_weather_icons: true,
             show_wind: true,
             dense_weather_icons: true,
@@ -1735,7 +1733,8 @@ export class MeteogramCard extends LitElement {
             .attr("height", chartHeight + 42)
             .attr("opacity", (_: DayRange, i: number) => i % 2 === 0 ? 0.16 : 0);
 
-        // Day boundary ticks
+        // Day boundary ticks (top short ticks)
+        const tickLength = 12; // Short tick length above the top line
         svg.selectAll(".day-tic")
             .data(dayStarts)
             .enter()
@@ -1743,7 +1742,7 @@ export class MeteogramCard extends LitElement {
             .attr("class", "day-tic")
             .attr("x1", (d: number) => margin.left + x(d))
             .attr("x2", (d: number) => margin.left + x(d))
-            .attr("y1", 0)
+            .attr("y1", margin.top - tickLength)
             .attr("y2", chartHeight)
             .attr("stroke", "#1a237e")
             .attr("stroke-width", 3)
@@ -1946,13 +1945,15 @@ export class MeteogramCard extends LitElement {
                 class: "legend legend-temp",
                 label: trnslt(this.hass, "ui.card.meteogram.attributes.temperature", `Temperature`) + ` (${tempUnit})`
             });
-            if (this.showRain) {
+            // Show precipitation legend ONLY if either rain or snow is available and non-zero
+            if (this.showRain && (rain.some(r => r > 0) || snow.some(s => s > 0))) {
                 enabledLegends.push({
                     class: "legend legend-rain",
-                    label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Rain") + ` (mm)`
+                    label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Precipitation") + ` (mm)`
                 });
             }
-            if (snowAvailable) {
+            // Only show snow legend if any snow value is non-zero
+            if (snow.some(s => s > 0)) {
                 enabledLegends.push({
                     class: "legend legend-snow",
                     label: trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)'
@@ -2310,19 +2311,19 @@ export class MeteogramCard extends LitElement {
                    return dt.toLocaleDateString(haLocale, {weekday: "short", day: "2-digit", month: "short"});
                });
        }
-        // Day boundary ticks
-        svg.selectAll(".day-tic")
-            .data(dayStarts)
-            .enter()
-            .append("line")
-            .attr("class", "day-tic")
-            .attr("x1", (d: number) => margin.left + x(d))
-            .attr("x2", (d: number) => margin.left + x(d))
-            .attr("y1", dateLabelY + 22)
-            .attr("y2", dateLabelY + 42)
-            .attr("stroke", "#1a237e")
-            .attr("stroke-width", 3)
-            .attr("opacity", 0.6);
+        // // Day boundary ticks (bottom, for hour labels)
+        // svg.selectAll(".day-tic-bottom")
+        //     .data(dayStarts)
+        //     .enter()
+        //     .append("line")
+        //     .attr("class", "day-tic-bottom")
+        //     .attr("x1", (d: number) => margin.left + x(d))
+        //     .attr("x2", (d: number) => margin.left + x(d))
+        //     .attr("y1", dateLabelY + 22)
+        //     .attr("y2", dateLabelY + 42)
+        //     .attr("stroke", "#1a237e")
+        //     .attr("stroke-width", 3)
+        //     .attr("opacity", 0.6);
     }
 
 

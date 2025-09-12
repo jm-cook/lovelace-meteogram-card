@@ -6,6 +6,7 @@ export interface MeteogramCardConfig {
     show_cloud_cover?: boolean;
     show_pressure?: boolean;
     show_rain?: boolean;
+    show_precipitation?: boolean; // NEW: Show precipitation (rain & snow)
     show_weather_icons?: boolean;
     show_wind?: boolean;
     dense_weather_icons?: boolean; // Add this line
