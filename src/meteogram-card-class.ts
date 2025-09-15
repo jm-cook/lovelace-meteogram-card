@@ -53,6 +53,7 @@ export class MeteogramCard extends LitElement {
     @property({type: Boolean}) diagnostics: boolean = DIAGNOSTICS_DEFAULT; // Initialize here
     @property({type: String}) entityId?: string; // NEW: entity_id for weather integration
     @property({type: Boolean}) focussed = false; // NEW: Focussed mode
+    @property({type: String}) displayMode: "full" | "core" | "focussed" = "full";
     static meteogramCardVersion: string = version;
 
 
@@ -586,6 +587,15 @@ export class MeteogramCard extends LitElement {
 
     // Required for Home Assistant
     setConfig(config: MeteogramCardConfig): void {
+        // --- MIGRATION LOGIC FOR FOCUSSED/DISPLAYMODE ---
+        let migratedDisplayMode: "full" | "core" | "focussed" = "full";
+        // Change to use config.display_mode instead of config.displayMode
+        if (typeof config.display_mode === "string") {
+            migratedDisplayMode = config.display_mode as any;
+        } else if (typeof config.focussed === "boolean") {
+            migratedDisplayMode = config.focussed ? "focussed" : "full";
+        }
+
         // Truncate to 4 decimals for comparison
         const configLat = config.latitude !== undefined ? parseFloat(Number(config.latitude).toFixed(4)) : undefined;
         const configLon = config.longitude !== undefined ? parseFloat(Number(config.longitude).toFixed(4)) : undefined;
@@ -613,7 +623,9 @@ export class MeteogramCard extends LitElement {
         // Set entityId from config
         this.entityId = config.entity_id || undefined;
         // Ensure boolean for focussed mode
-        this.focussed = !!config.focussed;
+        this.focussed = migratedDisplayMode === "focussed";
+        // Set displayMode from config (now migrated from display_mode)
+        this.displayMode = migratedDisplayMode;
 
         // Track previous entityId
         const prevEntityId = this.entityId;
@@ -680,7 +692,17 @@ export class MeteogramCard extends LitElement {
 
     // According to the boilerplate, add getCardSize for panel mode
     public getCardSize(): number {
-        return 3; // Returns a height in units of 50 pixels
+        return 9; // Returns a height in units of 50 pixels
+    }
+
+    // The rules for sizing your card in the grid in sections view
+    getGridOptions() {
+        return {
+            rows: 8,
+            columns: "full",
+            min_rows: 6,
+            max_rows: 8,
+        };
     }
 
     // Handle initial setup - now properly setup resize observer
@@ -1655,7 +1677,13 @@ export class MeteogramCard extends LitElement {
         // console.debug(`[${CARD_NAME}] renderMeteogram with ${N} data points, width=${width}, height=${height}, windBandHeight=${windBandHeight}, hourLabelBand=${hourLabelBand}`);
 
         const tempUnit = this.getSystemTemperatureUnit();
-        const temperatureConverted = temperature.map(t => this.convertTemperature(t));
+        // Only convert temperature if using WeatherAPI (entityId is not set or is 'none')
+        let temperatureConverted: (number | null)[];
+        if (!this.entityId || this.entityId === 'none') {
+            temperatureConverted = temperature.map(t => this.convertTemperature(t));
+        } else {
+            temperatureConverted = temperature;
+        }
         // -------------------------------------------------------------
         const pressureAvailable = this.showPressure && pressure && pressure.length > 0
         const windAvailable = this.showWind && windDirection && windSpeed.length > 0 && windDirection.length > 0
@@ -1932,7 +1960,8 @@ export class MeteogramCard extends LitElement {
             .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
             .attr("stroke-width", 3);
 
-        if (!this.focussed) {
+        // Only show legends in full mode
+        if (this.displayMode === "full") {
             // Build a list of enabled legends
             const enabledLegends = [];
             if (cloudAvailable) {
@@ -2394,101 +2423,105 @@ export class MeteogramCard extends LitElement {
         const successTooltip = `API Success Rate: ${WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT}/${WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
 
         // In Focussed mode, hide title and attribution
-        if (this.focussed) {
+        if (this.displayMode === "focussed" || this.focussed) {
             return html`
                 <ha-card style="${styleVars}">
                     <div class="card-content">
                         ${this.meteogramError
-            ? html`
-                                <div class="error" style="white-space:normal;"
-                                     .innerHTML=${this.meteogramError}></div>`
-            : html`
-                                <div id="chart"></div>
-                            `}
+                            ? html`<div class="error" style="white-space:normal;" .innerHTML=${this.meteogramError}></div>`
+                            : html`<div id="chart"></div>`}
                     </div>
                 </ha-card>
             `;
         }
-
         // Only show attribution if WeatherAPI is used (not weather entity)
         const showAttribution = !(this.entityId && this.entityId !== 'none');
-
-        return html`
+        // In Core mode, show axes, scale, and dates along the top, but no legends or attribution
+        if (this.displayMode === "core") {
+            return html`
                 <ha-card style="${styleVars}">
-                    ${this.title ? html`
-                        <div class="card-header">${this.title}</div>` : ""}
                     <div class="card-content">
-                        ${showAttribution ? html`
-                        <div class="attribution">
-                            ${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href="https://met.no/"
-                                                                                                  target="_blank"
-                                                                                                  rel="noopener"
-                                                                                                  style="color: inherit;">met.no</a>
-                            <span
-                                    style="margin-left:8px; vertical-align:middle;"
-                                    title="${this._lastApiSuccess
-            ? trnslt(this.hass, 'ui.card.meteogram.status.success', 'success') + ` : ${successTooltip}`
-            : this._statusApiSuccess === null
-                ? trnslt(this.hass, 'ui.card.meteogram.status.cached', 'cached') + ` : ${successTooltip}`
-                : trnslt(this.hass, 'ui.card.meteogram.status.failed', 'failed') + ` : ${successTooltip}`}"
-                            >${
-            this._lastApiSuccess
-                ? "✅"
-                : this._statusApiSuccess === null
-                    ? "❎"
-                    : "❌"
-        }</span>
-                        </div>
-                        ` : ""}
                         ${this.meteogramError
-            ? html`
-                                <div class="error" style="white-space:normal;"
-                                     .innerHTML=${this.meteogramError}></div>`
-            : html`
-                                <div id="chart"></div>
-                                ${this.diagnostics ? html`
-                                    <div id="meteogram-status-panel"
-                                         style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
-                                         xmlns="http://www.w3.org/1999/html">
-                                        <b>${trnslt(this.hass, "ui.card.meteogram.status_panel", "Status Panel")}</b>
-                                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
-                                            <div>
-                                                <span>${trnslt(this.hass, "ui.card.meteogram.status.expires_at", "Expires At")}
-                                                    : ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
-                                                <span>${trnslt(this.hass, "ui.card.meteogram.status.last_render", "Last Render")}
-                                                    : ${this._statusLastRender || "unknown"}</span><br>
-                                                <span>${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}
-                                                    : ${this._statusLastFetch || "unknown"}</span>
-                                            </div>
-                                            <div>
-                                                <span
-                                                        title="${this._lastApiSuccess
-                                                                ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
-                                                                : this._statusApiSuccess === null
-                                                                    ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
-                                                                    : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
-                                                        }" >
-                                                    ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}
-                                                        : ${this._lastApiSuccess
-                                                                ? "✅"
-                                                                : this._statusApiSuccess === null
-                                                                    ? "❎"
-                                                                    : "❌"
-                                                           }
-                                                </span>
-                                                <br>
-                                                <span>Card version: <code>${MeteogramCard.meteogramCardVersion}</code></span><br>
-                                                <span>Client type: <code>${getClientName()}</code></span><br>
-                                                <span>${successTooltip}</span>
-
-                                            </div>
-                                        </div>
-                                    </div>
-                                ` : ""}
-                            `}
+                            ? html`<div class="error" style="white-space:normal;" .innerHTML=${this.meteogramError}></div>`
+                            : html`<div id="chart"></div>`}
                     </div>
                 </ha-card>
             `;
+        }
+        // Full mode: everything
+        return html`
+            <ha-card style="${styleVars}">
+                ${this.title ? html`<div class="card-header">${this.title}</div>` : ""}
+                <div class="card-content">
+                    ${showAttribution ? html`
+                    <div class="attribution">
+                        ${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href="https://met.no/"
+                                                                                              target="_blank"
+                                                                                              rel="noopener"
+                                                                                              style="color: inherit;">met.no</a>
+                        <span
+                                style="margin-left:8px; vertical-align:middle;"
+                                title="${this._lastApiSuccess
+                                    ? trnslt(this.hass, 'ui.card.meteogram.status.success', 'success') + ` : ${successTooltip}`
+                                    : this._statusApiSuccess === null
+                                        ? trnslt(this.hass, 'ui.card.meteogram.status.cached', 'cached') + ` : ${successTooltip}`
+                                        : trnslt(this.hass, 'ui.card.meteogram.status.failed', 'failed') + ` : ${successTooltip}`}"
+                        >${
+                            this._lastApiSuccess
+                                ? "✅"
+                                : this._statusApiSuccess === null
+                                    ? "❎"
+                                    : "❌"
+                        }</span>
+                    </div>
+                    ` : ""}
+                    ${this.meteogramError
+                        ? html`<div class="error" style="white-space:normal;" .innerHTML=${this.meteogramError}></div>`
+                        : html`
+                            <div id="chart"></div>
+                            ${this.diagnostics ? html`
+                                <div id="meteogram-status-panel"
+                                     style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
+                                     xmlns="http://www.w3.org/1999/html">
+                                    <b>${trnslt(this.hass, "ui.card.meteogram.status_panel", "Status Panel")}</b>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
+                                        <div>
+                                            <span>${trnslt(this.hass, "ui.card.meteogram.status.expires_at", "Expires At")}
+                                                : ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
+                                            <span>${trnslt(this.hass, "ui.card.meteogram.status.last_render", "Last Render")}
+                                                : ${this._statusLastRender || "unknown"}</span><br>
+                                            <span>${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}
+                                                : ${this._statusLastFetch || "unknown"}</span>
+                                        </div>
+                                        <div>
+                                            <span
+                                                    title="${this._lastApiSuccess
+                                                            ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
+                                                            : this._statusApiSuccess === null
+                                                                ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
+                                                                : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
+                                                    }" >
+                                                ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}
+                                                    : ${this._lastApiSuccess
+                                                            ? "✅"
+                                                            : this._statusApiSuccess === null
+                                                                ? "❎"
+                                                                : "❌"
+                                                       }
+                                            </span>
+                                            <br>
+                                            <span>Card version: <code>${MeteogramCard.meteogramCardVersion}</code></span><br>
+                                            <span>Client type: <code>${getClientName()}</code></span><br>
+                                            <span>${successTooltip}</span>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ""}
+                        `}
+                </div>
+            </ha-card>
+        `;
     }
 
     // Add logging method to help debug DOM structure - only used when errors occur

@@ -65,9 +65,10 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
         setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
         setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
-        setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT, 'checked');
+        setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : false, 'checked');
         setValue(this._elements.get('entity_id'), this._config.entity_id || '');
         setValue(this._elements.get('focussed'), this._config.focussed !== undefined ? this._config.focussed : false, 'checked');
+        setValue(this._elements.get('display_mode'), this._config.display_mode || 'full');
     }
 
     render() {
@@ -93,9 +94,10 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
         const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
         const meteogramHours = this._config.meteogram_hours || "48h";
-        const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : DIAGNOSTICS_DEFAULT;
+        const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : false;
         const focussed = this._config.focussed !== undefined ? this._config.focussed : false;
         const precipitationValue = this._config.show_precipitation !== undefined ? this._config.show_precipitation : (this._config.show_rain !== undefined ? this._config.show_rain : true);
+        const displayMode = this._config.display_mode || 'full';
         const div = document.createElement('div');
 
         // Get all weather entities from hass
@@ -267,11 +269,12 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         </div>
       
         <div class="toggle-row">
-          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.focussed", "Focussed Mode (minimal chart)")}</div>
-          <ha-switch
-            id="focussed"
-            .checked="${focussed}"
-          ></ha-switch>
+          <div class="toggle-label">Display Mode</div>
+          <select id="display-mode-select">
+            <option value="full" ${displayMode === "full" ? "selected" : ""}>Full (all features)</option>
+            <option value="core" ${displayMode === "core" ? "selected" : ""}>Core (dates & numbers only)</option>
+            <option value="focussed" ${displayMode === "focussed" ? "selected" : ""}>Focussed (minimal)</option>
+          </select>
         </div>
       </div>
 
@@ -393,11 +396,11 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 this._elements.set('entity_id', weatherEntitySelect);
             }
 
-            const focussedSwitch = this.querySelector('#focussed') as ConfigurableHTMLElement;
-            if (focussedSwitch) {
-                focussedSwitch.configValue = 'focussed';
-                focussedSwitch.addEventListener('change', this._valueChanged.bind(this));
-                this._elements.set('focussed', focussedSwitch);
+            const displayModeSelect = this.querySelector('#display-mode-select') as ConfigurableHTMLElement;
+            if (displayModeSelect) {
+                displayModeSelect.configValue = 'display_mode';
+                displayModeSelect.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('display_mode', displayModeSelect);
             }
 
             // Disable/enable lat/lon fields based on weather entity selection
@@ -467,30 +470,41 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
             }, 0);
         }
 
-        // TS18048: Ensure newValue is not undefined for boolean fields
-        let configValue: boolean | string | number | undefined;
-        if (boolFields.includes(target.configValue)) {
-            if (typeof newValue === "undefined") {
-                configValue = undefined;
+        // In _valueChanged, handle displayMode as a string
+        if (target.configValue === 'display_mode') {
+            // Only allow valid display_mode values
+            const allowedModes = ['full', 'core', 'focussed'] as const;
+            const modeValue = allowedModes.includes(target.value as any) ? target.value as typeof allowedModes[number] : undefined;
+            this._config = {
+                ...this._config,
+                display_mode: modeValue
+            };
+        } else {
+            // TS18048: Ensure newValue is not undefined for boolean fields
+            let configValue: boolean | string | number | undefined;
+            if (boolFields.includes(target.configValue)) {
+                if (typeof newValue === "undefined") {
+                    configValue = undefined;
+                } else {
+                    configValue = Boolean(newValue);
+                }
             } else {
-                configValue = Boolean(newValue);
+                configValue = newValue;
             }
-        } else {
-            configValue = newValue;
-        }
 
-        // Special handling for precipitation: update both show_precipitation and legacy show_rain for compatibility
-        if (target.configValue === 'show_precipitation') {
-            this._config = {
-                ...this._config,
-                show_precipitation: configValue as boolean | undefined,
-                show_rain: configValue as boolean | undefined // legacy support
-            };
-        } else {
-            this._config = {
-                ...this._config,
-                [target.configValue]: configValue
-            };
+            // Special handling for precipitation: update both show_precipitation and legacy show_rain for compatibility
+            if (target.configValue === 'show_precipitation') {
+                this._config = {
+                    ...this._config,
+                    show_precipitation: configValue as boolean | undefined,
+                    show_rain: configValue as boolean | undefined // legacy support
+                };
+            } else {
+                this._config = {
+                    ...this._config,
+                    [target.configValue]: configValue
+                };
+            }
         }
 
         this.dispatchEvent(new CustomEvent('config-changed', {
