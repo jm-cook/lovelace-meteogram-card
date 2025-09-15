@@ -13,7 +13,7 @@ import { unsafeHTML } from "lit-html/directives/unsafe-html.js";
 
 @customElement('troubleshoot-message-card')
 export class TroubleshootMessageCard extends LitElement {
-    @property({ type: String }) message: string = "troubleshoot-message-card";
+    @property({ type: String }) message: string = "troubleshoot-message-card api test";
     @state() private statusText: string = "Checking Met.no forecast for Bergen...";
     @state() private lastFetchTime: number = 0;
     private statusTimer: number | null = null;
@@ -51,7 +51,7 @@ export class TroubleshootMessageCard extends LitElement {
     `;
 
     setConfig(config: { message?: string }) {
-        this.message = config.message || "troubleshoot-message-card";
+        this.message = config.message || "troubleshoot-message-card api test";
     }
 
     getCardSize() {
@@ -142,101 +142,87 @@ export class TroubleshootMessageCard extends LitElement {
         // --- Log the origin ---
         this.appendLog(`Detected window.location.origin: ${window.location.origin}`);
 
-        // --- Call status endpoint first ---
-        this.appendLog("Preparing to call Met.no status API...");
-        let statusUrl = "https://api.met.no/weatherapi/locationforecast/2.0/status";
-        let dedicatedStatusUrl = "https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/status";
-        if (window.location.origin.includes("ui.nabu.casa")) {
-            statusUrl = dedicatedStatusUrl;
-            this.appendLog("Using dedicated Met.no status API endpoint for nabu.casa.");
-        } else if (window.location.origin.includes("met.no")) {
-            statusUrl = "/weatherapi/locationforecast/2.0/status";
-            this.appendLog("Using relative status API URL due to origin.");
-        } else {
-            this.appendLog("Using public status API URL.");
-        }
-
+        // --- Try both status API variants ---
         let statusResult = "";
-        try {
-            this.appendLog(`Calling status API: ${statusUrl}`);
-            const statusResp = await fetch(statusUrl, {
-                headers: {
-                    "Origin": window.location.origin,
-                    "Accept": "application/json"
+        let statusSuccess = false;
+        const statusUrls = [
+            "https://api.met.no/weatherapi/locationforecast/2.0/status",
+            "https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/status"
+        ];
+        for (let i = 0; i < statusUrls.length; i++) {
+            const statusUrl = statusUrls[i];
+            this.appendLog(`Calling status API variant ${i + 1}: ${statusUrl}`);
+            try {
+                const statusResp = await fetch(statusUrl, {
+                    headers: {
+                        "Origin": window.location.origin,
+                        "Accept": "application/json"
+                    }
+                });
+                this.appendLog(`Status API responded with: ${statusResp.status} ${statusResp.statusText}`);
+                if (!statusResp.ok) {
+                    const errText = await statusResp.text();
+                    statusResult += `<div class=\"error\">Status fetch failed (variant ${i + 1}).<br>
+                        HTTP ${statusResp.status}: ${statusResp.statusText}<br>
+                        ${errText ? `<pre>${errText}</pre>` : ""}</div>`;
+                    this.appendLog(`Status error (variant ${i + 1}): ${statusResp.status} ${statusResp.statusText}${errText ? " - " + errText : ""}`);
+                } else {
+                    const statusData = await statusResp.json();
+                    const statusStrFlat = JSON.stringify(statusData);
+                    const statusStr = JSON.stringify(statusData, null, 2);
+                    statusResult += `<div class=\"status\">\n<b>Met.no Status Response (variant ${i + 1}):</b><br>\n<pre>${statusStr.slice(0, 200)}${statusStr.length > 200 ? "..." : ""}</pre>\n<span style=\"font-size:0.9em;color:#333;\">Last checked: ${new Date().toLocaleString()}</span>\n</div>`;
+                    this.appendLog(`Status API call successful (variant ${i + 1}).`);
+                    this.appendLog(`Status JSON (variant ${i + 1}): ${statusStrFlat}`);
+                    statusSuccess = true;
                 }
-            });
-            this.appendLog(`Status API responded with: ${statusResp.status} ${statusResp.statusText}`);
-            if (!statusResp.ok) {
-                const errText = await statusResp.text();
-                statusResult = `<div class="error">Status fetch failed.<br>
-                    HTTP ${statusResp.status}: ${statusResp.statusText}<br>
-                    ${errText ? `<pre>${errText}</pre>` : ""}</div>`;
-                this.appendLog(`Status error: ${statusResp.status} ${statusResp.statusText}${errText ? " - " + errText : ""}`);
-            } else {
-                const statusData = await statusResp.json();
-                const statusStrFlat = JSON.stringify(statusData);
-                const statusStr = JSON.stringify(statusData, null, 2);
-                statusResult = `<div class="status">
-                    <b>Met.no Status Response:</b><br>
-                    <pre>${statusStr.slice(0, 200)}${statusStr.length > 200 ? "..." : ""}</pre>
-                    <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
-                </div>`;
-                this.appendLog("Status API call successful.");
-                this.appendLog(`Status JSON: ${statusStrFlat}`);
+            } catch (err: any) {
+                statusResult += `<div class=\"error\">Status fetch error (variant ${i + 1}):<br>\n${err?.message ? err.message : err}</div>`;
+                this.appendLog(`Status fetch error (variant ${i + 1}): ${err?.message ? err.message : err}`);
             }
-        } catch (err: any) {
-            statusResult = `<div class="error">Status fetch error:<br>
-                ${err?.message ? err.message : err}</div>`;
-            this.appendLog(`Status fetch error: ${err?.message ? err.message : err}`);
+            if (i < statusUrls.length - 1) {
+                // Wait 5 seconds before next variant
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            }
         }
 
-        // --- Now call forecast endpoint ---
+        // --- Try both forecast API variants ---
         this.appendLog(`Preparing to call Met.no forecast API for Bergen (lat=${latitude}, lon=${longitude})...`);
-        let apiUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${latitude}&lon=${longitude}`;
-        let dedicatedApiUrl = `https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/complete?lat=${latitude}&lon=${longitude}`;
-        if (window.location.origin.includes("ui.nabu.casa")) {
-            apiUrl = dedicatedApiUrl;
-            this.appendLog("Using dedicated Met.no API endpoint for nabu.casa.");
-        } else if (window.location.origin.includes("met.no")) {
-            apiUrl = `/weatherapi/locationforecast/2.0/complete?lat=${latitude}&lon=${longitude}`;
-            this.appendLog("Using relative API URL due to origin.");
-        } else {
-            this.appendLog("Using public API URL.");
-        }
-
+        const forecastUrls = [
+            `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${latitude}&lon=${longitude}`,
+            `https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/complete?lat=${latitude}&lon=${longitude}`
+        ];
         let forecastResult = "";
-        try {
-            this.appendLog(`Calling forecast API: ${apiUrl}`);
-            const resp = await fetch(apiUrl, {
-                headers: {
-                    "Origin": window.location.origin,
-                    "Accept": "application/json"
+        for (let i = 0; i < forecastUrls.length; i++) {
+            const apiUrl = forecastUrls[i];
+            this.appendLog(`Calling forecast API variant ${i + 1}: ${apiUrl}`);
+            try {
+                const resp = await fetch(apiUrl, {
+                    headers: {
+                        "Origin": window.location.origin,
+                        "Accept": "application/json"
+                    }
+                });
+                this.appendLog(`Forecast API responded with status: ${resp.status} ${resp.statusText}`);
+                if (!resp.ok) {
+                    const errText = await resp.text();
+                    forecastResult += `<div class=\"error\">Forecast fetch failed (variant ${i + 1}).<br>\nHTTP ${resp.status}: ${resp.statusText}<br>\n${errText ? `<pre>${errText}</pre>` : ""}</div>`;
+                    this.appendLog(`Forecast error (variant ${i + 1}): ${resp.status} ${resp.statusText}${errText ? " - " + errText : ""}`);
+                } else {
+                    const data = await resp.json();
+                    const forecastStr = JSON.stringify(data, null, 2);
+                    const forecastStrFlat = JSON.stringify(data);
+                    forecastResult += `<div class=\"status\">\n<b>Met.no Forecast Response (variant ${i + 1}):</b><br>\n<pre>${forecastStr.slice(0, 200)}${forecastStr.length > 200 ? "..." : ""}</pre>\n<span style=\"font-size:0.9em;color:#333;\">Last checked: ${new Date().toLocaleString()}</span>\n</div>`;
+                    this.appendLog(`Forecast API call successful (variant ${i + 1}).`);
+                    this.appendLog(`Forecast JSON (variant ${i + 1}): ${forecastStrFlat.slice(0, 50)}${forecastStr.length > 50 ? "..." : ""}`);
                 }
-            });
-            this.appendLog(`Forecast API responded with status: ${resp.status} ${resp.statusText}`);
-            if (!resp.ok) {
-                const errText = await resp.text();
-                forecastResult = `<div class="error">Forecast fetch failed.<br>
-                    HTTP ${resp.status}: ${resp.statusText}<br>
-                    ${errText ? `<pre>${errText}</pre>` : ""}</div>`;
-                this.appendLog(`Forecast error: ${resp.status} ${resp.statusText}${errText ? " - " + errText : ""}`);
-            } else {
-                const data = await resp.json();
-                // Prettyprint JSON for blue forecast response
-                const forecastStr = JSON.stringify(data, null, 2);
-                const forecastStrFlat = JSON.stringify(data);
-                forecastResult = `<div class="status">
-                    <b>Met.no Forecast Response:</b><br>
-                    <pre>${forecastStr.slice(0, 200)}${forecastStr.length > 200 ? "..." : ""}</pre>
-                    <span style="font-size:0.9em;color:#333;">Last checked: ${new Date().toLocaleString()}</span>
-                </div>`;
-                this.appendLog("Forecast API call successful, forecast data received.");
-                this.appendLog(`Forecast JSON: ${forecastStrFlat.slice(0, 50)}${forecastStr.length > 50 ? "..." : ""}`);
+            } catch (err: any) {
+                forecastResult += `<div class=\"error\">Forecast fetch error (variant ${i + 1}):<br>\n${err?.message ? err.message : err}</div>`;
+                this.appendLog(`Forecast fetch error (variant ${i + 1}): ${err?.message ? err.message : err}`);
             }
-        } catch (err: any) {
-            forecastResult = `<div class="error">Forecast fetch error:<br>
-                ${err?.message ? err.message : err}</div>`;
-            this.appendLog(`Forecast fetch error: ${err?.message ? err.message : err}`);
+            if (i < forecastUrls.length - 1) {
+                // Wait 5 seconds before next variant
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            }
         }
 
         // --- Show both status and forecast results ---

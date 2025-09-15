@@ -161,9 +161,9 @@ export class WeatherAPI {
 
         const lat = this.lat;
         const lon = this.lon;
-        let forecastUrl = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
+        // Only use dedicated forecast URL
         let dedicatedForecastUrl = `https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
-        let urlToUse = forecastUrl;
+        let urlToUse = dedicatedForecastUrl;
         let headers: Record<string, string> = {};
         this.lastStatusCode = null;
         this.lastError = null;
@@ -174,10 +174,7 @@ export class WeatherAPI {
                 'Accept': 'application/json'
             };
 
-            urlToUse = window.location.origin.includes("ui.nabu.casa")
-                ? dedicatedForecastUrl
-                : forecastUrl;
-
+            // Always use dedicated forecast URL
             // log impending call to fetch
             console.debug(`[weather-api] Fetching weather data from ${urlToUse} with Origin ${headers['Origin']}`);
             WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT++;
