@@ -62,7 +62,6 @@ For example, some integrations may lack cloud cover, `precipitation_max`, or eve
 Additionally, weather integration entities may only provide data for a limited number of hours (often 24 or 48), which may restrict the length of the meteogram.  
 For example some Weather integrations for Home Assistant only provide 24 hours of forecast data, which gives a 23 hour meteogram.
 For best functionality and a complete meteogram, passing `latitude` and `longitude` (to use the Met.no API) is recommended.  
-However, if you are on a device such as iOS and have received error messages when retrieving weather data via the API, using the weather integration entity option (`entity_id`) may be your best option.
 
 **Caching:**  
 Forecasts are cached in localStorage under `meteogram-card-entity-weather-cache`, keyed by entity ID.  

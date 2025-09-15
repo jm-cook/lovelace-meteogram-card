@@ -1,3 +1,27 @@
+## v3.0.1 – Display Mode Feature, Sizing & Fahrenheit Fixes
+
+**Highlights:**
+- **New Display Mode Feature:**
+  - The card now supports three display modes: `full` (all features and legends), `core` (minimal, no legend), and `minimal` (ultra-minimal, no title or attribution). Select your preferred mode with the `display_mode` config option.
+  - The legacy `focussed` option is now fully replaced by `display_mode`. Migration from old configs is automatic—if you previously used `focussed: true`, it will be converted to `display_mode: minimal`.
+- **Sizing Improvements for Section View:**
+  - Chart sizing and layout have been improved for Home Assistant's section view, ensuring better fit and appearance in dashboards.
+- **Fahrenheit Double Conversion Bug Fixed:**
+  - Fixed an issue where weather entities using Fahrenheit as the main unit would sometimes display temperatures incorrectly due to double conversion. Now, temperatures are shown correctly for all unit systems and sources.
+- **iOS API Connectivity:**
+  - Previous issues retrieving data from the Met.no API on iOS devices now appear to be resolved. If you experience new problems with iOS, please create a new issue on GitHub and include details.
+  - Before reporting, check which version of the card you are running in the diagnostic panel (shown at the bottom of the card).
+
+
+**Upgrade Notes:**
+- No breaking changes. Existing configuration will continue to work.
+- If you previously used `focussed: true`, your config will be automatically migrated to `display_mode: minimal`.
+- Sizing is improved for section view layouts.
+- Fahrenheit temperatures from weather entities are now always correct.
+- If you use custom themes or translations, verify that new labels and legend visibility display correctly.
+
+---
+
 ## v3.0.0 – Weather Entity Support & Entity Caching
 
 **Highlights:**
@@ -239,3 +263,4 @@ Improved logic reducing unnecessary calls to api.
 
 **Upgrade Recommendation:**  
 Update to this release if you encountered "Failed to fetch weather data" errors, issues with API connectivity, or want improved dark mode support.
+
