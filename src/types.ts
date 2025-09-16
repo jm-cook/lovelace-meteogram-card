@@ -16,6 +16,7 @@ export interface MeteogramCardConfig {
     entity_id?: string; // Add this line for weather entity selection
     focussed?: boolean; // Add this line for Focussed mode
     display_mode?: "full" | "core" | "focussed"; // Add this line for display mode
+    aspect_ratio?: string; // Add this line for aspect ratio support
 }
 
 export interface MeteogramData {

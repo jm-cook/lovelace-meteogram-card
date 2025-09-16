@@ -69,6 +69,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         setValue(this._elements.get('entity_id'), this._config.entity_id || '');
         setValue(this._elements.get('focussed'), this._config.focussed !== undefined ? this._config.focussed : false, 'checked');
         setValue(this._elements.get('display_mode'), this._config.display_mode || 'full');
+        setValue(this._elements.get('aspect_ratio'), this._config.aspect_ratio || '16:9');
     }
 
     render() {
@@ -98,6 +99,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const focussed = this._config.focussed !== undefined ? this._config.focussed : false;
         const precipitationValue = this._config.show_precipitation !== undefined ? this._config.show_precipitation : (this._config.show_rain !== undefined ? this._config.show_rain : true);
         const displayMode = this._config.display_mode || 'full';
+        const aspectRatio = this._config.aspect_ratio || "16:9";
         const div = document.createElement('div');
 
         // Get all weather entities from hass
@@ -290,6 +292,20 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         </select>
       </div>
       <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
+
+      <div class="row">
+        <label for="aspect-ratio-select" style="margin-right:8px;">Aspect Ratio</label>
+        <select id="aspect-ratio-select">
+          <option value="16:9" ${aspectRatio === "16:9" ? "selected" : ""}>16:9 (Widescreen)</option>
+          <option value="4:3" ${aspectRatio === "4:3" ? "selected" : ""}>4:3 (Classic)</option>
+          <option value="1:1" ${aspectRatio === "1:1" ? "selected" : ""}>1:1 (Square)</option>
+          <option value="21:9" ${aspectRatio === "21:9" ? "selected" : ""}>21:9 (Ultra-wide)</option>
+          <option value="3:2" ${aspectRatio === "3:2" ? "selected" : ""}>3:2</option>
+          <option value="custom" ${!["16:9","4:3","1:1","21:9","3:2"].includes(aspectRatio) ? "selected" : ""}>Custom</option>
+        </select>
+        <input id="aspect-ratio-custom" type="text" placeholder="e.g. 1.6 or 5:3" style="margin-left:8px; width:90px;" value="${!["16:9","4:3","1:1","21:9","3:2"].includes(aspectRatio) ? aspectRatio : ''}" ${!["16:9","4:3","1:1","21:9","3:2"].includes(aspectRatio) ? '' : 'disabled'}>
+      </div>
+      <p class="help-text">Set the aspect ratio for the chart area. Use a ratio like 16:9, 4:3, 1:1, or a custom value (e.g. 1.6 or 5:3).</p>
       <div class="toggle-section"></div>
         <div class="toggle-row">
           <div class="toggle-label">Diagnostics (debug logging)</div>
@@ -403,6 +419,32 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 this._elements.set('display_mode', displayModeSelect);
             }
 
+            const aspectRatioSelect = this.querySelector('#aspect-ratio-select') as ConfigurableHTMLElement;
+            const aspectRatioCustom = this.querySelector('#aspect-ratio-custom') as ConfigurableHTMLElement;
+            if (aspectRatioSelect) {
+                aspectRatioSelect.configValue = 'aspect_ratio';
+                aspectRatioSelect.addEventListener('change', () => {
+                    if (aspectRatioSelect.value === 'custom') {
+                        aspectRatioCustom.disabled = false;
+                        aspectRatioCustom.focus();
+                    } else {
+                        aspectRatioCustom.disabled = true;
+                        this._config = { ...this._config, aspect_ratio: String(aspectRatioSelect.value) };
+                        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+                    }
+                });
+                this._elements.set('aspect_ratio', aspectRatioSelect);
+            }
+            if (aspectRatioCustom) {
+                aspectRatioCustom.configValue = 'aspect_ratio';
+                aspectRatioCustom.addEventListener('input', () => {
+                    if (aspectRatioSelect.value === 'custom') {
+                        this._config = { ...this._config, aspect_ratio: String(aspectRatioCustom.value) };
+                        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+                    }
+                });
+                this._elements.set('aspect_ratio_custom', aspectRatioCustom);
+            }
             // Disable/enable lat/lon fields based on weather entity selection
             if (latInput) latInput.disabled = isWeatherEntitySelected;
             if (lonInput) lonInput.disabled = isWeatherEntitySelected;

@@ -14,6 +14,14 @@ export interface ForecastData {
     windDirection: number[];
     symbolCode: string[];
     fetchTimestamp?: string;
+    units?: {
+        temperature?: string;
+        pressure?: string;
+        windSpeed?: string;
+        precipitation?: string;
+        cloudCover?: string;
+        [key: string]: string | undefined;
+    };
 }
 
 export class WeatherAPI {
@@ -255,7 +263,8 @@ export class WeatherAPI {
                 windSpeed: [],
                 windDirection: [],
                 symbolCode: [],
-                pressure: []
+                pressure: [],
+                units: undefined
             };
             result.fetchTimestamp = new Date().toISOString();
 
@@ -316,6 +325,18 @@ export class WeatherAPI {
                     result.symbolCode.push('');
                 }
             });
+            // Extract units from meta.units if available
+            if (rawData.properties && rawData.properties.meta && rawData.properties.meta.units) {
+                const metaUnits = rawData.properties.meta.units;
+                result.units = {
+                    temperature: metaUnits.air_temperature,
+                    pressure: metaUnits.air_pressure_at_sea_level,
+                    windSpeed: metaUnits.wind_speed,
+                    precipitation: metaUnits.precipitation_amount,
+                    cloudCover: metaUnits.cloud_area_fraction
+                };
+            }
+
             this._forecastData = result;
         } catch (err) {
             throw new Error("Failed to parse weather data: " + (err instanceof Error ? err.message : String(err)));

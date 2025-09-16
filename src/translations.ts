@@ -4,6 +4,7 @@ import esLocale from "./translations/es.json";
 import itLocale from "./translations/it.json";
 import deLocale from "./translations/de.json";
 import frLocale from "./translations/fr.json";
+import hrLocale from "./translations/hr.json";
 
 // Array of supported locales and their language codes
 const locales: Array<{ code: string; data: Record<string, string> }> = [
@@ -13,6 +14,7 @@ const locales: Array<{ code: string; data: Record<string, string> }> = [
     { code: "it", data: itLocale },
     { code: "de", data: deLocale },
     { code: "fr", data: frLocale },
+    { code: "hr", data: hrLocale },
 ];
 
 export function trnslt(hass: any, key: string, fallback?: string): string {

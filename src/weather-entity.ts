@@ -31,6 +31,18 @@ export class WeatherEntityAPI {
 
 
     private _parseForecastArray(forecast: any[]): ForecastData {
+        // Try to get units from the entity attributes if available
+        let units: ForecastData['units'] = undefined;
+        if (this.hass && this.entityId && this.hass.states && this.hass.states[this.entityId]) {
+            const attrs = this.hass.states[this.entityId].attributes || {};
+            units = {
+                temperature: attrs.temperature_unit,
+                pressure: attrs.pressure_unit,
+                windSpeed: attrs.wind_speed_unit,
+                precipitation: attrs.precipitation_unit || attrs.precipitation_unit || attrs.rain_unit,
+                cloudCover: attrs.cloud_coverage_unit || '%'
+            };
+        }
         const result: ForecastData = {
             time: [],
             temperature: [],
@@ -43,7 +55,8 @@ export class WeatherEntityAPI {
             windDirection: [],
             symbolCode: [],
             pressure: [],
-            fetchTimestamp: new Date().toISOString()
+            fetchTimestamp: new Date().toISOString(),
+            units
         };
 
         forecast.forEach((item: any) => {

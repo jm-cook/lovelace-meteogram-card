@@ -7,6 +7,7 @@ import { WeatherAPI, ForecastData } from "./weather-api";
 import { WeatherEntityAPI, mapHaConditionToMetnoSymbol } from "./weather-entity";
 import { trnslt } from "./translations";
 import { CARD_NAME, METEOGRAM_CARD_STARTUP_TIME, DIAGNOSTICS_DEFAULT } from "./constants";
+import { convertTemperature, convertPressure, convertWindSpeed, convertPrecipitation, convertDistance } from "./conversions";
 
 @customElement('meteogram-card')
 export class MeteogramCard extends LitElement {
@@ -54,6 +55,7 @@ export class MeteogramCard extends LitElement {
     @property({type: String}) entityId?: string; // NEW: entity_id for weather integration
     @property({type: Boolean}) focussed = false; // NEW: Focussed mode
     @property({type: String}) displayMode: "full" | "core" | "focussed" = "full";
+    @property({type: String}) aspectRatio: string = "16:9"; // NEW: aspect ratio config, default 16:9
     static meteogramCardVersion: string = version;
 
 
@@ -172,7 +174,23 @@ export class MeteogramCard extends LitElement {
     @state() private _statusLastFetch: string = "";
     @state() private _statusApiSuccess: boolean | null = null;
 
+    // Tooltip open state
+    @state() private attributionTooltipOpen = false;
+    // Store entity attribution if using weather entity
+    @state() private entityAttribution: string | null = null;
 
+    // --- Add missing _onAttributionIconClick and _onDocumentClick handlers ---
+    private _onAttributionIconClick = (e: Event) => {
+        e.stopPropagation();
+        this.attributionTooltipOpen = !this.attributionTooltipOpen;
+    };
+    private _onDocumentClick = (e: Event) => {
+        if (!this.attributionTooltipOpen) return;
+        const path = e.composedPath ? e.composedPath() : (e as any).path || [];
+        const icon = this.shadowRoot?.querySelector('.attribution-icon');
+        if (icon && path.includes(icon)) return;
+        this.attributionTooltipOpen = false;
+    };
 
     static styles = css`
             :host {
@@ -583,6 +601,48 @@ export class MeteogramCard extends LitElement {
             :host([dark]) .wind-band-outline {
                 stroke: var(--meteogram-grid-color-dark);
             }
+
+            .attribution-icon-wrapper {
+                position: absolute;
+                top: 12px;
+                right: 24px;
+                z-index: 3;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                height: 32px;
+                width: 32px;
+            }
+            .attribution-icon {
+                cursor: pointer;
+                position: relative;
+                display: inline-block;
+                outline: none;
+            }
+            .attribution-tooltip {
+                display: none;
+                position: absolute;
+                top: 120%;
+                right: 0;
+                background: rgba(255,255,255,0.98);
+                color: #222;
+                border: 1px solid #bbb;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+                padding: 8px 12px;
+                min-width: 220px;
+                max-width: 340px;
+                font-size: 0.97em;
+                z-index: 10;
+                white-space: normal;
+                pointer-events: none;
+            }
+            .attribution-icon:focus .attribution-tooltip,
+            .attribution-icon:hover .attribution-tooltip,
+            .attribution-tooltip.open {
+                display: block;
+                pointer-events: auto;
+            }
         `;
 
     // Required for Home Assistant
@@ -626,6 +686,7 @@ export class MeteogramCard extends LitElement {
         this.focussed = migratedDisplayMode === "focussed";
         // Set displayMode from config (now migrated from display_mode)
         this.displayMode = migratedDisplayMode;
+        this.aspectRatio = config.aspect_ratio || "16:9";
 
         // Track previous entityId
         const prevEntityId = this.entityId;
@@ -700,7 +761,7 @@ export class MeteogramCard extends LitElement {
         return {
             rows: 8,
             columns: "full",
-            min_rows: 6,
+            min_rows: 4,
             max_rows: 8,
         };
     }
@@ -731,6 +792,7 @@ export class MeteogramCard extends LitElement {
                 }
             }
         });
+        document.addEventListener('click', this._onDocumentClick, true);
     }
 
     // Clean up all event listeners
@@ -745,6 +807,7 @@ export class MeteogramCard extends LitElement {
 
         document.removeEventListener('visibilitychange', this._onVisibilityChange.bind(this));
         window.removeEventListener('location-changed', this._onLocationChanged.bind(this));
+        document.removeEventListener('click', this._onDocumentClick, true);
 
         this.cleanupChart();
         // Clear retry timer if present
@@ -1252,12 +1315,14 @@ export class MeteogramCard extends LitElement {
         }
     }
 
+    // Store the current units for each parameter
+    private _currentUnits: ForecastData['units'] = {};
+
     async fetchWeatherData(): Promise<ForecastData> {
         if (this.entityId && this.entityId !== 'none' && !this._weatherEntityApiInstance) {
             if (this.hass) {
                 console.debug(`[${CARD_NAME}] Initializing WeatherEntityAPI for entity: ${this.entityId}`, this._weatherEntityApiInstance);
                 this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId as string, "fetchWeatherData");
-
             }
         } else {
             if (this.entityId && this.entityId == 'none' && this._weatherEntityApiInstance) {
@@ -1270,11 +1335,18 @@ export class MeteogramCard extends LitElement {
         if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
             // Always fetch fresh data from the entity, not from any cache
             const entityData = this._weatherEntityApiInstance.getForecastData();
+            // Retrieve attribution from entity if available
+            let entityAttribution: string | null = null;
+            if (this.hass && this.entityId && this.hass.states && this.hass.states[this.entityId]) {
+                entityAttribution = this.hass.states[this.entityId].attributes?.attribution || null;
+            }
+            this.entityAttribution = entityAttribution;
             // Detect if entity is unavailable (null or empty time array)
             // console.debug(`[${CARD_NAME}] fetchWeatherData from entity ${this.entityId}:`, entityData);
             if (!entityData || !entityData.time || entityData.time.length === 0) {
                 throw new Error(`Weather entity ${this.entityId} is unavailable. Waiting for it to become available...`);
             }
+            this._currentUnits = entityData.units || {};
             return entityData;
         }
 
@@ -1330,7 +1402,8 @@ export class MeteogramCard extends LitElement {
                 this.apiExpiresAt = weatherApi.expiresAt;
                 this._statusApiSuccess = true;
                 this._lastApiSuccess = true;
-
+                // Store units from API
+                this._currentUnits = result.units || {};
                 // Filter result by meteogramHours
                 let hours = 48;
                 if (this.meteogramHours === "8h") hours = 8;
@@ -1674,15 +1747,36 @@ export class MeteogramCard extends LitElement {
             pressure
         } = data;
         const N = time.length;
-        // console.debug(`[${CARD_NAME}] renderMeteogram with ${N} data points, width=${width}, height=${height}, windBandHeight=${windBandHeight}, hourLabelBand=${hourLabelBand}`);
 
         const tempUnit = this.getSystemTemperatureUnit();
-        // Only convert temperature if using WeatherAPI (entityId is not set or is 'none')
+        const pressureUnit = this.getSystemPressureUnit();
+        const windSpeedUnit = this.getSystemWindSpeedUnit();
+        const precipUnit = this.getSystemPrecipitationUnit();
+
+        // Only convert values if using WeatherAPI (entityId is not set or is 'none')
         let temperatureConverted: (number | null)[];
+        let pressureConverted: (number | null)[];
+        let windSpeedConverted: (number | null)[];
+        let rainConverted: (number | null)[];
+        let rainMinConverted: (number | null)[];
+        let rainMaxConverted: (number | null)[];
+        let snowConverted: (number | null)[];
         if (!this.entityId || this.entityId === 'none') {
             temperatureConverted = temperature.map(t => this.convertTemperature(t));
+            pressureConverted = pressure.map(p => convertPressure(p, "hPa", pressureUnit));
+            windSpeedConverted = windSpeed.map(w => convertWindSpeed(w, "m/s", windSpeedUnit));
+            rainConverted = rain.map(r => convertPrecipitation(r, "mm", precipUnit));
+            rainMinConverted = rainMin.map(r => convertPrecipitation(r, "mm", precipUnit));
+            rainMaxConverted = rainMax.map(r => convertPrecipitation(r, "mm", precipUnit));
+            snowConverted = snow.map(s => convertPrecipitation(s, "mm", precipUnit));
         } else {
             temperatureConverted = temperature;
+            pressureConverted = pressure;
+            windSpeedConverted = windSpeed;
+            rainConverted = rain;
+            rainMinConverted = rainMin;
+            rainMaxConverted = rainMax;
+            snowConverted = snow;
         }
         // -------------------------------------------------------------
         const pressureAvailable = this.showPressure && pressure && pressure.length > 0
@@ -2422,6 +2516,17 @@ export class MeteogramCard extends LitElement {
             : 0;
         const successTooltip = `API Success Rate: ${WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT}/${WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT} (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
 
+        // Calculate aspect ratio style
+        // let aspectRatioStyle = "aspect-ratio: 16/9;";
+        // if (this.aspectRatio && this.aspectRatio.includes(":")) {
+        //     const [w, h] = this.aspectRatio.split(":").map(Number);
+        //     if (w > 0 && h > 0) aspectRatioStyle = `aspect-ratio: ${w}/${h};`;
+        // } else if (this.aspectRatio && !isNaN(Number(this.aspectRatio))) {
+        //     aspectRatioStyle = `aspect-ratio: ${Number(this.aspectRatio)}/1;`;
+        // }
+        // Instead, always use width:100%;height:100% for the chart container
+        const chartContainerStyle = "width:100%;height:100%;";
+
         // In Focussed mode, hide title and attribution
         if (this.displayMode === "focussed" || this.focussed) {
             return html`
@@ -2429,23 +2534,45 @@ export class MeteogramCard extends LitElement {
                     <div class="card-content">
                         ${this.meteogramError
                             ? html`<div class="error" style="white-space:normal;" .innerHTML=${this.meteogramError}></div>`
-                            : html`<div id="chart"></div>`}
+                            : html`<div style="${chartContainerStyle}"><div id="chart" style="width:100%;height:100%"></div></div>`}
                     </div>
                 </ha-card>
             `;
         }
-        // Only show attribution if WeatherAPI is used (not weather entity)
-        const showAttribution = !(this.entityId && this.entityId !== 'none');
-        // In Core mode, show axes, scale, and dates along the top, but no legends or attribution
-        if (this.displayMode === "core") {
-            return html`
-                <ha-card style="${styleVars}">
-                    <div class="card-content">
-                        ${this.meteogramError
-                            ? html`<div class="error" style="white-space:normal;" .innerHTML=${this.meteogramError}></div>`
-                            : html`<div id="chart"></div>`}
-                    </div>
-                </ha-card>
+        // Only show attribution if available (Met.no or entity)
+        const showAttribution = (
+            (this.entityId && this.entityId !== 'none' && this.entityAttribution) ||
+            (!(this.entityId && this.entityId !== 'none'))
+        );
+        // Attribution icon color logic
+        let attributionColor = '#1976d2'; // default blue
+        let statusSymbol = 'ℹ️';
+        if (this._lastApiSuccess) {
+            attributionColor = '#388e3c'; // green
+        } else if (this._statusApiSuccess === null) {
+            attributionColor = '#fbc02d'; // orange
+        } else if (this._statusApiSuccess === false) {
+            attributionColor = '#b71c1c'; // red
+        }
+        // Attribution tooltip content
+        let attributionTooltip = "";
+        if (this.entityId && this.entityId !== 'none' && this.entityAttribution) {
+            attributionTooltip = `
+                <div style='padding:8px;max-width:320px;'>
+                    <div style='margin-bottom:4px;'>${this.entityAttribution}</div>
+                </div>
+            `;
+        } else {
+            attributionTooltip = `
+                <div style='padding:8px;max-width:320px;'>
+                    <div style='margin-bottom:4px;'>${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href='https://met.no/' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>met.no</a></div>
+                    <div>${this._lastApiSuccess
+                        ? trnslt(this.hass, 'ui.card.meteogram.status.success', 'success')
+                        : this._statusApiSuccess === null
+                            ? trnslt(this.hass, 'ui.card.meteogram.status.cached', 'cached')
+                            : trnslt(this.hass, 'ui.card.meteogram.status.failed', 'failed')
+                    }<br>${successTooltip}</div>
+                </div>
             `;
         }
         // Full mode: everything
@@ -2454,71 +2581,63 @@ export class MeteogramCard extends LitElement {
                 ${this.title ? html`<div class="card-header">${this.title}</div>` : ""}
                 <div class="card-content">
                     ${showAttribution ? html`
-                    <div class="attribution">
-                        ${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href="https://met.no/"
-                                                                                              target="_blank"
-                                                                                              rel="noopener"
-                                                                                              style="color: inherit;">met.no</a>
-                        <span
-                                style="margin-left:8px; vertical-align:middle;"
-                                title="${this._lastApiSuccess
-                                    ? trnslt(this.hass, 'ui.card.meteogram.status.success', 'success') + ` : ${successTooltip}`
-                                    : this._statusApiSuccess === null
-                                        ? trnslt(this.hass, 'ui.card.meteogram.status.cached', 'cached') + ` : ${successTooltip}`
-                                        : trnslt(this.hass, 'ui.card.meteogram.status.failed', 'failed') + ` : ${successTooltip}`}"
-                        >${
-                            this._lastApiSuccess
-                                ? "✅"
-                                : this._statusApiSuccess === null
-                                    ? "❎"
-                                    : "❌"
-                        }</span>
+                    <div class="attribution-icon-wrapper">
+                        <span class="attribution-icon"
+                              style="color:${attributionColor};"
+                              tabindex="0"
+                              @click=${this._onAttributionIconClick}
+                              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { this._onAttributionIconClick(e); } }}
+                              aria-label="Show attribution"
+                              aria-expanded="${this.attributionTooltipOpen}">
+                            <span style="font-size:1.3em;vertical-align:middle;">${statusSymbol}</span>
+                            <span class="attribution-tooltip${this.attributionTooltipOpen ? ' open' : ''}" .innerHTML=${attributionTooltip}></span>
+                        </span>
                     </div>
                     ` : ""}
                     ${this.meteogramError
                         ? html`<div class="error" style="white-space:normal;" .innerHTML=${this.meteogramError}></div>`
                         : html`
-                            <div id="chart"></div>
-                            ${this.diagnostics ? html`
-                                <div id="meteogram-status-panel"
-                                     style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
-                                     xmlns="http://www.w3.org/1999/html">
-                                    <b>${trnslt(this.hass, "ui.card.meteogram.status_panel", "Status Panel")}</b>
-                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
-                                        <div>
-                                            <span>${trnslt(this.hass, "ui.card.meteogram.status.expires_at", "Expires At")}
-                                                : ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
-                                            <span>${trnslt(this.hass, "ui.card.meteogram.status.last_render", "Last Render")}
-                                                : ${this._statusLastRender || "unknown"}</span><br>
-                                            <span>${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}
-                                                : ${this._statusLastFetch || "unknown"}</span>
-                                        </div>
-                                        <div>
-                                            <span
-                                                    title="${this._lastApiSuccess
-                                                            ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
-                                                            : this._statusApiSuccess === null
-                                                                ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
-                                                                : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
-                                                    }" >
-                                                ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}
-                                                    : ${this._lastApiSuccess
-                                                            ? "✅"
-                                                            : this._statusApiSuccess === null
-                                                                ? "❎"
-                                                                : "❌"
+                        <div style="${chartContainerStyle}"><div id="chart" style="width:100%;height:100%"></div></div>
+                        ${this.diagnostics ? html`
+                            <div id="meteogram-status-panel"
+                                 style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
+                                 xmlns="http://www.w3.org/1999/html">
+                                <b>${trnslt(this.hass, "ui.card.meteogram.status_panel", "Status Panel")}</b>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
+                                    <div>
+                                        <span>${trnslt(this.hass, "ui.card.meteogram.status.expires_at", "Expires At")}
+                                            : ${this.apiExpiresAt ? new Date(this.apiExpiresAt).toISOString() : "unknown"}</span><br>
+                                        <span>${trnslt(this.hass, "ui.card.meteogram.status.last_render", "Last Render")}
+                                            : ${this._statusLastRender || "unknown"}</span><br>
+                                        <span>${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}
+                                            : ${this._statusLastFetch || "unknown"}</span>
+                                    </div>
+                                    <div>
+                                        <span
+                                                title="${this._lastApiSuccess
+                                                        ? trnslt(this.hass, "ui.card.meteogram.status.success", "success") + ` : ${successTooltip}`
+                                                        : this._statusApiSuccess === null
+                                                            ? trnslt(this.hass, "ui.card.meteogram.status.cached", "cached") + ` : ${successTooltip}`
+                                                            : trnslt(this.hass, "ui.card.meteogram.status.failed", "failed") + ` : ${successTooltip}`
+                                                }" >
+                                            ${trnslt(this.hass, "ui.card.meteogram.status.api_success", "API Success")}
+                                                : ${this._lastApiSuccess
+                                                        ? "✅"
+                                                        : this._statusApiSuccess === null
+                                                            ? "❎"
+                                                            : "❌"
                                                        }
-                                            </span>
-                                            <br>
-                                            <span>Card version: <code>${MeteogramCard.meteogramCardVersion}</code></span><br>
-                                            <span>Client type: <code>${getClientName()}</code></span><br>
-                                            <span>${successTooltip}</span>
+                                        </span>
+                                        <br>
+                                        <span>Card version: <code>${MeteogramCard.meteogramCardVersion}</code></span><br>
+                                        <span>Client type: <code>${getClientName()}</code></span><br>
+                                        <span>${successTooltip}</span>
 
-                                        </div>
                                     </div>
                                 </div>
-                            ` : ""}
-                        `}
+                            </div>
+                        ` : ""}
+                    `}
                 </div>
             </ha-card>
         `;
@@ -2601,13 +2720,41 @@ export class MeteogramCard extends LitElement {
         return "°C";
     }
 
+    // Helper to get the system pressure unit from Home Assistant
+    private getSystemPressureUnit(): "hPa" | "inHg" {
+        if (this.hass && this.hass.config && this.hass.config.unit_system && this.hass.config.unit_system.pressure) {
+            const unit = this.hass.config.unit_system.pressure;
+            if (unit === "hPa" || unit === "inHg") return unit;
+            // Some installations may use "mbar" for hPa
+            if (unit === "mbar") return "hPa";
+        }
+        return "hPa";
+    }
+
+    // Helper to get the system wind speed unit from Home Assistant
+    private getSystemWindSpeedUnit(): "m/s" | "km/h" | "mph" {
+        if (this.hass && this.hass.config && this.hass.config.unit_system && this.hass.config.unit_system.wind_speed) {
+            const unit = this.hass.config.unit_system.wind_speed;
+            if (unit === "m/s" || unit === "km/h" || unit === "mph") return unit;
+        }
+        return "m/s";
+    }
+
+    // Helper to get the system precipitation unit from Home Assistant
+    private getSystemPrecipitationUnit(): "mm" | "in" {
+        if (this.hass && this.hass.config && this.hass.config.unit_system && this.hass.config.unit_system.precipitation) {
+            const unit = this.hass.config.unit_system.precipitation;
+            if (unit === "mm" || unit === "in") return unit;
+        }
+        return "mm";
+    }
+
     // Add a helper to convert Celsius to Fahrenheit if needed
     private convertTemperature(tempC: number | null): number | null {
         if (tempC === null || tempC === undefined) return tempC;
         const unit = this.getSystemTemperatureUnit();
-        if (unit === "°F") {
-            return tempC * 9 / 5 + 32;
-        }
-        return tempC;
+        // Use the shared conversion helper
+        return convertTemperature(tempC, "°C", unit);
     }
+    // Note: For pressure, wind speed, precipitation, and distance conversions, use the helpers from conversions.ts
 }
