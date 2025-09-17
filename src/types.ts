@@ -3,6 +3,7 @@ export interface MeteogramCardConfig {
     title?: string;
     latitude?: number;
     longitude?: number;
+    altitude?: number; // Add altitude option
     show_cloud_cover?: boolean;
     show_pressure?: boolean;
     show_rain?: boolean;

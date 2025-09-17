@@ -55,6 +55,9 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         setValue(this._elements.get('longitude'), this._config.longitude !== undefined
             ? String(this._config.longitude)
             : (this.hass?.config?.longitude !== undefined ? String(this.hass.config.longitude) : ''));
+        setValue(this._elements.get('altitude'), this._config.altitude !== undefined
+            ? String(this._config.altitude)
+            : (this.hass?.config?.altitude !== undefined ? String(this.hass.config.altitude) : ''), 'value');
 
         setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
         setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
@@ -86,6 +89,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         // Get default coordinates from Home Assistant config if available
         const defaultLat = hass?.config?.latitude ?? '';
         const defaultLon = hass?.config?.longitude ?? '';
+        const defaultAlt = hass?.config?.altitude ?? '';
 
         // Get current toggle values or default to true
         const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
@@ -214,6 +218,16 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
           step="any"
           .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
           placeholder="${defaultLon ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : ""}"
+          ${isWeatherEntitySelected ? "disabled" : ""}
+        ></ha-textfield>
+
+        <ha-textfield
+          label="${trnslt(hass, "ui.editor.meteogram.altitude", "Altitude (meters)")}"
+          id="altitude-input"
+          type="number"
+          step="any"
+          .value="${this._config.altitude !== undefined ? this._config.altitude : defaultAlt}"
+          placeholder="${defaultAlt ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultAlt}` : trnslt(hass, "ui.editor.meteogram.optional", "Optional")}" 
           ${isWeatherEntitySelected ? "disabled" : ""}
         ></ha-textfield>
       </div>
@@ -348,6 +362,13 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 this._elements.set('longitude', lonInput);
             }
 
+            const altitudeInput = this.querySelector('#altitude-input') as ConfigurableHTMLElement;
+            if (altitudeInput) {
+                altitudeInput.configValue = 'altitude';
+                altitudeInput.addEventListener('input', this._valueChanged.bind(this));
+                this._elements.set('altitude', altitudeInput);
+            }
+
             // Set up toggle switches
             const cloudCoverSwitch = this.querySelector('#show-cloud-cover') as ConfigurableHTMLElement;
             if (cloudCoverSwitch) {
@@ -445,9 +466,10 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 });
                 this._elements.set('aspect_ratio_custom', aspectRatioCustom);
             }
-            // Disable/enable lat/lon fields based on weather entity selection
+            // Disable/enable lat/lon/altitude fields based on weather entity selection
             if (latInput) latInput.disabled = isWeatherEntitySelected;
             if (lonInput) lonInput.disabled = isWeatherEntitySelected;
+            if (altitudeInput) altitudeInput.disabled = isWeatherEntitySelected;
 
             // Update values after setting up elements and listeners
             this._updateValues();
@@ -506,9 +528,11 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
             setTimeout(() => {
                 const latInput = this.querySelector('#latitude-input') as ConfigurableHTMLElement;
                 const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
+                const altitudeInput = this.querySelector('#altitude-input') as ConfigurableHTMLElement;
                 const isWeatherEntitySelected = !!(newValue && newValue !== 'none');
                 if (latInput) latInput.disabled = isWeatherEntitySelected;
                 if (lonInput) lonInput.disabled = isWeatherEntitySelected;
+                if (altitudeInput) altitudeInput.disabled = isWeatherEntitySelected;
             }, 0);
         }
 
@@ -552,5 +576,11 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         this.dispatchEvent(new CustomEvent('config-changed', {
             detail: {config: this._config}
         }));
+    }
+
+    // Ensure _updateConfig method exists and handles generic property updates:
+    private _updateConfig(property: keyof MeteogramCardConfig, value: any) {
+        this._config = { ...this._config, [property]: value };
+        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
     }
 }

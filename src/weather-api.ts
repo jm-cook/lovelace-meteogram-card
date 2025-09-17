@@ -32,14 +32,18 @@ export class WeatherAPI {
     lastStatusCode: number | null = null;
     lat: number;
     lon: number;
+    altitude?: number; // Optional altitude in meters
     private _forecastData: ForecastData | null = null;
     private _expiresAt: number | null = null;
     private _fetchPromise: Promise<void> | null = null;
     private _lastFetchTime: number | null = null; // Track last fetch timestamp
 
-    constructor(lat: number, lon: number) {
+    constructor(lat: number, lon: number, altitude?: number) {
         this.lat = lat;
         this.lon = lon;
+        if (Number.isFinite(altitude)) {
+            this.altitude = altitude;
+        }
     }
 
     // Getter for forecastData: checks expiry and refreshes if needed
@@ -169,8 +173,11 @@ export class WeatherAPI {
 
         const lat = this.lat;
         const lon = this.lon;
-        // Only use dedicated forecast URL
-        let dedicatedForecastUrl = `https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
+        let url = `https://aa015h6buqvih86i1.api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`;
+        if (Number.isFinite(this.altitude)) {
+            url += `&altitude=${this.altitude}`;
+        }
+        let dedicatedForecastUrl = url;
         let urlToUse = dedicatedForecastUrl;
         let headers: Record<string, string> = {};
         this.lastStatusCode = null;

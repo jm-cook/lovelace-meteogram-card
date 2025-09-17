@@ -56,6 +56,7 @@ export class MeteogramCard extends LitElement {
     @property({type: Boolean}) focussed = false; // NEW: Focussed mode
     @property({type: String}) displayMode: "full" | "core" | "focussed" = "full";
     @property({type: String}) aspectRatio: string = "16:9"; // NEW: aspect ratio config, default 16:9
+    @property({type: Number}) altitude?: number; // Optional altitude for WeatherAPI
     static meteogramCardVersion: string = version;
 
 
@@ -668,6 +669,11 @@ export class MeteogramCard extends LitElement {
         if (config.title) this.title = config.title;
         if (config.latitude !== undefined) this.latitude = configLat;
         if (config.longitude !== undefined) this.longitude = configLon;
+        if (Number.isFinite(config.altitude)) {
+            this.altitude = config.altitude;
+        } else {
+            this.altitude = undefined;
+        }
 
         // Use show_precipitation if present, else fallback to show_rain for legacy support
         this.showCloudCover = config.show_cloud_cover !== undefined ? config.show_cloud_cover : true;
@@ -746,7 +752,8 @@ export class MeteogramCard extends LitElement {
             show_wind: true,
             dense_weather_icons: true,
             meteogram_hours: "48h",
-            diagnostics: DIAGNOSTICS_DEFAULT // Default to DIAGNOSTICS_DEFAULT
+            diagnostics: DIAGNOSTICS_DEFAULT, // Default to DIAGNOSTICS_DEFAULT
+            altitude: undefined // Optional altitude for WeatherAPI
             // Coordinates will be fetched from HA configuration
         };
     }
@@ -1189,13 +1196,14 @@ export class MeteogramCard extends LitElement {
         if (this.latitude !== undefined && this.longitude !== undefined) {
             this.latitude = parseFloat(Number(this.latitude).toFixed(4));
             this.longitude = parseFloat(Number(this.longitude).toFixed(4));
-            // Initialize WeatherAPI instance if not already set or if lat/lon changed
+            // Initialize WeatherAPI instance if not already set or if lat/lon/altitude changed
             if (
                 !this._weatherApiInstance ||
                 this._weatherApiInstance.lat !== this.latitude ||
-                this._weatherApiInstance.lon !== this.longitude
+                this._weatherApiInstance.lon !== this.longitude ||
+                this._weatherApiInstance.altitude !== this.altitude
             ) {
-                this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude);
+                this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude, this.altitude);
             }
             return;
         }
@@ -1224,9 +1232,10 @@ export class MeteogramCard extends LitElement {
                 if (
                     !this._weatherApiInstance ||
                     this._weatherApiInstance.lat !== this.latitude ||
-                    this._weatherApiInstance.lon !== this.longitude
+                    this._weatherApiInstance.lon !== this.longitude ||
+                    this._weatherApiInstance.altitude !== this.altitude
                 ) {
-                    this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude);
+                    this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude, this.altitude);
                 }
                 console.debug(`[${CARD_NAME}] Using HA location: ${this.latitude}, ${this.longitude}`);
                 return;
@@ -1239,25 +1248,25 @@ export class MeteogramCard extends LitElement {
             if (cachedLocation) {
                 this.latitude = cachedLocation.latitude;
                 this.longitude = cachedLocation.longitude;
-                // Initialize WeatherAPI instance if not already set or if lat/lon changed
                 if (
                     !this._weatherApiInstance ||
                     this._weatherApiInstance.lat !== this.latitude ||
-                    this._weatherApiInstance.lon !== this.longitude
+                    this._weatherApiInstance.lon !== this.longitude ||
+                    this._weatherApiInstance.altitude !== this.altitude
                 ) {
-                    this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude);
+                    this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude, this.altitude);
                 }
                 console.debug(`[${CARD_NAME}] Using cached default-location: ${this.latitude}, ${this.longitude}`);
             } else {
                 this.latitude = 51.5074;
                 this.longitude = -0.1278;
-                // Initialize WeatherAPI instance if not already set or if lat/lon changed
                 if (
                     !this._weatherApiInstance ||
                     this._weatherApiInstance.lat !== this.latitude ||
-                    this._weatherApiInstance.lon !== this.longitude
+                    this._weatherApiInstance.lon !== this.longitude ||
+                    this._weatherApiInstance.altitude !== this.altitude
                 ) {
-                    this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude);
+                    this._weatherApiInstance = new WeatherAPI(this.latitude, this.longitude, this.altitude);
                 }
                 console.debug(`[${CARD_NAME}] Using default location: ${this.latitude}, ${this.longitude}`);
             }
@@ -1371,9 +1380,10 @@ export class MeteogramCard extends LitElement {
         if (
             !this._weatherApiInstance ||
             this._weatherApiInstance.lat !== lat ||
-            this._weatherApiInstance.lon !== lon
+            this._weatherApiInstance.lon !== lon ||
+            this._weatherApiInstance.altitude !== this.altitude
         ) {
-            this._weatherApiInstance = new WeatherAPI(lat!, lon!);
+            this._weatherApiInstance = new WeatherAPI(lat!, lon!, this.altitude);
         }
         const weatherApi = this._weatherApiInstance;
 
