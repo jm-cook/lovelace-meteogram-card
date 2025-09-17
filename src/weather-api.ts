@@ -96,16 +96,19 @@ export class WeatherAPI {
         return diag;
     }
 
-    // Helper to encode cache key as base64 of str(lat)+str(lon)
-    private static encodeCacheKey(lat: number, lon: number): string {
-        const keyStr = String(lat) + String(lon);
+    // Helper to encode cache key as base64 of str(lat)+str(lon)+str(altitude)
+    private static encodeCacheKey(lat: number, lon: number, altitude?: number): string {
+        let keyStr = String(lat) + "," + String(lon);
+        if (typeof altitude === 'number' && !isNaN(altitude)) {
+            keyStr += "," + String(altitude);
+        }
         return btoa(keyStr);
     }
 
     // Save forecast data to localStorage
     saveCacheToStorage() {
         if (!this._forecastData || !this._expiresAt) return;
-        const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)));
+        const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)), this.altitude !== undefined ? Number(this.altitude.toFixed(2)) : undefined);
         let cacheObj: {
             ["forecast-data"]?: Record<string, {
                 expiresAt: number,
@@ -130,7 +133,7 @@ export class WeatherAPI {
 
     // Load forecast data from localStorage
     loadCacheFromStorage() {
-        const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)));
+        const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)), this.altitude !== undefined ? Number(this.altitude.toFixed(2)) : undefined);
         const cacheStr = localStorage.getItem('metno-weather-cache');
         if (cacheStr) {
             let cacheObj: {

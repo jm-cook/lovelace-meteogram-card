@@ -111,7 +111,8 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
             ? Object.keys(hass.states).filter(eid => eid.startsWith('weather.'))
             : [];
         // Add "none" option at the top
-        const selectedEntity = this._config.entity_id ?? (weatherEntities.length > 0 ? weatherEntities[0] : '');
+        // If entity_id is not set, default to 'none' (not first weather entity)
+        const selectedEntity = this._config.entity_id ?? 'none';
         const isWeatherEntitySelected = !!(selectedEntity && selectedEntity !== 'none');
 
         div.innerHTML = `
