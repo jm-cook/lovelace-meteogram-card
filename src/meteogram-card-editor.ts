@@ -105,6 +105,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const displayMode = this._config.display_mode || 'full';
         const aspectRatio = this._config.aspect_ratio || "16:9";
         const div = document.createElement('div');
+        const layoutMode = this._config.layout_mode || "sections";
 
         // Get all weather entities from hass
         const weatherEntities: string[] = hass && hass.states
@@ -308,6 +309,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
       </div>
       <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
 
+      ${["panel", "grid"].includes(layoutMode) ? `
       <div class="row">
         <label for="aspect-ratio-select" style="margin-right:8px;">Aspect Ratio</label>
         <select id="aspect-ratio-select">
@@ -321,6 +323,8 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         <input id="aspect-ratio-custom" type="text" placeholder="e.g. 1.6 or 5:3" style="margin-left:8px; width:90px;" value="${!["16:9","4:3","1:1","21:9","3:2"].includes(aspectRatio) ? aspectRatio : ''}" ${!["16:9","4:3","1:1","21:9","3:2"].includes(aspectRatio) ? '' : 'disabled'}>
       </div>
       <p class="help-text">Set the aspect ratio for the chart area. Use a ratio like 16:9, 4:3, 1:1, or a custom value (e.g. 1.6 or 5:3).</p>
+      ` : ""}
+
       <div class="toggle-section"></div>
         <div class="toggle-row">
           <div class="toggle-label">Diagnostics (debug logging)</div>

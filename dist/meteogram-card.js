@@ -545,6 +545,7 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         const displayMode = this._config.display_mode || 'full';
         const aspectRatio = this._config.aspect_ratio || "16:9";
         const div = document.createElement('div');
+        const layoutMode = this._config.layout_mode || "sections";
         // Get all weather entities from hass
         const weatherEntities = hass && hass.states
             ? Object.keys(hass.states).filter(eid => eid.startsWith('weather.'))
@@ -744,6 +745,7 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
       </div>
       <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_hours", "Choose how many hours to show in the meteogram")}</p>
 
+      ${["panel", "grid"].includes(layoutMode) ? `
       <div class="row">
         <label for="aspect-ratio-select" style="margin-right:8px;">Aspect Ratio</label>
         <select id="aspect-ratio-select">
@@ -757,6 +759,8 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         <input id="aspect-ratio-custom" type="text" placeholder="e.g. 1.6 or 5:3" style="margin-left:8px; width:90px;" value="${!["16:9", "4:3", "1:1", "21:9", "3:2"].includes(aspectRatio) ? aspectRatio : ''}" ${!["16:9", "4:3", "1:1", "21:9", "3:2"].includes(aspectRatio) ? '' : 'disabled'}>
       </div>
       <p class="help-text">Set the aspect ratio for the chart area. Use a ratio like 16:9, 4:3, 1:1, or a custom value (e.g. 1.6 or 5:3).</p>
+      ` : ""}
+
       <div class="toggle-section"></div>
         <div class="toggle-row">
           <div class="toggle-label">Diagnostics (debug logging)</div>
@@ -1712,6 +1716,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this.focussed = false; // NEW: Focussed mode
         this.displayMode = "full";
         this.aspectRatio = "16:9"; // NEW: aspect ratio config, default 16:9
+        this.layoutMode = undefined;
         this.chartLoaded = false;
         this.meteogramError = "";
         this.errorCount = 0;
@@ -1877,6 +1882,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     }
     // Required for Home Assistant
     setConfig(config) {
+        var _a;
         // --- MIGRATION LOGIC FOR FOCUSSED/DISPLAYMODE ---
         let migratedDisplayMode = "full";
         // Change to use config.display_mode instead of config.displayMode
@@ -1921,6 +1927,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Set displayMode from config (now migrated from display_mode)
         this.displayMode = migratedDisplayMode;
         this.aspectRatio = config.aspect_ratio || "16:9";
+        // Add support for layoutMode
+        this.layoutMode = (_a = config.layout_mode) !== null && _a !== void 0 ? _a : "sections";
         // Track previous entityId
         const prevEntityId = this.entityId;
         const newEntityId = config.entity_id || undefined;
@@ -2704,13 +2712,40 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         const parent = chartDiv.parentElement;
         let availableWidth = parent ? parent.clientWidth : chartDiv.offsetWidth || 350;
         let availableHeight = parent ? parent.clientHeight : chartDiv.offsetHeight || 180;
-        // Remove aspect ratio logic, use full container size
-        let width = chartDiv.offsetWidth > 0
-            ? chartDiv.offsetWidth
-            : availableWidth;
-        let height = chartDiv.offsetHeight > 0
-            ? chartDiv.offsetHeight
-            : availableHeight;
+        // --- Aspect Ratio Logic ---
+        let width, height;
+        // Use aspectRatio only if not in sections layout
+        let useAspectRatio = this.aspectRatio && this.layoutMode !== "sections";
+        if (useAspectRatio && typeof this.aspectRatio === "string") {
+            // Parse aspect ratio string, e.g. "16:9"
+            const [w, h] = this.aspectRatio.split(":").map(Number);
+            if (w > 0 && h > 0) {
+                width = availableWidth;
+                height = Math.round(width * (h / w));
+                // Optionally, limit height to availableHeight
+                if (height > availableHeight) {
+                    height = availableHeight;
+                    width = Math.round(height * (w / h));
+                }
+            }
+            else {
+                width = chartDiv.offsetWidth > 0
+                    ? chartDiv.offsetWidth
+                    : availableWidth;
+                height = chartDiv.offsetHeight > 0
+                    ? chartDiv.offsetHeight
+                    : availableHeight;
+            }
+        }
+        else {
+            // Default: fill container
+            width = chartDiv.offsetWidth > 0
+                ? chartDiv.offsetWidth
+                : availableWidth;
+            height = chartDiv.offsetHeight > 0
+                ? chartDiv.offsetHeight
+                : availableHeight;
+        }
         // Clean up previous chart
         chartDiv.innerHTML = "";
         // Fetch weather data and render
@@ -2737,10 +2772,10 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             this._lastHeight = availableHeight;
             this.svg = window.d3.select(chartDiv)
                 .append("svg")
-                .attr("width", "100%")
-                .attr("height", "100%")
+                .attr("width", width)
+                .attr("height", height)
                 .attr("viewBox", `0 0 ${width + 140} ${height}`)
-                .attr("preserveAspectRatio", "none"); // Fill container, no aspect ratio
+                .attr("preserveAspectRatio", useAspectRatio ? "xMidYMid meet" : "none"); // Fill container, no aspect ratio
             // const maxHourSpacing = 90;
             // // Adjust chartWidth depending on pressureAvailable so that there is not a big gap on the right when it is not shown
             // let chartWidth: number;
@@ -4343,6 +4378,9 @@ __decorate([
 __decorate([
     n({ type: Number })
 ], MeteogramCard$1.prototype, "altitude", void 0);
+__decorate([
+    n({ type: String })
+], MeteogramCard$1.prototype, "layoutMode", void 0);
 __decorate([
     r()
 ], MeteogramCard$1.prototype, "chartLoaded", void 0);

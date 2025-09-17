@@ -57,6 +57,7 @@ export class MeteogramCard extends LitElement {
     @property({type: String}) displayMode: "full" | "core" | "focussed" = "full";
     @property({type: String}) aspectRatio: string = "16:9"; // NEW: aspect ratio config, default 16:9
     @property({type: Number}) altitude?: number; // Optional altitude for WeatherAPI
+    @property({type: String}) layoutMode: "sections" | "panel" | "grid" | undefined = undefined;
     static meteogramCardVersion: string = version;
 
 
@@ -706,6 +707,8 @@ export class MeteogramCard extends LitElement {
         // Set displayMode from config (now migrated from display_mode)
         this.displayMode = migratedDisplayMode;
         this.aspectRatio = config.aspect_ratio || "16:9";
+        // Add support for layoutMode
+        this.layoutMode = config.layout_mode ?? "sections";
 
         // Track previous entityId
         const prevEntityId = this.entityId;
@@ -1602,13 +1605,38 @@ export class MeteogramCard extends LitElement {
         let availableWidth = parent ? parent.clientWidth : (chartDiv as HTMLElement).offsetWidth || 350;
         let availableHeight = parent ? parent.clientHeight : (chartDiv as HTMLElement).offsetHeight || 180;
 
-        // Remove aspect ratio logic, use full container size
-        let width = (chartDiv as HTMLElement).offsetWidth > 0
-            ? (chartDiv as HTMLElement).offsetWidth
-            : availableWidth;
-        let height = (chartDiv as HTMLElement).offsetHeight > 0
-            ? (chartDiv as HTMLElement).offsetHeight
-            : availableHeight;
+        // --- Aspect Ratio Logic ---
+        let width: number, height: number;
+        // Use aspectRatio only if not in sections layout
+        let useAspectRatio = this.aspectRatio && this.layoutMode !== "sections";
+        if (useAspectRatio && typeof this.aspectRatio === "string") {
+            // Parse aspect ratio string, e.g. "16:9"
+            const [w, h] = this.aspectRatio.split(":").map(Number);
+            if (w > 0 && h > 0) {
+                width = availableWidth;
+                height = Math.round(width * (h / w));
+                // Optionally, limit height to availableHeight
+                if (height > availableHeight) {
+                    height = availableHeight;
+                    width = Math.round(height * (w / h));
+                }
+            } else {
+                width = (chartDiv as HTMLElement).offsetWidth > 0
+                    ? (chartDiv as HTMLElement).offsetWidth
+                    : availableWidth;
+                height = (chartDiv as HTMLElement).offsetHeight > 0
+                    ? (chartDiv as HTMLElement).offsetHeight
+                    : availableHeight;
+            }
+        } else {
+            // Default: fill container
+            width = (chartDiv as HTMLElement).offsetWidth > 0
+                ? (chartDiv as HTMLElement).offsetWidth
+                : availableWidth;
+            height = (chartDiv as HTMLElement).offsetHeight > 0
+                ? (chartDiv as HTMLElement).offsetHeight
+                : availableHeight;
+        }
 
         // Clean up previous chart
         chartDiv.innerHTML = "";
@@ -1641,10 +1669,10 @@ export class MeteogramCard extends LitElement {
 
             this.svg = window.d3.select(chartDiv)
                 .append("svg")
-                .attr("width", "100%")
-                .attr("height", "100%")
+                .attr("width", width)
+                .attr("height", height)
                 .attr("viewBox", `0 0 ${width + 140} ${height}`)
-                .attr("preserveAspectRatio", "none"); // Fill container, no aspect ratio
+                .attr("preserveAspectRatio", useAspectRatio ? "xMidYMid meet" : "none"); // Fill container, no aspect ratio
 
             // const maxHourSpacing = 90;
             // // Adjust chartWidth depending on pressureAvailable so that there is not a big gap on the right when it is not shown

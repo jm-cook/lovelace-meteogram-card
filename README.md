@@ -48,7 +48,7 @@ show_cloud_cover: true
 show_pressure: true
 show_weather_icons: true
 show_wind: true
-show_rain: true
+show_precipitation: true
 ```
 
 ### Weather Entity Mode
@@ -115,62 +115,113 @@ The meteogram retrieves weather data from the Met.no API or a Home Assistant wea
 
 ## Options
 
-| Name | Type | Default | Description |
-| ---- | ---- | ------- | ----------- |
-| title | string | Weather Forecast | Optional title for the card |
-| latitude | string | HA's default | Latitude for weather data |
-| longitude | string | HA's default | Longitude for weather data |
-| entity_id | string | none | Weather entity to use as data source |
-| show_cloud_cover | boolean | true | Show/hide cloud cover visualization |
-| show_pressure | boolean | true | Show/hide pressure curve |
-| show_weather_icons | boolean | true | Show/hide weather icons |
-| show_wind | boolean | true | Show/hide wind barbs section |
-| show_rain | boolean | true | Show/hide precipitation visualization |
-| meteogram_length | string | 48h | Number of hours to display in the meteogram (`12h`, `24h`, `48h`, `54h`, or `max`) |
-| focussed | boolean | false | Enable focus mode for a minimal chart display |
-| styles | object | {} | Custom CSS variables for card styling |
+| Name                  | Type     | Default         | Description                                                                                       |
+|-----------------------|----------|-----------------|---------------------------------------------------------------------------------------------------|
+| title                 | string   | "Weather Forecast" | Optional title for the card                                                                       |
+| latitude              | number   | HA's default    | Latitude for weather data                                                                         |
+| longitude             | number   | HA's default    | Longitude for weather data                                                                        |
+| entity_id             | string   | none            | Weather entity to use as data source                                                              |
+| show_cloud_cover      | boolean  | true            | Show/hide cloud cover visualization                                                               |
+| show_pressure         | boolean  | true            | Show/hide pressure curve                                                                          |
+| show_precipitation    | boolean  | true            | Show/hide precipitation visualization (replaces deprecated show_rain)                             |
+| show_weather_icons    | boolean  | true            | Show/hide weather icons                                                                           |
+| show_wind             | boolean  | true            | Show/hide wind barbs section                                                                      |
+| dense_weather_icons   | boolean  | true            | Show weather icons every hour (true) or every 2 hours (false)                                     |
+| meteogram_hours       | string   | "48h"           | Number of hours to display in the meteogram (`8h`, `12h`, `24h`, `48h`, `54h`, or `max`)          |
+| aspect_ratio          | string   | "16:9"          | Aspect ratio for the chart (e.g., "16:9", "4:3"). Only applies in panel/grid layout modes.      |
+| layout_mode           | string   | "sections"      | Layout mode for the card: "sections", "panel", or "grid"                                        |
+| diagnostics           | boolean  | false           | Show diagnostics/status panel (for troubleshooting)                                               |
+| display_mode          | string   | "full"          | Display mode: "full", "core", or "focussed" (use display_mode instead of deprecated focussed)   |
+| focussed              | boolean  | false           | (Deprecated) Use display_mode: "focussed" instead.                                               |
+| styles                | object   | {{}}            | Custom CSS variables for card styling                                                             |
 
-### Focus Mode
+### Option Notes
+- `show_precipitation` replaces the deprecated `show_rain` option. For backward compatibility, `show_rain` is still supported but will be ignored if `show_precipitation` is set.
+- `meteogram_hours` replaces the deprecated `meteogram_length` option. For backward compatibility, `meteogram_length` is still supported but will be ignored if `meteogram_hours` is set.
+- `layout_mode` controls the card's layout. Possible values:
+  - `sections` (default): Standard Home Assistant card layout.
+  - `panel`: Wide, single-panel layout (good for dashboards).
+  - `grid`: Grid layout for advanced dashboarding.
+- `aspect_ratio` only applies in `panel` or `grid` layout modes.
+- `diagnostics` enables a status panel for troubleshooting API/data issues.
+- `display_mode` is the preferred way to set the card's display style. Use `"focussed"` for a minimal chart-only view.
 
-Set `focussed: true` in your card config to enable focus mode.  
-Focus mode hides the card title, attribution and other text, and displays only the chart itself, 
-making it ideal for dashboards or kiosk views.
+### Layout Mode (`layout_mode`)
 
-**Example:**
+> **Experimental Option for Advanced/Legacy Views**
+
+The `layout_mode` option controls the overall layout of the meteogram card. The default and recommended value is `sections`, which is designed to integrate seamlessly with Home Assistant's modern dashboard experience.
+
+- **sections** (default, recommended):
+  - The primary and best-supported view for meteogram-card.
+  - Uses Home Assistant's standard card layout, ensuring maximum compatibility and visual consistency.
+  - All features and options are tested and optimized for this mode.
+- **panel** (experimental):
+  - Renders the chart in a wide, single-panel layout.
+  - Useful for legacy dashboards or custom kiosk views.
+  - Some features or styling may not be as robust as in `sections` mode.
+- **grid** (experimental):
+  - Places the chart in a grid layout for advanced dashboarding.
+  - Intended for power users and special use cases.
+  - May not be fully supported in all Home Assistant themes or dashboard types.
+
+> **Note:** The `panel` and `grid` modes are provided for advanced users and legacy compatibility. Most users should use the default `sections` mode for the best experience.
+
+> **Note:** The `layout_mode` option is **not available in the visual (interactive) editor**. To use `layout_mode`, you must open the YAML editor (click "Show code editor" in the card configuration dialog) and add the option manually. This is because `layout_mode` is an advanced/experimental feature and not exposed in the standard UI.
+
+### Aspect Ratio (`aspect_ratio`)
+
+> **Only applies in `panel` or `grid` layout modes**
+
+The `aspect_ratio` option allows you to control the width-to-height ratio of the chart area. This is only relevant if you are using `layout_mode: panel` or `layout_mode: grid`.
+
+- Examples: `16:9` (default), `4:3`, `1:1`, `21:9`, `3:2`, or a custom value like `1.6` or `5:3`.
+- Has no effect in the default `sections` layout mode.
+
+**Recommended:**
+- Use the default `sections` layout for most dashboards. Only use `panel` or `grid` (and thus `aspect_ratio`) if you have a specific advanced use case or are maintaining a legacy dashboard.
+
+### Example Configuration
+
 ```yaml
 type: custom:meteogram-card
-focussed: true
-```
-
-### meteogram_length
-
-The `meteogram_length` option allows you to specify the number of hours to display in the meteogram.  
-Accepted values: **12h**, **24h**, **48h**, **54h**, or **max** (as provided by the Met.no location forecast or entity).  
-If not set, the default value is **48h**.
-
-**Example:**
-```yaml
-type: 'custom:meteogram-card'
-meteogram_length: 24h  # Shows 24 hours in the meteogram
-```
-
-**Example (max available):**
-```yaml
-type: 'custom:meteogram-card'
-meteogram_length: max  # Shows the maximum available hours from Met.no or entity
-```
-
-### styles
-
-The `styles` option allows you to override CSS variables for the card, enabling custom colors and appearance.  
-You can set any supported CSS variable (see [STYLES.md](doc/STYLES.md) for details).
-
-**Example: Change background and text color**
-```yaml
-type: custom:meteogram-card
+title: Weather Forecast
+latitude: 51.5074
+longitude: -0.1278
+entity_id: weather.home
+show_cloud_cover: true
+show_pressure: true
+show_precipitation: true
+show_weather_icons: true
+show_wind: true
+dense_weather_icons: true
+meteogram_hours: 48h
+aspect_ratio: "16:9"
+layout_mode: sections
+diagnostics: false
+display_mode: full
 styles:
-  --card-background-color: "#222"
-  --primary-text-color: "#fff"
+  --meteogram-label-font-size: "16px"
+  --meteogram-grid-color: "#1976d2"
+```
+
+#### Example: Focussed Mode (Minimal Chart)
+```yaml
+type: custom:meteogram-card
+display_mode: focussed
+```
+
+#### Example: Panel Layout with Custom Aspect Ratio
+```yaml
+type: custom:meteogram-card
+layout_mode: panel
+aspect_ratio: "21:9"
+```
+
+#### Example: Diagnostics Panel Enabled
+```yaml
+type: custom:meteogram-card
+diagnostics: true
 ```
 
 ## Note on Color Codes in Documentation
