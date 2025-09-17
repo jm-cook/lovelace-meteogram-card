@@ -224,26 +224,107 @@ export class WeatherEntityAPI {
 }
 
 /**
- * Map HA weather entity 'condition' values to Met.no weather icon names.
+ * Map HA weather entity 'condition' values to Met.no weather icon names, with day/night support.
+ * Covers all standard and many custom HA conditions, and only uses day/night variants where they exist in Met.no.
+ * @param condition The HA condition string
+ * @param date The forecast time (Date)
+ * @param isDaytime Boolean: true if day, false if night
  */
-export function mapHaConditionToMetnoSymbol(condition: string): string {
-    const mapping: Record<string, string> = {
-        "clear-night": "clearsky_night",
-        "cloudy": "cloudy",
-        "fog": "fog",
-        "hail": "heavyrainshowers",
-        "lightning": "lightrainshowers",
-        "lightning-rainy": "lightrainshowers",
-        "partlycloudy": "partlycloudy_day",
-        "pouring": "heavyrain",
-        "rainy": "rain",
-        "snowy": "snow",
-        "snowy-rainy": "sleet",
-        "sunny": "clearsky_day",
-        "windy": "fair_day",
-        "windy-variant": "fair_day",
-        "exceptional": "clearsky_day"
+export function mapHaConditionToMetnoSymbol(condition: string, date?: Date, isDaytime?: boolean): string {
+    // Reference: https://github.com/metno/weathericons/tree/main/weather (README)
+    // If isDaytime is undefined, fallback to 6:00-18:00 as day
+    let day = isDaytime;
+    if (day === undefined && date instanceof Date) {
+        const hour = date.getHours();
+        day = hour >= 6 && hour < 18;
+    }
+    // Only these icons have _day/_night variants in Met.no set
+    const hasDayNight = new Set([
+        'clearsky', 'partlycloudy', 'fair',
+        'rainshowers', 'heavyrainshowers', 'lightrainshowers',
+        'snowshowers', 'heavysnowshowers', 'lightsnowshowers',
+        'sleetshowers', 'heavysleetshowers', 'lightsleetshowers',
+        'rainshowersandthunder', 'heavyrainshowersandthunder', 'lightrainshowersandthunder',
+        'snowshowersandthunder', 'heavysnowshowersandthunder', 'lightsnowshowersandthunder',
+        'sleetshowersandthunder', 'heavysleetshowersandthunder', 'lightsleetshowersandthunder',
+        'hailshowers', 'hailshowersandthunder',
+        'rainshowerspolartwilight', 'snowshowerspolartwilight', 'sleetshowerspolartwilight', 'hailshowerspolartwilight',
+        'rainshowersandthunderpolartwilight', 'snowshowersandthunderpolartwilight', 'sleetshowersandthunderpolartwilight', 'hailshowersandthunderpolartwilight',
+        'clearsky_polartwilight', 'partlycloudy_polartwilight', 'fair_polartwilight'
+    ]);
+    // Helper to append _day/_night if needed
+    const dn = (base: string) => (hasDayNight.has(base) && day !== undefined ? base + (day ? '_day' : '_night') : base);
+    // Expanded mapping for all known HA conditions and common custom ones
+    const mapping: Record<string, string|((d?:Date,day?:boolean)=>string)> = {
+        // Standard HA conditions
+        "clear-night": () => "clearsky_night",
+        "clear-day": () => "clearsky_day",
+        "sunny": () => "clearsky_day",
+        "cloudy": () => "cloudy",
+        "overcast": () => "cloudy",
+        "mostlycloudy": () => "cloudy",
+        "partlycloudy": () => dn("partlycloudy"),
+        "partly-sunny": () => dn("partlycloudy"),
+        "partly-cloudy-night": () => "partlycloudy_night",
+        "fog": () => "fog",
+        "hail": () => "hail",
+        "lightning": () => "thunderstorm",
+        "lightning-rainy": () => dn("rainshowersandthunder"),
+        "pouring": () => "heavyrain",
+        "rainy": () => "rain",
+        "drizzle": () => "lightrain",
+        "freezing-rain": () => "sleet",
+        "snowy": () => "snow",
+        "snowy-rainy": () => "sleet",
+        "windy": () => dn("fair"),
+        "windy-variant": () => dn("fair"),
+        "exceptional": () => "clearsky_day",
+        // Extra/rare conditions
+        "hot": () => "clearsky_day",
+        "cold": () => day === false ? "clearsky_night" : "clearsky_day",
+        // Direct Met.no symbol codes (for Met.no API users)
+        "fair": () => dn("fair"),
+        "rainshowers": () => dn("rainshowers"),
+        "heavyrainshowers": () => dn("heavyrainshowers"),
+        "lightrainshowers": () => dn("lightrainshowers"),
+        "snowshowers": () => dn("snowshowers"),
+        "heavysnowshowers": () => dn("heavysnowshowers"),
+        "lightsnowshowers": () => dn("lightsnowshowers"),
+        "sleetshowers": () => dn("sleetshowers"),
+        "heavysleetshowers": () => dn("heavysleetshowers"),
+        "lightsleetshowers": () => dn("lightsleetshowers"),
+        "rainshowersandthunder": () => dn("rainshowersandthunder"),
+        "heavyrainshowersandthunder": () => dn("heavyrainshowersandthunder"),
+        "lightrainshowersandthunder": () => dn("lightrainshowersandthunder"),
+        "snowshowersandthunder": () => dn("snowshowersandthunder"),
+        "heavysnowshowersandthunder": () => dn("heavysnowshowersandthunder"),
+        "lightsnowshowersandthunder": () => dn("lightsnowshowersandthunder"),
+        "sleetshowersandthunder": () => dn("sleetshowersandthunder"),
+        "heavysleetshowersandthunder": () => dn("heavysleetshowersandthunder"),
+        "lightsleetshowersandthunder": () => dn("lightsleetshowersandthunder"),
+        "hailshowers": () => dn("hailshowers"),
+        "hailshowersandthunder": () => dn("hailshowersandthunder"),
+        // Non-day/night Met.no codes
+        "rain": () => "rain",
+        "heavyrain": () => "heavyrain",
+        "lightrain": () => "lightrain",
+        "snow": () => "snow",
+        "heavysnow": () => "heavysnow",
+        "lightsnow": () => "lightsnow",
+        "sleet": () => "sleet",
+        "heavysleet": () => "heavysleet",
+        "lightsleet": () => "lightsleet",
+        "thunderstorm": () => "thunderstorm",
+        "clearsky": () => dn("clearsky")
     };
-    // Default to condition itself if not mapped
-    return mapping[condition] || condition;
+    // Normalize condition to lowercase for mapping
+    const cond = condition ? condition.toLowerCase() : "";
+    const entry = mapping[cond];
+    if (typeof entry === 'function') return entry(date, day);
+    if (typeof entry === 'string') return entry;
+    // Fallback: if condition ends with -night, use _night, if -day or -daytime, use _day
+    if (cond.endsWith('-night')) return cond.replace('-night', '_night');
+    if (cond.endsWith('-day') || cond.endsWith('-daytime')) return cond.replace(/-day(time)?$/, '_day');
+    // Fallback: unknown condition, use clearsky_day or clearsky_night
+    return day === false ? "clearsky_night" : "clearsky_day";
 }

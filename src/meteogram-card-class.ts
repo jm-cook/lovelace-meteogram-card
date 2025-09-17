@@ -89,6 +89,19 @@ export class MeteogramCard extends LitElement {
             const response = await fetch(iconUrl);
 
             if (!response.ok) {
+                // Fallback: if iconName ends with _day or _night, try base icon
+                if (iconName.endsWith('_day') || iconName.endsWith('_night')) {
+                    const baseIcon = iconName.replace(/_(day|night)$/, '');
+                    const fallbackUrl = `${this.iconBasePath}${baseIcon}.svg`;
+                    const fallbackResponse = await fetch(fallbackUrl);
+                    if (fallbackResponse.ok) {
+                        const svgText = await fallbackResponse.text();
+                        if (svgText.includes('<svg') && svgText.length > 20) {
+                            this.iconCache.set(baseIcon, svgText);
+                            return svgText;
+                        }
+                    }
+                }
                 console.warn(`Failed to load icon: ${iconName}, status: ${response.status}`);
                 return '';
             }
@@ -1319,6 +1332,7 @@ export class MeteogramCard extends LitElement {
     private _currentUnits: ForecastData['units'] = {};
 
     async fetchWeatherData(): Promise<ForecastData> {
+        this.logMethodEntry('fetchWeatherData', { entityId: this.entityId, lat: this.latitude, lon: this.longitude });
         if (this.entityId && this.entityId !== 'none' && !this._weatherEntityApiInstance) {
             if (this.hass) {
                 console.debug(`[${CARD_NAME}] Initializing WeatherEntityAPI for entity: ${this.entityId}`, this._weatherEntityApiInstance);
@@ -1414,11 +1428,16 @@ export class MeteogramCard extends LitElement {
                 else if (this.meteogramHours === "max") hours = result.time.length;
 
                 // Only keep the first N hours
-                if (hours < result.time.length) {
-                    Object.keys(result).forEach((key) => {
+                // Only slice array properties, not units or fetchTimestamp
+                const arrayKeys = [
+                    "pressure", "time", "temperature", "rain", "rainMin", "rainMax",
+                    "snow", "cloudCover", "windSpeed", "windDirection", "symbolCode"
+                ];
+                arrayKeys.forEach((key) => {
+                    if (Array.isArray((result as any)[key])) {
                         (result as any)[key] = (result as any)[key].slice(0, hours);
-                    });
-                }
+                    }
+                });
                 // this._scheduleDrawMeteogram();
 
                 // Update _statusLastFetch with weatherApi._lastFetchTime if available
@@ -1434,6 +1453,7 @@ export class MeteogramCard extends LitElement {
                 this._statusApiSuccess = false;
                 let diag = weatherApi.getDiagnosticText();
                 this.setError(diag);
+                this.logErrorContext('fetchWeatherData', error);
                 throw new Error(`<br>Failed to get weather data: ${(error as Error).message}\n<br>Check your network connection, browser console, and API accessibility.\n\n${diag}`);
             } finally {
                 // Do NOT clear weatherDataPromise here, so repeated calls use the same promise
@@ -1466,6 +1486,7 @@ export class MeteogramCard extends LitElement {
     }
 
     async _drawMeteogram(caller: string = "unknown") {
+        this.logMethodEntry('_drawMeteogram', { caller });
         console.debug(`[${CARD_NAME}] _drawMeteogram called from: ${caller}`);
         // Limit excessive error messages
         const now = Date.now();
@@ -1555,6 +1576,7 @@ export class MeteogramCard extends LitElement {
     }
 
     private _renderChart(chartDiv: Element, source: string = "unknown") {
+        this.logMethodEntry('_renderChart', { source });
         console.debug(`[${CARD_NAME}] _renderChart called from: ${source}`);
 
         // Queue logic: If already rendering, do not start another
@@ -1694,7 +1716,13 @@ export class MeteogramCard extends LitElement {
                     this._drawMeteogram("retry-entity-unavailable");
                 }, 500); // Retry every 0.5 seconds
             } else {
-                this.setError("Weather data not available, retrying in 60 seconds");
+                // If a diagnostic error is already present, append the retry message
+                if (this.meteogramError && this.meteogramError.includes("API Error")) {
+                    this.meteogramError +=
+                        `<br><span style='color:#b71c1c;'>Weather data not available, retrying in 60 seconds</span>`;
+                } else {
+                    this.setError("Weather data not available, retrying in 60 seconds");
+                }
                 if (this._weatherRetryTimeout) clearTimeout(this._weatherRetryTimeout);
                 this._weatherRetryTimeout = window.setTimeout(() => {
                     this.meteogramError = "";
@@ -1716,11 +1744,33 @@ export class MeteogramCard extends LitElement {
             }
         });
     }
-
     // Add a helper to get the HA locale string for date formatting
     private getHaLocale(): string {
         // Use hass.language if available, fallback to "en"
         return (this.hass && this.hass.language) ? this.hass.language : "en";
+    }
+    // Add a helper to determine if day or night based on time and location
+    private isDaytimeAt(date: Date): boolean {
+        // 1. Try weather entity attributes
+        if (this.entityId && this.hass && this.hass.states && this.hass.states[this.entityId]) {
+            const attrs = this.hass.states[this.entityId].attributes || {};
+            if (attrs.sunrise && attrs.sunset) {
+                const sunrise = new Date(attrs.sunrise);
+                const sunset = new Date(attrs.sunset);
+                if (date >= sunrise && date < sunset) return true;
+                return false;
+            }
+        }
+        // 2. Try sun.sun entity
+        if (this.hass && this.hass.states && this.hass.states['sun.sun']) {
+            const sunAttrs = this.hass.states['sun.sun'].attributes || {};
+            if (typeof sunAttrs.elevation === 'number') {
+                return sunAttrs.elevation > 0;
+            }
+        }
+        // 3. Fallback: 6:00-18:00 is day
+        const hour = date.getHours();
+        return hour >= 6 && hour < 18;
     }
 
     // Update renderMeteogram to add windBarbBand and hourLabelBand as arguments
@@ -2156,12 +2206,17 @@ export class MeteogramCard extends LitElement {
                     // Always use remapped Met.no icon names
                     let iconName = d;
                     if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
-                        iconName = mapHaConditionToMetnoSymbol(d);
-                    } else {
-                        iconName = d
-                            .replace(/^lightssleet/, 'lightsleet')
-                            .replace(/^lightssnow/, 'lightsnow');
+                        const forecastTime = data.time[i];
+                        const isDay = this.isDaytimeAt(forecastTime);
+                        iconName = mapHaConditionToMetnoSymbol(d, forecastTime, isDay);
                     }
+                    // Fallback mapping for known Met.no icon typos or missing variants (apply after mapping)
+                    iconName = iconName
+                        .replace(/^lightssleet/, 'lightsleet')
+                        .replace(/^lightssnow/, 'lightsnow')
+                        .replace(/^lightrainshowers$/, 'lightrainshowersday')
+                        .replace(/^rainshowers$/, 'rainshowersday')
+                        .replace(/^heavyrainshowers$/, 'heavyrainshowersday');
 
                     this.getIconSVG(iconName).then(svgContent => {
                         if (svgContent) {
@@ -2660,8 +2715,25 @@ export class MeteogramCard extends LitElement {
         }
     }
 
+    // Add a logging helper to log method entry and errors with context
+    private logMethodEntry(method: string, context?: any) {
+        if (context !== undefined) {
+            console.debug(`[${CARD_NAME}] ENTER: ${method}`, context);
+        } else {
+            console.debug(`[${CARD_NAME}] ENTER: ${method}`);
+        }
+    }
+    private logErrorContext(context: string, error: any) {
+        if (error instanceof Error) {
+            console.error(`[${CARD_NAME}] ERROR in ${context}:`, error.message, error.stack);
+        } else {
+            console.error(`[${CARD_NAME}] ERROR in ${context}:`, error);
+        }
+    }
+
     // Helper method to set errors with rate limiting
     setError(message: string) {
+        this.logMethodEntry('setError', { message });
         const now = Date.now();
 
         // Always show full error as HTML if diagnostics is enabled

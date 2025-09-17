@@ -80,7 +80,7 @@ export class WeatherAPI {
     }
 
     getDiagnosticText(): string {
-        let diag = `<br><b>API Error</b><br>`;
+        let diag = `<br><b>Weather API Error</b><br>`;
         if (this.lastError instanceof Error) {
             diag += `Error: <code>${this.lastError.message}</code><br>`;
         } else if (this.lastError !== undefined && this.lastError !== null) {
