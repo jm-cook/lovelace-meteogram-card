@@ -1,3 +1,20 @@
+## v3.0.2 – Improved Legacy Dashboard Scaling & Altitude Option
+
+**Highlights:**
+- **Improved Scaling for Legacy Dashboards (Experimental):**
+  - The card now scales and sizes more reliably on dashboards that do not use Home Assistant's new sections layout. This ensures better appearance and usability on older or custom dashboard setups.
+  - **Note:** This improved scaling is experimental and is not likely to be further developed or improved in the future.
+  - **Details:** For more information, see the documentation.
+- **Optional Altitude for Met.no API:**
+  - You can now specify an `altitude` parameter in the card configuration. This is passed to the Met.no API for more accurate weather forecasts, especially in mountainous regions.
+
+**Upgrade Notes:**
+- No breaking changes. Existing configuration will continue to work.
+- If you use the Met.no API and want more accurate forecasts for high-altitude locations, add the `altitude` option to your card config.
+- Improved scaling is automatic; no configuration changes are required.
+
+---
+
 ## v3.0.1 – Display Mode Feature, Sizing & Fahrenheit Fixes
 
 **Highlights:**
@@ -263,4 +280,3 @@ Improved logic reducing unnecessary calls to api.
 
 **Upgrade Recommendation:**  
 Update to this release if you encountered "Failed to fetch weather data" errors, issues with API connectivity, or want improved dark mode support.
-

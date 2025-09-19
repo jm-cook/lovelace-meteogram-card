@@ -120,6 +120,7 @@ The meteogram retrieves weather data from the Met.no API or a Home Assistant wea
 | title                 | string   | "Weather Forecast" | Optional title for the card                                                                       |
 | latitude              | number   | HA's default    | Latitude for weather data                                                                         |
 | longitude             | number   | HA's default    | Longitude for weather data                                                                        |
+| altitude              | number   | HA's default    | Altitude (in meters) for weather data. Optional; improves accuracy for some locations.            |
 | entity_id             | string   | none            | Weather entity to use as data source                                                              |
 | show_cloud_cover      | boolean  | true            | Show/hide cloud cover visualization                                                               |
 | show_pressure         | boolean  | true            | Show/hide pressure curve                                                                          |
@@ -145,6 +146,7 @@ The meteogram retrieves weather data from the Met.no API or a Home Assistant wea
 - `aspect_ratio` only applies in `panel` or `grid` layout modes.
 - `diagnostics` enables a status panel for troubleshooting API/data issues.
 - `display_mode` is the preferred way to set the card's display style. Use `"focussed"` for a minimal chart-only view.
+- `altitude` is optional and can be set to improve forecast accuracy for locations at significant elevation. If not set, the Home Assistant default altitude is used (if available).
 
 ### Layout Mode (`layout_mode`)
 
@@ -405,3 +407,36 @@ The following are the default CSS variables for the card. You can override these
 ```
 
 *Note: The default grid color in dark mode is now a dark grey (`#444`). This improves contrast and visual clarity in dark mode. Override with `--meteogram-grid-color-dark` if desired.*
+
+### Wind Barbs
+
+The meteogram displays wind speed and direction using professional-style wind barbs, a standard meteorological symbol. Each wind barb is plotted at the corresponding forecast hour and visually encodes both the wind speed and the direction:
+
+- **Direction:**
+  - The shaft of the wind barb points in the direction **from which** the wind is blowing.
+  - **North is up** on the chart, so a barb pointing straight up means wind is coming from the north (blowing south).
+  - For example, a barb pointing to the right (east) means wind is coming from the east (blowing west).
+- **Speed:**
+  - Wind speed is indicated by the number and type of barbs (feathers) and flags on the shaft:
+    - **Short feather:** 5 knots
+    - **Long feather:** 10 knots
+    - **Triangle (flag):** 50 knots (not used in this card; only short and long feathers are shown)
+  - The total wind speed is the sum of the values of all feathers on the barb.
+  - For example, a barb with two long feathers and one short feather represents 25 knots (10 + 10 + 5).
+  - If the wind is very light (less than 2 knots), a small circle is drawn instead of a barb ("calm").
+- **Placement:**
+  - Wind barbs are shown in a dedicated band below the main chart area, aligned with the forecast hour.
+  - The length of the shaft and the size of the feathers are scaled for readability.
+- **Gusts:**
+  - **Wind gusts are currently not shown** in the meteogram. Only the sustained wind speed and direction are visualized. If your data source provides gust information, it will not be displayed in the wind barb band at this time.
+
+**Reading the wind barbs:**
+- The orientation of the shaft shows the wind's origin direction (where it's coming from).
+- The number and type of feathers show the wind speed in knots.
+- Calm winds (less than 2 knots) are shown as a small circle.
+
+**Example:**
+- A wind barb pointing up with one long and one short feather: wind from the north at 15 knots.
+- A wind barb pointing left with two long feathers: wind from the west at 20 knots.
+
+This visualization allows you to quickly assess both the strength and direction of the wind at each forecast hour, just as in professional meteorological charts.

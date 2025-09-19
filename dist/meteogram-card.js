@@ -3652,21 +3652,53 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Attribution tooltip content
         let attributionTooltip = "";
         if (this.entityId && this.entityId !== 'none' && this.entityAttribution) {
+            let integrationName = "";
+            let integrationDocUrl = "";
+            if (this.entityId) {
+                const parts = this.entityId.split(".");
+                if (parts.length === 2) {
+                    parts[0];
+                    const platform = parts[1];
+                    // Map known platforms to friendly names and docs
+                    const knownIntegrations = {
+                        "openweathermap": { name: "OpenWeatherMap", url: "https://www.home-assistant.io/integrations/openweathermap/" },
+                        "met": { name: "Met.no (Norwegian Meteorological Institute)", url: "https://www.home-assistant.io/integrations/met/" },
+                        "accuweather": { name: "AccuWeather", url: "https://www.home-assistant.io/integrations/accuweather/" },
+                        "pirateweather": { name: "Pirate Weather", url: "https://www.home-assistant.io/integrations/pirateweather/" },
+                        "tomorrowio": { name: "Tomorrow.io", url: "https://www.home-assistant.io/integrations/tomorrowio/" },
+                        "weatherbit": { name: "Weatherbit", url: "https://www.home-assistant.io/integrations/weatherbit/" },
+                        "forecast_solar": { name: "Forecast.Solar", url: "https://www.home-assistant.io/integrations/forecast_solar/" },
+                        // Add more as needed
+                    };
+                    // Try to match platform (second part of entityId)
+                    if (knownIntegrations[platform]) {
+                        integrationName = knownIntegrations[platform].name;
+                        integrationDocUrl = knownIntegrations[platform].url;
+                    }
+                    else {
+                        // Fallback: use platform as name
+                        integrationName = platform.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                        integrationDocUrl = '';
+                    }
+                }
+            }
             attributionTooltip = `
                 <div style='padding:8px;max-width:320px;'>
                     <div style='margin-bottom:4px;'>${this.entityAttribution}</div>
+                    <div style='margin-top:6px;font-size:0.97em;color:#555;'>
+                        Integration: ${integrationDocUrl ? `<a href='${integrationDocUrl}' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>${integrationName}</a>` : integrationName}
+                        <span style='color:#888;'>(${this.entityId})</span>
+                    </div>
                 </div>
             `;
         }
         else {
             attributionTooltip = `
                 <div style='padding:8px;max-width:320px;'>
-                    <div style='margin-bottom:4px;'>${trnslt(this.hass, "ui.card.meteogram.attribution", "Data from")} <a href='https://met.no/' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>met.no</a></div>
-                    <div>${this._lastApiSuccess
-                ? trnslt(this.hass, 'ui.card.meteogram.status.success', 'success')
-                : this._statusApiSuccess === null
-                    ? trnslt(this.hass, 'ui.card.meteogram.status.cached', 'cached')
-                    : trnslt(this.hass, 'ui.card.meteogram.status.failed', 'failed')}<br>${successTooltip}</div>
+                    <div style='margin-bottom:4px;'>
+                        Weather data from <a href='https://www.met.no/en' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>the Norwegian Meteorological Institute (MET Norway)</a>,
+                        licensed under <a href='https://creativecommons.org/licenses/by/4.0/' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>CC BY 4.0</a>
+                    </div>
                 </div>
             `;
         }
