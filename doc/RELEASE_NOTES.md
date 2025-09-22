@@ -1,3 +1,19 @@
+## v3.0.3 – Wind Barb Direction Correction
+
+**Highlights:**
+- **Wind Barb Direction Fixed:**
+  - Wind barbs now correctly point in the direction the wind is blowing *from* (meteorological standard), rather than the direction the wind is blowing *to*.
+    - This change aligns with standard meteorological conventions and improves the accuracy of wind representation in the chart.
+    - For example, a wind barb pointing to the right indicates wind coming from the east (i.e., an easterly wind).
+    - Previously, wind barbs pointed in the direction the wind was blowing, which could lead to confusion.
+    - This change only affects the visual representation; the underlying wind direction data remains unchanged.
+    
+**Upgrade Notes:**
+- No breaking changes. If you use wind barbs, you will see them now point in the correct direction (from the wind source).
+- All other features remain unchanged.
+
+---
+
 ## v3.0.2 – Improved Legacy Dashboard Scaling & Altitude Option
 
 **Highlights:**

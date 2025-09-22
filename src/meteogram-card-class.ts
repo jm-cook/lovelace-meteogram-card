@@ -2550,7 +2550,7 @@ export class MeteogramCard extends LitElement {
         const featherYOffset = 3;
 
         const barbGroup = g.append("g")
-            .attr("transform", `translate(${x},${y}) rotate(${dirDeg}) scale(${scale})`);
+            .attr("transform", `translate(${x},${y}) rotate(${(dirDeg + 180) % 360}) scale(${scale})`);
 
         const y0 = -len / 2, y1 = +len / 2;
 
