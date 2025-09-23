@@ -1212,6 +1212,81 @@ export class MeteogramCard extends LitElement {
         this._updateDarkMode(); // Always check dark mode after update
     }
 
+    /**
+     * Draw temperature line (converted data)
+     */
+    private drawTemperatureLine(chart: any, temperature: (number|null)[], x: any, yTemp: any) {
+        const d3 = window.d3;
+        const line = d3.line()
+            .defined((d: number | null) => d !== null)
+            .x((_: number | null, i: number) => x(i))
+            .y((_: number | null, i: number) => temperature[i] !== null ? yTemp(temperature[i]) : 0)
+            .curve(d3.curveMonotoneX);
+        chart.append("path")
+            .datum(temperature)
+            .attr("class", "temp-line")
+            .attr("d", line)
+            .attr("stroke", "currentColor");
+    }
+
+    /**
+     * Draw pressure line (converted data)
+     */
+    private drawPressureLine(chart: any, pressure: (number|null)[], x: any, yPressure: any, legendX?: number, legendY?: number) {
+        const d3 = window.d3;
+        const pressureLine = d3.line()
+            .defined((d: number | null) => d !== null && typeof d === "number" && !isNaN(d))
+            .x((_: number, i: number) => x(i))
+            .y((d: number | null) => yPressure(d as number));
+        chart.append("path")
+            .datum(pressure)
+            .attr("class", "pressure-line")
+            .attr("d", pressureLine)
+            .attr("stroke", "currentColor");
+        // Render legend if legendX and legendY are provided
+        if (legendX !== undefined && legendY !== undefined) {
+            chart.append("text")
+                .attr("class", "legend legend-pressure")
+                .attr("x", legendX)
+                .attr("y", legendY)
+                .attr("text-anchor", "start")
+                .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)");
+        }
+    }
+
+    /**
+     * Draw cloud cover band (handles nulls as zeros)
+     */
+    private drawCloudBand(chart: any, cloudCover: (number|null)[], N: number, x: any, chartHeight: number, legendX?: number, legendY?: number) {
+        const d3 = window.d3;
+        // Filter out nulls for cloudCover array
+        const cloudFiltered = cloudCover.map(c => c ?? 0);
+        const bandTop = chartHeight * 0.01;
+        const bandHeight = chartHeight * 0.20;
+        const cloudBandPoints: [number, number][] = [];
+        for (let i = 0; i < N; i++) {
+            cloudBandPoints.push([x(i), bandTop + (bandHeight / 2) * (1 - cloudFiltered[i] / 100)]);
+        }
+        for (let i = N - 1; i >= 0; i--) {
+            cloudBandPoints.push([x(i), bandTop + (bandHeight / 2) * (1 + cloudFiltered[i] / 100)]);
+        }
+        chart.append("path")
+            .attr("class", "cloud-area")
+            .attr("d", d3.line()
+                .x((d: [number, number]) => d[0])
+                .y((d: [number, number]) => d[1])
+                .curve(d3.curveLinearClosed)(cloudBandPoints));
+        // Render legend if legendX and legendY are provided
+        if (legendX !== undefined && legendY !== undefined) {
+            chart.append("text")
+                .attr("class", "legend legend-cloud")
+                .attr("x", legendX)
+                .attr("y", legendY)
+                .attr("text-anchor", "start")
+                .text(trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + ` (%)`);
+        }
+    }
+
     // Helper to encode cache key as base64 of str(lat)+str(lon)
     private static encodeCacheKey(lat: number, lon: number): string {
         const keyStr = String(lat) + String(lon);
@@ -1553,6 +1628,270 @@ export class MeteogramCard extends LitElement {
         }
     }
 
+    private drawRainBars(
+        chart: any,
+        rain: (number|null)[],
+        rainMax: (number|null)[],
+        snow: (number|null)[],
+        N: number,
+        x: any,
+        yPrecip: any,
+        dx: number,
+        chartHeight: number,
+        snowAvailable: boolean,
+        legendX?: number,
+        legendY?: number
+    ) {
+        // Convert nulls to zeros for drawing
+        // rain = rain.map(r => r ?? 0);
+        // rainMax = rainMax.map(r => r ?? 0);
+        // snow = snow.map(r => r ?? 0);
+
+        const barWidth = dx * 0.8;
+        // Draw the max rain range bars first (if present)
+        chart.selectAll(".rain-max-bar")
+            .data(rainMax.slice(0, N - 1))
+            .enter()
+            .append("rect")
+            .attr("class", "rain-max-bar")
+            .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
+            .attr("y", (d: number) => {
+                const h = chartHeight - yPrecip(d);
+                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
+                return yPrecip(0) - scaledH;
+            })
+            .attr("width", barWidth)
+            .attr("height", (d: number) => {
+                const h = chartHeight - yPrecip(d);
+                return h < 2 && d > 0 ? 2 : h * 0.7;
+            })
+            .attr("fill", "currentColor");
+
+        // Draw main rain bars (foreground, deeper blue)
+        chart.selectAll(".rain-bar")
+            .data(rain.slice(0, N - 1))
+            .enter().append("rect")
+            .attr("class", "rain-bar")
+            .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
+            .attr("y", (d: number) => {
+                const h = chartHeight - yPrecip(d);
+                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+                return yPrecip(0) - scaledH;
+            })
+            .attr("width", barWidth)
+            .attr("height", (d: number) => {
+                const h = chartHeight - yPrecip(d);
+                return h < 2 && d > 0 ? 2 : h * 0.7;
+            })
+            .attr("fill", "currentColor");
+
+        // Add main rain labels (show if rain > 0)
+        chart.selectAll(".rain-label")
+            .data(rain.slice(0, N - 1))
+            .enter()
+            .append("text")
+            .attr("class", "rain-label")
+            .attr("x", (_: number, i: number) => x(i) + dx / 2)
+            .attr("y", (d: number) => {
+                const h = chartHeight - yPrecip(d);
+                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+                return yPrecip(0) - scaledH - 4; // 4px above the top of the bar
+            })
+            .text((d: number) => {
+                if (d <= 0) return "";
+                return d < 1 ? d.toFixed(1) : d.toFixed(0);
+            })
+            .attr("opacity", (d: number) => d > 0 ? 1 : 0);
+
+        // Add max rain labels (show if max > rain)
+        chart.selectAll(".rain-max-label")
+            .data(rainMax.slice(0, N - 1))
+            .enter()
+            .append("text")
+            .attr("class", "rain-max-label")
+            .attr("x", (_: number, i: number) => x(i) + dx / 2)
+            // Remove unused 'i' from the function signature
+            .attr("y", (d: number) => {
+                const h = chartHeight - yPrecip(d);
+                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+                return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
+            })
+            .text((d: number, i: number) => {
+                const rainValue = rain?.[i] ?? 0;
+                if (d <= rainValue) return "";
+                return d < 1 ? d.toFixed(1) : d.toFixed(0);
+            })
+            .attr("opacity", (d: number, i: number) => {
+                const rainValue = rain?.[i] ?? 0;
+                return (d > rainValue) ? 1 : 0;
+            });
+
+        // Draw snow bars with a different style if present
+        if (snowAvailable) {
+            chart.selectAll(".snow-bar")
+                .data(snow.slice(0, N - 1))
+                .enter().append("rect")
+                .attr("class", "snow-bar")
+                .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
+                .attr("y", (d: number) => {
+                    const h = chartHeight - yPrecip(d);
+                    const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+                    return yPrecip(0) - scaledH; // 18px above the top of the max bar
+                })
+                .attr("width", barWidth)
+                .attr("height", (d: number) => {
+                    const h = chartHeight - yPrecip(d);
+                    return h < 2 && d > 0 ? 2 : h * 0.7;
+                })
+                .attr("fill", "currentColor");
+        }
+
+        // Add precipitation legend if coordinates are provided
+        if (legendX !== undefined && legendY !== undefined) {
+            const precipUnit = this.getSystemPrecipitationUnit();
+            chart.append("text")
+                .attr("class", "legend legend-rain")
+                .attr("x", legendX)
+                .attr("y", legendY)
+                .attr("text-anchor", "start")
+                .text(trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Precipitation") + ` (${precipUnit})`);
+        }
+
+    }
+
+    /**
+     * Draw weather icons along the temperature curve (minimal helper)
+     */
+    private drawWeatherIcons(chart: any, symbolCode: string[], temperatureConverted: (number|null)[], x: any, yTemp: any, data: ForecastData, iconInterval: number) {
+        chart.selectAll(".weather-icon")
+            .data(symbolCode)
+            .enter()
+            .append("foreignObject")
+            .attr("class", "weather-icon")
+            .attr("x", (_: string, i: number) => x(i) - 20)
+            .attr("y", (_: string, i: number) => {
+                const temp = temperatureConverted[i];
+                return temp !== null ? yTemp(temp) - 40 : -999;
+            })
+            .attr("width", 40)
+            .attr("height", 40)
+            .attr("opacity", (_: string, i: number) =>
+                (temperatureConverted[i] !== null && i % iconInterval === 0) ? 1 : 0)
+            .each((d: string, i: number, nodes: any) => {
+                if (i % iconInterval !== 0) return;
+                const node = nodes[i];
+                if (!d) return;
+                let iconName = d;
+                if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
+                    const forecastTime = data.time[i];
+                    const isDay = this.isDaytimeAt(forecastTime);
+                    iconName = mapHaConditionToMetnoSymbol(d, forecastTime, isDay);
+                }
+                iconName = iconName
+                    .replace(/^lightssleet/, 'lightsleet')
+                    .replace(/^lightssnow/, 'lightsnow')
+                    .replace(/^lightrainshowers$/, 'lightrainshowersday')
+                    .replace(/^rainshowers$/, 'rainshowersday')
+                    .replace(/^heavyrainshowers$/, 'heavyrainshowersday');
+                this.getIconSVG(iconName).then(svgContent => {
+                    if (svgContent) {
+                        const div = document.createElement('div');
+                        div.style.width = '40px';
+                        div.style.height = '40px';
+                        div.innerHTML = svgContent;
+                        node.appendChild(div);
+                    }
+                });
+            });
+    }
+
+    /**
+     * Draw wind band (barbs, grid, background, border)
+     */
+    private drawWindBand(svg: any, x: any, windBandHeight: number, chartWidth: number, margin: any, chartHeight: number, width: number, N: number, time: Date[], windSpeed: (number|null)[], windDirection: (number|null)[]) {
+        const d3 = window.d3;
+        const windBandYOffset = margin.top + chartHeight;
+        const windBand = svg.append('g')
+            .attr('transform', `translate(${margin.left},${windBandYOffset})`);
+
+        // Even hour grid lines
+        const twoHourIdx: number[] = [];
+        for (let i = 0; i < N; i++) {
+            if (time[i].getHours() % 2 === 0) twoHourIdx.push(i);
+        }
+
+        windBand.selectAll(".wind-band-grid")
+            .data(twoHourIdx)
+            .enter()
+            .append("line")
+            .attr("class", "wind-band-grid")
+            .attr("x1", (i: number) => x(i))
+            .attr("x2", (i: number) => x(i))
+            .attr("y1", 0)
+            .attr("y2", windBandHeight)
+            .attr("stroke", "currentColor")
+            .attr("stroke-width", 1);
+
+        // Wind band border (outline)
+        windBand.append("rect")
+            .attr("class", "wind-band-outline")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", chartWidth)
+            .attr("height", windBandHeight)
+            .attr("stroke", "currentColor")
+            .attr("stroke-width", 2)
+            .attr("fill", "none");
+
+        windBand.append("rect")
+            .attr("class", "wind-band-bg")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", chartWidth)
+            .attr("height", windBandHeight);
+
+        // Day change lines in wind band
+        const dayChangeIdx = [];
+        for (let i = 1; i < N; i++) {
+            if (time[i].getDate() !== time[i - 1].getDate()) dayChangeIdx.push(i);
+        }
+        windBand.selectAll(".twentyfourh-line-wind")
+            .data(dayChangeIdx)
+            .enter()
+            .append("line")
+            .attr("class", "twentyfourh-line-wind")
+            .attr("x1", (i: number) => x(i))
+            .attr("x2", (i: number) => x(i))
+            .attr("y1", 0)
+            .attr("y2", windBandHeight);
+
+        // Find the even hours for grid lines first
+        const evenHourIdx: number[] = [];
+        for (let i = 0; i < N; i++) {
+            if (time[i].getHours() % 2 === 0) evenHourIdx.push(i);
+        }
+
+        // Now place wind barbs exactly in the middle between even hours
+        const windBarbY = windBandHeight / 2;
+        for (let idx = 0; idx < evenHourIdx.length - 1; idx++) {
+            const startIdx = evenHourIdx[idx];
+            const endIdx = evenHourIdx[idx + 1];
+            if (width < 400 && idx % 2 !== 0) continue;
+            const centerX = (x(startIdx) + x(endIdx)) / 2;
+            const dataIdx = Math.floor((startIdx + endIdx) / 2);
+            const speed = windSpeed[dataIdx];
+            const dir = windDirection[dataIdx];
+            if (typeof speed !== 'number' || typeof dir !== 'number' || isNaN(speed) || isNaN(dir)) continue;
+            const minBarbLen = width < 400 ? 18 : 23;
+            const maxBarbLen = width < 400 ? 30 : 38;
+            const windLenScale = d3.scaleLinear()
+                .domain([0, Math.max(15, d3.max(windSpeed.filter(v => typeof v === 'number' && !isNaN(v))) || 20)])
+                .range([minBarbLen, maxBarbLen]);
+            const barbLen = windLenScale(speed);
+            this.drawWindBarb(windBand, centerX, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
+        }
+    }
+
     async _drawMeteogram(caller: string = "unknown") {
         this.logMethodEntry('_drawMeteogram', { caller });
         console.debug(`[${CARD_NAME}] _drawMeteogram called from: ${caller}`);
@@ -1701,7 +2040,7 @@ export class MeteogramCard extends LitElement {
             if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
                 const entityData = this._weatherEntityApiInstance.getForecastData();
                 if (!entityData) {
-                    this.setError(`Weather entity ${this.entityId} is unavailable. Waiting for it to become available...`);
+                 this.setError(`Weather entity ${this.entityId} is unavailable. Waiting for it to become available...`);
                     return;
                 }
             }
@@ -1892,13 +2231,12 @@ export class MeteogramCard extends LitElement {
             symbolCode,
             pressure
         } = data;
-        const N = time.length;
 
+        const N = time.length;
         const tempUnit = this.getSystemTemperatureUnit();
         const pressureUnit = this.getSystemPressureUnit();
         const windSpeedUnit = this.getSystemWindSpeedUnit();
         const precipUnit = this.getSystemPrecipitationUnit();
-
         // Only convert values if using WeatherAPI (entityId is not set or is 'none')
         let temperatureConverted: (number | null)[];
         let pressureConverted: (number | null)[];
@@ -1907,14 +2245,15 @@ export class MeteogramCard extends LitElement {
         let rainMinConverted: (number | null)[];
         let rainMaxConverted: (number | null)[];
         let snowConverted: (number | null)[];
+            windDirection.some(d => d !== null);
         if (!this.entityId || this.entityId === 'none') {
             temperatureConverted = temperature.map(t => this.convertTemperature(t));
             pressureConverted = pressure.map(p => convertPressure(p, "hPa", pressureUnit));
             windSpeedConverted = windSpeed.map(w => convertWindSpeed(w, "m/s", windSpeedUnit));
-            rainConverted = rain.map(r => convertPrecipitation(r, "mm", precipUnit));
-            rainMinConverted = rainMin.map(r => convertPrecipitation(r, "mm", precipUnit));
-            rainMaxConverted = rainMax.map(r => convertPrecipitation(r, "mm", precipUnit));
-            snowConverted = snow.map(s => convertPrecipitation(s, "mm", precipUnit));
+            rainConverted = rain.map(r => convertPrecipitation(r ?? 0, "mm", precipUnit));
+            rainMinConverted = rainMin.map(r => convertPrecipitation(r ?? 0, "mm", precipUnit));
+            rainMaxConverted = rainMax.map(r => convertPrecipitation(r ?? 0, "mm", precipUnit));
+            snowConverted = snow.map(s => convertPrecipitation(s ?? 0, "mm", precipUnit));
         } else {
             temperatureConverted = temperature;
             pressureConverted = pressure;
@@ -1924,16 +2263,21 @@ export class MeteogramCard extends LitElement {
             rainMaxConverted = rainMax;
             snowConverted = snow;
         }
-        // -------------------------------------------------------------
-        const pressureAvailable = this.showPressure && pressure && pressure.length > 0
-        const windAvailable = this.showWind && windDirection && windSpeed.length > 0 && windDirection.length > 0
-        const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
-        const snowAvailable = this.showRain && snow && snow.length > 0;
-        // -------------------------------------------------------------
+        // Safely handle null values in arrays for calculations
+        const nonNullRain = rainConverted.map(r => r ?? 0);
+        const nonNullRainMax = rainMaxConverted.map(r => r ?? 0);
+        const nonNullSnow = snowConverted.map(s => s ?? 0);
 
+        const pressureAvailable = this.showPressure && pressure && pressure.length > 0;
+        const windAvailable = this.showWind && windSpeed && windSpeed.length > 0;
+        const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
+        const snowAvailable = snow && snow.length > 0 && snow.some(s => typeof s === "number" && !isNaN(s) && s > 0)
         // SVG and chart parameters
         // In focussed mode, remove top margin for legends
         let margin;
+
+        // Adjust margins based on focussed mode and pressure axis
+
         if (this.focussed) {
             margin = {top: 20, right: 40, bottom: hourLabelBand + 10, left: 40};
         } else if (!pressureAvailable) {
@@ -1941,6 +2285,7 @@ export class MeteogramCard extends LitElement {
         } else {
             margin = {top: 70, right: 70, bottom: hourLabelBand + 10, left: 70};
         }
+
         const chartHeight = this.focussed
             ? height - windBandHeight - hourLabelBand - 10
             : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
@@ -1987,63 +2332,9 @@ export class MeteogramCard extends LitElement {
             dayRanges.push({start: startIdx, end: endIdx});
         }
 
-        // Alternate shaded background for days
-        svg.selectAll(".day-bg")
-            .data(dayRanges)
-            .enter()
-            .append("rect")
-            .attr("class", "day-bg")
-            .attr("x", (d: DayRange) => margin.left + x(d.start))
-            .attr("y", margin.top - 42)
-            // Limit width to only main chart area (do not extend to right axis)
-            .attr("width", (d: DayRange) => Math.min(x(Math.max(d.end - 1, d.start)) - x(d.start) + dx, chartWidth - x(d.start)))
-            // Limit height to only main chart area (do not extend to lower x axis)
-            .attr("height", chartHeight + 42)
-            .attr("opacity", (_: DayRange, i: number) => i % 2 === 0 ? 0.16 : 0);
 
-        // Day boundary ticks (top short ticks)
-        const tickLength = 12; // Short tick length above the top line
-        svg.selectAll(".day-tic")
-            .data(dayStarts)
-            .enter()
-            .append("line")
-            .attr("class", "day-tic")
-            .attr("x1", (d: number) => margin.left + x(d))
-            .attr("x2", (d: number) => margin.left + x(d))
-            .attr("y1", margin.top - tickLength)
-            .attr("y2", chartHeight)
-            .attr("stroke", "#1a237e")
-            .attr("stroke-width", 3)
-            .attr("opacity", 0.6);
 
         const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
-        // Temperature Y scale, handling null values
-        const tempValues = temperatureConverted.filter((t): t is number => t !== null);
-        const yTemp = d3.scaleLinear()
-            .domain([Math.floor(d3.min(tempValues) - 2), Math.ceil(d3.max(tempValues) + 2)])
-            .range([chartHeight, 0]);
-
-        // Precipitation Y scale
-        const yPrecip = d3.scaleLinear()
-            .domain([0, Math.max(2, d3.max([...rainMax, ...rain, ...snow]) + 1)])
-            .range([chartHeight, 0]); // <-- FIXED: range goes from chartHeight (bottom) to 0 (top)
-
-        // Pressure Y scale - we'll use the right side of the chart
-        // Only create if pressure is shown and at least one value is not null/undefined
-        let yPressure;
-        const hasPressure = this.showPressure && Array.isArray(pressure) && pressure.some(p => p !== null && typeof p === "number" && !isNaN(p));
-        if (hasPressure) {
-            const validPressures = pressure.filter((p): p is number => p !== null && typeof p === "number" && !isNaN(p));
-            const pressureRange = d3.extent(validPressures);
-            const pressurePadding = (pressureRange[1] - pressureRange[0]) * 0.1;
-            yPressure = d3.scaleLinear()
-                .domain([
-                    Math.floor((pressureRange[0] - pressurePadding) / 5) * 5,
-                    Math.ceil((pressureRange[1] + pressurePadding) / 5) * 5
-                ])
-                .range([chartHeight, 0]);
-        }
 
 
         // Add vertical gridlines
@@ -2061,39 +2352,7 @@ export class MeteogramCard extends LitElement {
 
         // Wind band grid lines (if wind band is enabled)
         if (windAvailable) {
-            const windBandYOffset = margin.top + chartHeight;
-            const windBand = svg.append('g')
-                .attr('transform', `translate(${margin.left},${windBandYOffset})`);
-
-            // const windBandHeight = windBarbBand - 10;
-            // Even hour grid lines
-            const twoHourIdx: number[] = [];
-            for (let i = 0; i < N; i++) {
-                if (time[i].getHours() % 2 === 0) twoHourIdx.push(i);
-            }
-
-            windBand.selectAll(".wind-band-grid")
-                .data(twoHourIdx)
-                .enter()
-                .append("line")
-                .attr("class", "wind-band-grid")
-                .attr("x1", (i: number) => x(i))
-                .attr("x2", (i: number) => x(i))
-                .attr("y1", 0)
-                .attr("y2", windBandHeight)
-                .attr("stroke", "currentColor")
-                .attr("stroke-width", 1);
-
-            // Wind band border (outline)
-            windBand.append("rect")
-                .attr("class", "wind-band-outline")
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("width", chartWidth)
-                .attr("height", windBandHeight)
-                .attr("stroke", "currentColor")
-                .attr("stroke-width", 2)
-                .attr("fill", "none");
+            this.drawWindBand(svg, x, windBandHeight, chartWidth, margin, chartHeight, width, N, time, windSpeed, windDirection);
         }
 
         chart.selectAll(".twentyfourh-line")
@@ -2113,46 +2372,26 @@ export class MeteogramCard extends LitElement {
         // --- MOVE CLOUD COVER BAND DRAWING HERE ---
         // Cloud cover band - only if enabled
         if (cloudAvailable) {
-            const bandTop = chartHeight * 0.01;
-            const bandHeight = chartHeight * 0.20;
-            const cloudBandPoints: [number, number][] = [];
-
-            // Calculate cloud cover band points (override: cloudCover from 100.0 down to 0.0 for testing)
-            // const testCloudCover = Array.from({ length: cloudCover.length }, (_, i) =>
-            //     100.0 - (100.0 * i) / (cloudCover.length - 1)
-            // );
-            // FIX: Use 1 - cloudCover[i] / 100 for the top band so higher cloud cover means more shading
-            for (let i = 0; i < N; i++) {
-                cloudBandPoints.push([x(i), bandTop + (bandHeight / 2) * (1 - cloudCover[i] / 100)]);
-            }
-            // For the bottom band, use cloudCover[i] / 100
-            for (let i = N - 1; i >= 0; i--) {
-                cloudBandPoints.push([x(i), bandTop + (bandHeight / 2) * (1 + cloudCover[i] / 100)]);
-            }
-
-            chart.append("path")
-                .attr("class", "cloud-area")
-                .attr("d", d3.line()
-                    .x((d: [number, number]) => d[0])
-                    .y((d: [number, number]) => d[1])
-                    .curve(d3.curveLinearClosed)(cloudBandPoints));
+            this.drawCloudBand(chart, cloudCover, N, x, chartHeight);
         }
 
+        const tempValues = temperatureConverted.filter((t): t is number => t !== null);
+        const yTemp = d3.scaleLinear()
+            .domain([Math.floor(d3.min(tempValues) - 2), Math.ceil(d3.max(tempValues) + 2)])
+            .range([chartHeight, 0]);
+        // Draw temperature line
+        this.drawTemperatureLine(chart, temperatureConverted, x, yTemp);
+
+        // Draw weather icons along the temperature curve if enabled
+        if (this.showWeatherIcons) {
+            const iconInterval = this.denseWeatherIcons ? Math.max(1, Math.floor(N / Math.max(8, Math.floor(chartWidth / 60)))) : Math.max(1, Math.floor(N / Math.max(5, Math.floor(chartWidth / 100))));
+            this.drawWeatherIcons(chart, symbolCode, temperatureConverted, x, yTemp, data, iconInterval);
+        }
         // Pressure axis (right side) - only if enabled and pressure data present
-        if (hasPressure && yPressure) {
-            chart.append("g")
-                .attr("class", "pressure-axis")
-                .attr("transform", `translate(${chartWidth}, 0)`)
-                .call(d3.axisRight(yPressure)
-                    .tickFormat((d: any) => `${d}`));
-            if (!this.focussed) {
-                chart.append("text")
-                    .attr("class", "axis-label")
-                    .attr("text-anchor", "middle")
-                    .attr("transform", `translate(${chartWidth + 50},${chartHeight / 2}) rotate(90)`)
-                    .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)");
-            }
-        }
+        let yPressure;
+        const hasPressure = this.showPressure && Array.isArray(pressure) && pressure.some(p => p !== null && typeof p === "number" && !isNaN(p));
+
+
 
         // --- ADD: Always add temperature Y axis (left side) ---
         chart.append("g")
@@ -2200,406 +2439,55 @@ export class MeteogramCard extends LitElement {
             .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
             .attr("stroke-width", 3);
 
-        // Only show legends in full mode
-        if (this.displayMode === "full") {
-            // Build a list of enabled legends
-            const enabledLegends = [];
-            if (cloudAvailable) {
-                enabledLegends.push({
-                    class: "legend legend-cloud",
-                    label: trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + ` (%)`
-                });
-            }
-            enabledLegends.push({
-                class: "legend legend-temp",
-                label: trnslt(this.hass, "ui.card.meteogram.attributes.temperature", `Temperature`) + ` (${tempUnit})`
-            });
-            // Show precipitation legend ONLY if either rain or snow is available and non-zero
-            if (this.showRain && (rain.some(r => r > 0) || snow.some(s => s > 0))) {
-                enabledLegends.push({
-                    class: "legend legend-rain",
-                    label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Precipitation") + ` (mm)`
-                });
-            }
-            // Only show snow legend if any snow value is non-zero
-            if (snow.some(s => s > 0)) {
-                enabledLegends.push({
-                    class: "legend legend-snow",
-                    label: trnslt(this.hass, "ui.card.meteogram.attributes.snow", "Snow") + ' (mm)'
-                });
-            }
-            if (hasPressure && yPressure) {
-                enabledLegends.push({
-                    class: "legend legend-pressure",
-                    label: trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (hPa)"
-                });
-            }
-            // Evenly space legends across the full chart width, but left-aligned in their slots
-            const numLegends = enabledLegends.length;
-            enabledLegends.forEach((legend, i) => {
-                // Left-aligned: slot width is chartWidth/numLegends, legendX is margin.left + i*slotWidth
-                const slotWidth = chartWidth / numLegends;
-                const legendX = i * slotWidth + 2; // +2 for a small left margin in each slot
-                chart.append("text")
-                    .attr("class", legend.class)
-                    .attr("x", legendX)
-                    .attr("y", -45)
-                    .attr("text-anchor", "start")
-                    .text(legend.label);
-            });
-        }
+        // --- ALWAYS SHOW DATE AND HOUR LABELS ---
+        // Calculate hour label position based on wind band visibility
+        const bottomPosition = windBandHeight > 0
+            ? margin.top + chartHeight + windBandHeight
+            : margin.top + chartHeight;
+        const hourLabelY = bottomPosition + 24;
 
-        // Temperature line
-        const line = d3.line()
-            .defined((d: number | null) => d !== null)
-            .x((_: number | null, i: number) => x(i))
-            .y((_: number | null, i: number) => temperatureConverted[i] !== null ? yTemp(temperatureConverted[i]) : 0)
-            .curve(d3.curveMonotoneX); // <-- Add smoothing
-
-        chart.append("path")
-            .datum(temperatureConverted)
-            .attr("class", "temp-line")
-            .attr("d", line)
-            .attr("stroke", "currentColor");
-
-        // Pressure line - only if enabled and pressure data present
-        if (hasPressure && yPressure) {
-            const pressureLine = d3.line()
-                .defined((d: number | null) => d !== null && typeof d === "number" && !isNaN(d))
-                .x((_: number, i: number) => x(i))
-                .y((d: number | null) => yPressure(d as number));
-
-            chart.append("path")
-                .datum(pressure)
-                .attr("class", "pressure-line")
-                .attr("d", pressureLine)
-                .attr("stroke", "currentColor");
-        }
-
-        // Weather icons along temperature curve - only if enabled
-        if (this.showWeatherIcons) {
-            const iconInterval = this.denseWeatherIcons ? 1 : 2;
-
-            chart.selectAll(".weather-icon")
-                .data(symbolCode)
-                .enter()
-                .append("foreignObject")
-                .attr("class", "weather-icon")
-                .attr("x", (_: string, i: number) => x(i) - 20)
-                .attr("y", (_: string, i: number) => {
-                    const temp = temperatureConverted[i];
-                    return temp !== null ? yTemp(temp) - 40 : -999;
-                })
-                .attr("width", 40)
-                .attr("height", 40)
-                .attr("opacity", (_: string, i: number) =>
-                    (temperatureConverted[i] !== null && i % iconInterval === 0) ? 1 : 0)
-                .each((d: string, i: number, nodes: any) => {
-                    if (i % iconInterval !== 0) return;
-                    const node = nodes[i];
-                    if (!d) return;
-
-                    // Always use remapped Met.no icon names
-                    let iconName = d;
-                    if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
-                        const forecastTime = data.time[i];
-                        const isDay = this.isDaytimeAt(forecastTime);
-                        iconName = mapHaConditionToMetnoSymbol(d, forecastTime, isDay);
-                    }
-                    // Fallback mapping for known Met.no icon typos or missing variants (apply after mapping)
-                    iconName = iconName
-                        .replace(/^lightssleet/, 'lightsleet')
-                        .replace(/^lightssnow/, 'lightsnow')
-                        .replace(/^lightrainshowers$/, 'lightrainshowersday')
-                        .replace(/^rainshowers$/, 'rainshowersday')
-                        .replace(/^heavyrainshowers$/, 'heavyrainshowersday');
-
-                    this.getIconSVG(iconName).then(svgContent => {
-                        if (svgContent) {
-                            const div = document.createElement('div');
-                            div.style.width = '40px';
-                            div.style.height = '40px';
-                            div.innerHTML = svgContent;
-                            node.appendChild(div);
-                        } else {
-                            console.warn(`Failed to load icon: ${iconName}`);
-                        }
-                    }).catch((err: Error) => {
-                        console.error(`Error loading icon ${iconName}:`, err);
-                    });
-                });
-        }
-
-        // Rain bars with labels - only if enabled
-        const barWidth = Math.min(26, dx * 0.8);
-
-        if (this.showRain) {
-            // Draw max rain bars (background, lighter blue)
-            chart.selectAll(".rain-max-bar")
-                .data(rainMax.slice(0, N - 1))
-                .enter().append("rect")
-                .attr("class", "rain-max-bar")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                .attr("y", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
-                    const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
-                    return yPrecip(0) - scaledH;
-                })
-                .attr("width", barWidth)
-                .attr("height", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
-                    return h < 2 && d > 0 ? 2 : h * 0.7;
-                })
-                .attr("fill", "currentColor");
-
-            // Draw main rain bars (foreground, deeper blue)
-            chart.selectAll(".rain-bar")
-                .data(rain.slice(0, N - 1))
-                .enter().append("rect")
-                .attr("class", "rain-bar")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                .attr("y", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
-                    const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
-                    return yPrecip(0) - scaledH;
-                })
-                .attr("width", barWidth)
-                .attr("height", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
-                    return h < 2 && d > 0 ? 2 : h * 0.7;
-                })
-                .attr("fill", "currentColor");
-
-            // Add main rain labels (show if rain > 0)
-            chart.selectAll(".rain-label")
-                .data(rain.slice(0, N - 1))
-                .enter()
-                .append("text")
-                .attr("class", "rain-label")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2)
-                .attr("y", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
-                    const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
-                    return yPrecip(0) - scaledH - 4; // 4px above the top of the bar
-                })
-                .text((d: number) => {
-                    if (d <= 0) return "";
-                    return d < 1 ? d.toFixed(1) : d.toFixed(0);
-                })
-                .attr("opacity", (d: number) => d > 0 ? 1 : 0);
-
-            // Add max rain labels (show if max > rain)
-            chart.selectAll(".rain-max-label")
-                .data(rainMax.slice(0, N - 1))
-                .enter()
-                .append("text")
-                .attr("class", "rain-max-label")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2)
-                // Remove unused 'i' from the function signature
-                .attr("y", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
-                    const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
-                    return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
-                })
-                .text((d: number, i: number) => {
-                    if (d <= rain[i]) return "";
-                    return d < 1 ? d.toFixed(1) : d.toFixed(0);
-                })
-                .attr("opacity", (d: number, i: number) => (d > rain[i]) ? 1 : 0);
-
-            if (snowAvailable) {
-                chart.selectAll(".snow-bar")
-                    .data(snow.slice(0, N - 1))
-                    .enter().append("rect")
-                    .attr("class", "snow-bar")
-                    .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                    .attr("y", (_: number, i: number) => {
-                        const h = chartHeight - yPrecip(snow[i]);
-                        const scaledH = h < 2 && snow[i] > 0 ? 2 : h * 0.7;
-                        return yPrecip(0) - scaledH;
-                    })
-                    .attr("width", barWidth)
-                    .attr("height", (d: number) => {
-                        const h = chartHeight - yPrecip(d);
-                        return h < 2 && d > 0 ? 2 : h * 0.7;
-                    })
-                    .attr("fill", "currentColor");
-            }
-        }
-
-        // Wind band - only if enabled
-        if (windAvailable) {
-            const windBandYOffset = margin.top + chartHeight;
-            const windBand = svg.append('g')
-                .attr('transform', `translate(${margin.left},${windBandYOffset})`);
-
-            // const windBandHeight = windBarbBand - 10;
-            const windBarbY = windBandHeight / 2;
-
-            windBand.append("rect")
-                .attr("class", "wind-band-bg")
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("width", chartWidth)
-                .attr("height", windBandHeight);
-
-            // Even hour grid lines
-            const twoHourIdx: number[] = [];
-            for (let i = 0; i < N; i++) {
-                if (time[i].getHours() % 2 === 0) twoHourIdx.push(i);
-            }
-
-            windBand.selectAll(".wind-band-grid")
-                .data(twoHourIdx)
-                .enter()
-                .append("line")
-                .attr("class", "wind-band-grid")
-                .attr("x1", (i: number) => x(i))
-                .attr("x2", (i: number) => x(i))
-                .attr("y1", 0)
-                .attr("y2", windBandHeight)
-                .attr("stroke", "currentColor")
-                .attr("stroke-width", 1);
-
-            const dayChangeIdx = dayStarts.slice(1);
-            windBand.selectAll(".twentyfourh-line-wind")
-                .data(dayChangeIdx)
-                .enter()
-                .append("line")
-                .attr("class", "twentyfourh-line-wind")
-                .attr("x1", (i: number) => x(i))
-                .attr("x2", (i: number) => x(i))
-                .attr("y1", 0)
-                .attr("y2", windBandHeight);
-
-            // Find the even hours for grid lines first
-            const evenHourIdx: number[] = [];
-            for (let i = 0; i < N; i++) {
-                if (time[i].getHours() % 2 === 0) evenHourIdx.push(i);
-            }
-
-            // Now place wind barbs exactly in the middle between even hours
-            for (let idx = 0; idx < evenHourIdx.length - 1; idx++) {
-                const startIdx = evenHourIdx[idx];
-                const endIdx = evenHourIdx[idx + 1];
-
-                // Skip if the interval doesn't match our desired spacing for small screens
-                if (width < 400 && idx % 2 !== 0) continue;
-
-                // Calculate the exact center between the grid lines
-                const centerX = (x(startIdx) + x(endIdx)) / 2;
-
-                // Use average data for the interval
-                const dataIdx = Math.floor((startIdx + endIdx) / 2);
-                const speed = windSpeed[dataIdx];
-                const dir = windDirection[dataIdx];
-
-                // Scale barb length based on screen size
-                const minBarbLen = width < 400 ? 18 : 23;
-                const maxBarbLen = width < 400 ? 30 : 38;
-                const windLenScale = d3.scaleLinear()
-                    .domain([0, Math.max(15, d3.max(windSpeed) || 20)])
-                    .range([minBarbLen, maxBarbLen]);
-                const barbLen = windLenScale(speed);
-
-                // Draw the wind barb
-                this.drawWindBarb(windBand, centerX, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
-            }
-
-            // Wind band border
-            windBand.append("rect")
-                .attr("class", "wind-band-outline")
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("width", chartWidth)
-                .attr("height", windBandHeight)
-                .attr("stroke", "currentColor") // Match axis/grid color
-                .attr("stroke-width", 1)
-                .attr("fill", "none");
-        }
-
-        // Bottom hour labels - always placed below the chart area
-        const hourLabelY = margin.top + chartHeight + windBandHeight + 15;
-
-        // FIX: Place hour labels at the same x as their vertical grid line (i.e., x(i))
-        svg.selectAll(".bottom-hour-label")
-            .data(data.time)
+        // Hour labels at bottom (always shown, position depends on wind band)
+        chart.selectAll(".bottom-hour-label")
+            .data(time)
             .enter()
             .append("text")
             .attr("class", "bottom-hour-label")
-            .attr("x", (_: Date, i: number) => margin.left + x(i))
+            .attr("x", (_: Date, i: number) => x(i))
             .attr("y", hourLabelY)
             .attr("text-anchor", "middle")
-            .text((d: Date, i: number) => {
-                const haLocale = this.getHaLocale();
-                const hour = d.toLocaleTimeString(haLocale, {hour: "2-digit", hour12: false});
-                if (width < 400) {
-                    return i % 6 === 0 ? hour : "";
-                } else if (width > 800) {
-                    return i % 2 === 0 ? hour : "";
-                } else {
-                    return i % 3 === 0 ? hour : "";
-                }
+            .text((dt: Date) => dt ? dt.getHours().toString().padStart(2, "0") : "");
+
+        // Date labels at top (always shown)
+        chart.selectAll(".top-date-label")
+            .data(dayStarts)
+            .enter()
+            .append("text")
+            .attr("class", "top-date-label")
+            .attr("x", (d: number) => x(d))
+            .attr("y", -32)
+            .attr("text-anchor", "middle")
+            .text((d: number) => {
+                const dt = time[d];
+                return dt ? dt.toLocaleDateString(this.getHaLocale(), { month: "short", day: "numeric" }) : "";
             });
 
-       if (!this.focussed) {
-           // Axis labels
-           chart.append("text")
-               .attr("class", "axis-label")
-               .attr("text-anchor", "middle")
-               .attr("transform", `translate(-50,${chartHeight / 2}) rotate(-90)`)
-               .text(trnslt(this.hass, "ui.card.weather.attributes.temperature", `Temperature`) + ` (${tempUnit})`);
-
-           // Date labels at top - with spacing check to prevent overlap
-           svg.selectAll(".top-date-label")
-               .data(dayStarts)
-               .enter()
-               .append("text")
-               .attr("class", "top-date-label")
-               .attr("x", (d: number, i: number) => {
-                   // Ensure last label does not go outside chart area
-                   const rawX = margin.left + x(d);
-                   if (i === dayStarts.length - 1) {
-                       // Cap to chart right edge minus a small margin
-                       return Math.min(rawX, margin.left + chartWidth - 80);
-                   }
-                   return rawX;
-               })
-               .attr("y", dateLabelY)
-               .attr("text-anchor", "start")
-               .attr("opacity", (d: number, i: number) => {
-                   // Check if there's enough space for this label
-                   if (i === dayStarts.length - 1) return 1; // Always show the last day
-
-                   const thisLabelPos = margin.left + x(d);
-                   const nextLabelPos = margin.left + x(dayStarts[i + 1]);
-                   const minSpaceNeeded = 100; // Minimum pixels needed between labels
-
-                   // If not enough space between this and next label, hide this one
-                   return nextLabelPos - thisLabelPos < minSpaceNeeded ? 0 : 1;
-               })
-               .text((d: number) => {
-                   const dt = time[d];
-                   // Use HA locale for date formatting
-                   const haLocale = this.getHaLocale();
-                   return dt.toLocaleDateString(haLocale, {weekday: "short", day: "2-digit", month: "short"});
-               });
-       }
-        // // Day boundary ticks (bottom, for hour labels)
-        // svg.selectAll(".day-tic-bottom")
-        //     .data(dayStarts)
-        //     .enter()
-        //     .append("line")
-        //     .attr("class", "day-tic-bottom")
-        //     .attr("x1", (d: number) => margin.left + x(d))
-        //     .attr("x2", (d: number) => margin.left + x(d))
-        //     .attr("y1", dateLabelY + 22)
-        //     .attr("y2", dateLabelY + 42)
-        //     .attr("stroke", "#1a237e")
-        //     .attr("stroke-width", 3)
-        //     .attr("opacity", 0.6);
+        // Draw main chart elements
+        if (cloudAvailable) {
+            this.drawCloudBand(chart, cloudCover, N, x, chartHeight);
+        }
+        if (hasPressure && yPressure) {
+            this.drawPressureLine(chart, pressure, x, yPressure);
+        }
+        // Precipitation Y scale
+        const yPrecip = d3.scaleLinear()
+            .domain([0, Math.max(2, d3.max([...rainMax, ...rain, ...snow]) + 1)])
+            .range([chartHeight, 0]); // <-- FIXED: range goes from chartHeight (bottom) to 0 (top)
+        if (this.showRain) {
+            this.drawRainBars(chart, rainConverted.map(r => r ?? 0), rainMaxConverted.map(r => r ?? 0),
+                snowConverted.map(r => r ?? 0), N, x, yPrecip, dx, chartHeight, snowAvailable);
+        }
+        // ...existing code...
     }
-
 
     // Draw a wind barb at the given position
     drawWindBarb(g: any, x: number, y: number, speed: number, dirDeg: number, len: number, scale = 0.8) {
