@@ -133,6 +133,10 @@ export class MeteogramCard extends LitElement {
     private _resizeObserver: ResizeObserver | null = null;
     private _lastWidth = 0;
     private _lastHeight = 0;
+    private _lastResizeTime = 0; // <-- Add this missing property
+    private _resizeEndTimer: number | null = null; // Timer for detecting end of resize
+    private _lastRenderedWidth: number = 0; // Track last rendered chart width
+    private _lastRenderedHeight: number = 0; // Track last rendered chart height
 
     // Intersection observer for visibility detection
     private _intersectionObserver: IntersectionObserver | null = null;
@@ -806,6 +810,9 @@ export class MeteogramCard extends LitElement {
             // Handle page/panel navigation events
             window.addEventListener('location-changed', this._onLocationChanged.bind(this));
 
+            // Handle orientation changes (screen rotation)
+            window.addEventListener('orientationchange', this._onOrientationChange.bind(this));
+
             // Handle re-entry into DOM after being removed temporarily
             if (this.isConnected) {
                 if (!this.chartLoaded) {
@@ -820,7 +827,7 @@ export class MeteogramCard extends LitElement {
 
     // Clean up all event listeners
     disconnectedCallback() {
-        this._teardownResizeObserver();
+        this._teardownResizeObserver(); // <-- Implemented teardown for resize observer
         this._teardownVisibilityObserver();
         this._teardownMutationObserver();
         if (this._weatherEntityApiInstance) {
@@ -830,6 +837,7 @@ export class MeteogramCard extends LitElement {
 
         document.removeEventListener('visibilitychange', this._onVisibilityChange.bind(this));
         window.removeEventListener('location-changed', this._onLocationChanged.bind(this));
+        window.removeEventListener('orientationchange', this._onOrientationChange.bind(this));
         document.removeEventListener('click', this._onDocumentClick, true);
 
         this.cleanupChart();
@@ -1003,6 +1011,12 @@ export class MeteogramCard extends LitElement {
         }, 100);
     }
 
+    // Add orientation change handler
+    private _onOrientationChange = () => {
+        // Always schedule a redraw on orientation change
+        this._scheduleDrawMeteogram("orientationchange", true);
+    };
+
     // Central handler for visibility changes
     private _handleVisibilityChange() {
         if (this._isElementVisible()) {
@@ -1046,37 +1060,78 @@ export class MeteogramCard extends LitElement {
         }, 100);
     }
 
-    // Handle resize
-    private _onResize(entries: ResizeObserverEntry[]) {
-        if (entries.length === 0) return;
-
-        const entry = entries[0];
-
-        // Reduce the threshold for horizontal resizing to be more responsive to width changes
-        // but keep vertical threshold higher to avoid unnecessary redraws
-        if (
-            Math.abs(entry.contentRect.width - this._lastWidth) > this._lastWidth * 0.05 ||
-            Math.abs(entry.contentRect.height - this._lastHeight) > this._lastHeight * 0.1
-        ) {
-            this._lastWidth = entry.contentRect.width;
-            this._lastHeight = entry.contentRect.height;
-            // Guard: If chart is already rendered and visible, skip scheduling
-            const chartDiv = this.shadowRoot?.querySelector("#chart");
-            const svgExists = chartDiv?.querySelector("svg");
-            const chartIsVisible = chartDiv && (chartDiv as HTMLElement).offsetWidth > 0 && (chartDiv as HTMLElement).offsetHeight > 0;
-            if (svgExists && chartIsVisible) {
-                console.debug(`[${CARD_NAME}] _onResize: chart already rendered and visible, skipping redraw.`);
-                return;
-            }
-            this._scheduleDrawMeteogram("_onResize");
-        }
-    }
-
     // Clean up resize observer
     private _teardownResizeObserver() {
         if (this._resizeObserver) {
             this._resizeObserver.disconnect();
             this._resizeObserver = null;
+        }
+    }
+
+    // Handle resize
+    private _onResize(entries: ResizeObserverEntry[]) {
+        if (entries.length === 0) return;
+        const entry = entries[0];
+        const now = Date.now();
+        // Track last resize time for debounce/throttle
+        if (!this._lastResizeTime) this._lastResizeTime = 0;
+        // Calculate size change
+        const widthChanged = Math.abs(entry.contentRect.width - this._lastWidth) > 2;
+        const heightChanged = Math.abs(entry.contentRect.height - this._lastHeight) > 2;
+        const significantChange = widthChanged || heightChanged;
+        // Use a longer debounce interval (350ms)
+        const DEBOUNCE_INTERVAL = 350;
+        // If a resize occurs during rendering, queue a redraw
+        if (significantChange && this._chartRenderInProgress) {
+            this._pendingRender = true;
+            console.debug(`[${CARD_NAME}] _onResize: chart render in progress, queuing redraw after render.`);
+            // Schedule final redraw after resize ends
+            this._scheduleResizeEndTimer();
+            return;
+        }
+        // Always redraw if significant change and at least DEBOUNCE_INTERVAL since last redraw
+        if (significantChange && (now - this._lastResizeTime > DEBOUNCE_INTERVAL)) {
+            this._lastWidth = entry.contentRect.width;
+            this._lastHeight = entry.contentRect.height;
+            this._lastResizeTime = now;
+            this._scheduleDrawMeteogram("_onResize-significant");
+            // Schedule final redraw after resize ends
+            this._scheduleResizeEndTimer();
+            return;
+        }
+        // Fallback: schedule redraw if not visible or if chart is missing
+        const chartDiv = this.shadowRoot?.querySelector("#chart");
+        if (!chartDiv || !chartDiv.querySelector("svg")) {
+            this._scheduleDrawMeteogram("_onResize-fallback");
+        }
+        // Always schedule a final redraw after resize ends
+        this._scheduleResizeEndTimer();
+    }
+
+    // Helper to schedule a timer for end-of-resize detection
+    private _scheduleResizeEndTimer() {
+        if (this._resizeEndTimer) {
+            clearTimeout(this._resizeEndTimer);
+        }
+        // Fire after 400ms of no further resize events
+        this._resizeEndTimer = window.setTimeout(() => {
+            this._onResizeEnd();
+        }, 400);
+    }
+
+    // Called after resize has stopped for 400ms
+    private _onResizeEnd() {
+        this._resizeEndTimer = null;
+        const chartDiv = this.shadowRoot?.querySelector("#chart");
+        if (!chartDiv) return;
+        const currentWidth = (chartDiv as HTMLElement).offsetWidth;
+        const currentHeight = (chartDiv as HTMLElement).offsetHeight;
+        // Only redraw if the chart container size has changed since last render
+        if (Math.abs(currentWidth - this._lastRenderedWidth) > 2 || Math.abs(currentHeight - this._lastRenderedHeight) > 2) {
+            console.debug(`[${CARD_NAME}] _onResizeEnd: detected final size change, scheduling redraw.`);
+            this._scheduleDrawMeteogram("_onResizeEnd-final");
+        } else {
+            console.debug(`[${CARD_NAME}] _onResizeEnd: no significant size change since last render, skipping redraw.`);
         }
     }
 
@@ -1666,6 +1721,9 @@ export class MeteogramCard extends LitElement {
             // Store dimensions for resize detection
             this._lastWidth = availableWidth;
             this._lastHeight = availableHeight;
+            // --- Track last rendered chart size for final resize logic ---
+            this._lastRenderedWidth = availableWidth;
+            this._lastRenderedHeight = availableHeight;
 
             this.svg = window.d3.select(chartDiv)
                 .append("svg")
