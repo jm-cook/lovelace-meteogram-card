@@ -1727,6 +1727,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this._chartRenderInProgress = false;
         this._pendingRender = false;
         this._lastApiSuccess = false;
+        this._margin = { top: 32, right: 48, bottom: 32, left: 48 };
         this.iconCache = new Map();
         this.iconBasePath = 'https://raw.githubusercontent.com/metno/weathericons/refs/heads/main/weather/svg/';
         // Keep reference to the D3 selection to clean it up properly
@@ -2393,11 +2394,11 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             .attr("d", line)
             .attr("stroke", "currentColor");
         // Always draw axis label (if not in focussed mode)
-        if (!this.focussed) {
+        if (!this.focussed && this.displayMode !== "core") {
             chart.append("text")
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
-                .attr("transform", `translate(${ -40},${yTemp.range()[0] / 2}) rotate(-90)`)
+                .attr("transform", `translate(${-this._margin.left + 20},${yTemp.range()[0] / 2}) rotate(-90)`)
                 .text(trnslt(this.hass, "ui.card.meteogram.attributes.temperature", "Temperature") + " (" + this._tempUnit + ")");
         }
         // Draw colored top legend if coordinates are provided
@@ -2413,7 +2414,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     /**
      * Draw pressure line (converted data)
      */
-    drawPressureLine(chart, pressure, x, yPressure, legendX, legendY) {
+    drawPressureLine(chart, pressure, x, yPressure, chartWidth, legendX, legendY) {
         const d3 = window.d3;
         const pressureLine = d3.line()
             .defined((d) => d !== null && typeof d === "number" && !isNaN(d))
@@ -2425,18 +2426,27 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             .attr("d", pressureLine)
             .attr("stroke", "currentColor");
         // Draw right-side pressure axis
-        const chartWidth = x.range()[1];
+        // Use passed chartWidth for consistency
+        // Calculate integer tick values for pressure axis
+        const pressureDomain = yPressure.domain();
+        const minPressure = Math.ceil(pressureDomain[0]);
+        const maxPressure = Math.floor(pressureDomain[1]);
+        const pressureTicks = [];
+        for (let p = minPressure; p <= maxPressure; p++) {
+            pressureTicks.push(p);
+        }
         chart.append("g")
             .attr("class", "pressure-axis")
             .attr("transform", `translate(${chartWidth}, 0)`)
             .call(d3.axisRight(yPressure)
-            .tickFormat((d) => `${d}`));
+            .tickValues(pressureTicks)
+            .tickFormat(d3.format('d')));
         // Always draw axis label (if not in focussed mode)
-        if (!this.focussed) {
+        if (!this.focussed && this.displayMode !== "core") {
             chart.append("text")
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
-                .attr("transform", `translate(${x.range()[1] + 40},${yPressure.range()[0] / 2}) rotate(90)`)
+                .attr("transform", `translate(${chartWidth + this._margin.right - 20},${yPressure.range()[0] / 2}) rotate(90)`)
                 .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (" + this._pressureUnit + ")");
         }
         // Draw colored top legend if coordinates are provided
@@ -3159,6 +3169,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         else {
             // Default: fill container
+            console.debug(`[${CARD_NAME}] _renderChart: using default container size: width=${chartDiv.offsetWidth}, height=${chartDiv.offsetHeight}`);
             width = chartDiv.offsetWidth > 0
                 ? chartDiv.offsetWidth
                 : availableWidth;
@@ -3197,22 +3208,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 .append("svg")
                 .attr("width", width)
                 .attr("height", height)
-                .attr("viewBox", `0 0 ${width + 140} ${height}`)
+                .attr("viewBox", `0 0 ${width} ${height}`)
                 .attr("preserveAspectRatio", useAspectRatio ? "xMidYMid meet" : "none"); // Fill container, no aspect ratio
-            // const maxHourSpacing = 90;
-            // // Adjust chartWidth depending on pressureAvailable so that there is not a big gap on the right when it is not shown
-            // let chartWidth: number;
-            // if (this.focussed) {
-            //     chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (data.time.length - 1))) + 60;
-            // } else {
-            //     // If pressure is available, use extra space for right axis; otherwise, reduce width to avoid gap
-            //     if (pressureAvailable) {
-            //         chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (data.time.length - 1)));
-            //     } else {
-            //         // Remove extra right margin if pressure is not shown
-            //         chartWidth = Math.min(width, Math.max(300, maxHourSpacing * (data.time.length - 1)) - 50);
-            //     }
-            // }
             let hours = 48;
             if (this.meteogramHours === "8h")
                 hours = 8;
@@ -3375,34 +3372,25 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         const snowAvailable = snow && snow.length > 0 && snow.some(s => typeof s === "number" && !isNaN(s) && s > 0);
         // SVG and chart parameters
         // In focussed mode, remove top margin for legends
-        let margin;
-        // Adjust margins based on focussed mode and pressure axis
-        if (this.focussed) {
-            margin = { top: 20, right: 40, bottom: hourLabelBand + 10, left: 40 };
+        // Adjust margins based on focussed mode, pressure axis, and displayMode
+        if (this.displayMode === "core") {
+            this._margin = { top: 50, right: 40, bottom: hourLabelBand + 10, left: 40 };
+        }
+        else if (this.focussed) {
+            this._margin = { top: 10, right: 40, bottom: hourLabelBand + 10, left: 40 };
         }
         else if (!pressureAvailable) {
-            margin = { top: 70, right: 40, bottom: hourLabelBand + 10, left: 70 };
+            this._margin = { top: 70, right: 40, bottom: hourLabelBand + 10, left: 70 };
         }
         else {
-            margin = { top: 70, right: 70, bottom: hourLabelBand + 10, left: 70 };
+            this._margin = { top: 70, right: 70, bottom: hourLabelBand + 10, left: 70 };
         }
+        const margin = this._margin;
         const chartHeight = this.focussed
             ? height - windBandHeight - hourLabelBand - 10
             : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
-        // Cap the chart width to only what's needed for the data
-        const maxHourSpacing = 90;
-        let chartWidth;
-        const baseWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
-        if (this.focussed) {
-            chartWidth = pressureAvailable
-                ? baseWidth + 60
-                : baseWidth + 60 + margin.right;
-        }
-        else {
-            chartWidth = !pressureAvailable
-                ? baseWidth + margin.right
-                : baseWidth;
-        }
+        // FIX: chartWidth should be the drawable area, not just baseWidth
+        const chartWidth = width - margin.left - margin.right;
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
         let dx = chartWidth / (N - 1);
         // X scale - for wider charts, maintain reasonable hour spacing
@@ -3451,13 +3439,13 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Calculate legend positions
         const enabledLegends = [];
-        if (this.showCloudCover) {
-            enabledLegends.push({ class: "legend legend-cloud", label: trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + " (%)" });
-        }
-        if (this.showRain) {
-            enabledLegends.push({ class: "legend legend-rain", label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Precipitation") + ` (${this._precipUnit})` });
-        }
-        if (!this.focussed) {
+        if (this.displayMode !== "core" && !this.focussed) {
+            if (this.showCloudCover) {
+                enabledLegends.push({ class: "legend legend-cloud", label: trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + " (%)" });
+            }
+            if (this.showRain) {
+                enabledLegends.push({ class: "legend legend-rain", label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Precipitation") + ` (${this._precipUnit})` });
+            }
             enabledLegends.push({ class: "legend legend-temp", label: trnslt(this.hass, "ui.card.meteogram.attributes.temperature", "Temperature") + ` (${this._tempUnit})` });
             if (this.showPressure) {
                 enabledLegends.push({ class: "legend legend-pressure", label: trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (" + this._pressureUnit + ")" });
@@ -3625,6 +3613,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 const legendPos = legendPositions[cloudLegendIndex];
                 this.drawCloudBand(chart, cloudCover, N, x, chartHeight, legendPos.x, legendPos.y);
             }
+            else {
+                this.drawCloudBand(chart, cloudCover, N, x, chartHeight);
+            }
         }
         // Draw rain bars with legend
         if (this.showRain) {
@@ -3642,10 +3633,10 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             const pressureLegendIndex = enabledLegends.findIndex(l => l.class.includes("legend-pressure"));
             if (pressureLegendIndex >= 0) {
                 const legendPos = legendPositions[pressureLegendIndex];
-                this.drawPressureLine(chart, pressure, x, yPressure, legendPos.x, legendPos.y);
+                this.drawPressureLine(chart, pressure, x, yPressure, chartWidth, legendPos.x, legendPos.y);
             }
             else {
-                this.drawPressureLine(chart, pressure, x, yPressure);
+                this.drawPressureLine(chart, pressure, x, yPressure, chartWidth);
             }
         }
         // Wind band grid lines (if wind band is enabled)
