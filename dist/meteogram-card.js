@@ -3169,7 +3169,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         else {
             // Default: fill container
-            console.debug(`[${CARD_NAME}] _renderChart: using default container size: width=${chartDiv.offsetWidth}, height=${chartDiv.offsetHeight}`);
             width = chartDiv.offsetWidth > 0
                 ? chartDiv.offsetWidth
                 : availableWidth;
@@ -3389,7 +3388,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         const chartHeight = this.focussed
             ? height - windBandHeight - hourLabelBand - 10
             : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
-        // FIX: chartWidth should be the drawable area, not just baseWidth
         const chartWidth = width - margin.left - margin.right;
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
         let dx = chartWidth / (N - 1);

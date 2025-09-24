@@ -2091,7 +2091,6 @@ export class MeteogramCard extends LitElement {
             }
         } else {
             // Default: fill container
-            console.debug(`[${CARD_NAME}] _renderChart: using default container size: width=${(chartDiv as HTMLElement).offsetWidth}, height=${(chartDiv as HTMLElement).offsetHeight}`);
             width = (chartDiv as HTMLElement).offsetWidth > 0
                 ? (chartDiv as HTMLElement).offsetWidth
                 : availableWidth;
@@ -2346,7 +2345,7 @@ export class MeteogramCard extends LitElement {
             : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
         // Cap the chart width to only what's needed for the data
         const maxHourSpacing = 90;
-        // FIX: chartWidth should be the drawable area, not just baseWidth
+        const baseWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
         const chartWidth = width - margin.left - margin.right;
 
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
@@ -2598,8 +2597,8 @@ export class MeteogramCard extends LitElement {
             if (cloudLegendIndex >= 0) {
                 const legendPos = legendPositions[cloudLegendIndex];
                 this.drawCloudBand(chart, cloudCover, N, x, chartHeight, legendPos.x, legendPos.y);
-            }  else {
-                this.drawCloudBand(chart, cloudCover, N, x, chartHeight);
+            } else {
+                this.drawCloudBand(chart, cloudCover, N, x, chartHeight );
             }
         }
         // Draw rain bars with legend
