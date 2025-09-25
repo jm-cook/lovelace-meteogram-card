@@ -11,6 +11,8 @@ import { convertTemperature, convertPressure, convertWindSpeed, convertPrecipita
 
 @customElement('meteogram-card')
 export class MeteogramCard extends LitElement {
+    // Store missing keys for diagnostics/info panel
+    private _missingForecastKeys: string[] = [];
     constructor(
 
     ) {
@@ -1449,6 +1451,7 @@ export class MeteogramCard extends LitElement {
                 throw new Error(`Weather entity ${this.entityId} is unavailable. Waiting for it to become available...`);
             }
             this._currentUnits = entityData.units || {};
+            this.checkMissingForecastKeys(entityData);
             return entityData;
         }
 
@@ -1502,6 +1505,7 @@ export class MeteogramCard extends LitElement {
                     throw new Error("No forecast data available from WeatherAPI.");
                 }
                 result = resultMaybe;
+                this.checkMissingForecastKeys(result);
                 this.apiExpiresAt = weatherApi.expiresAt;
                 this._statusApiSuccess = true;
                 this._lastApiSuccess = true;
@@ -1574,7 +1578,28 @@ export class MeteogramCard extends LitElement {
         }
     }
 
-
+    /**
+     * Checks which forecast keys are missing from the provided data and updates _missingForecastKeys.
+     */
+    private checkMissingForecastKeys(data: any) {
+        // List of all possible keys the card can use
+        const requiredKeys = [
+            'time', 'temperature', 'rain', 'rainMin', 'rainMax', 'snow',
+            'cloudCover', 'windSpeed', 'windDirection', 'symbolCode', 'pressure'
+        ];
+        if (!data || typeof data !== 'object') {
+            console.warn('[MeteogramCard] checkMissingForecastKeys: data is not an object:', data);
+            this._missingForecastKeys = requiredKeys;
+            return;
+        }
+        const missing = requiredKeys.filter(key => !(key in data) || !Array.isArray(data[key]) || data[key].length === 0);
+        console.log('[MeteogramCard] checkMissingForecastKeys:', {
+            dataKeys: Object.keys(data),
+            missing,
+            dataSample: Object.fromEntries(requiredKeys.map(k => [k, Array.isArray(data[k]) ? data[k].length : (typeof data[k])]))
+        });
+        this._missingForecastKeys = missing;
+    }
 
     async _drawMeteogram(caller: string = "unknown") {
         this.logMethodEntry('_drawMeteogram', { caller });
@@ -1723,10 +1748,13 @@ export class MeteogramCard extends LitElement {
             // If using weather entity and it's unavailable, do not render
             if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
                 const entityData = this._weatherEntityApiInstance.getForecastData();
+                this.checkMissingForecastKeys(entityData);
                 if (!entityData) {
                  this.setError(`Weather entity ${this.entityId} is unavailable. Waiting for it to become available...`);
                     return;
                 }
+            } else {
+                this.checkMissingForecastKeys(data);
             }
 
             // Determine if wind data is available
@@ -1875,6 +1903,7 @@ export class MeteogramCard extends LitElement {
         }
         // 3. Fallback: 6:00-18:00 is day
         const hour = date.getHours();
+       
         return hour >= 6 && hour < 18;
     }
 
@@ -2142,7 +2171,6 @@ export class MeteogramCard extends LitElement {
 
 
 
-
     }
 
 
@@ -2241,6 +2269,7 @@ export class MeteogramCard extends LitElement {
                         Integration: ${integrationDocUrl ? `<a href='${integrationDocUrl}' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>${integrationName}</a>` : integrationName}
                         <span style='color:#888;'>(${this.entityId})</span>
                     </div>
+                    ${this._missingForecastKeys && this._missingForecastKeys.length > 0 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(', ')}</div>` : ''}
                 </div>
             `;
         } else {
@@ -2250,6 +2279,7 @@ export class MeteogramCard extends LitElement {
                         Weather data from <a href='https://www.met.no/en' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>the Norwegian Meteorological Institute (MET Norway)</a>,
                         licensed under <a href='https://creativecommons.org/licenses/by/4.0/' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>CC BY 4.0</a>
                     </div>
+                    ${this._missingForecastKeys && this._missingForecastKeys.length > 0 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(', ')}</div>` : ''}
                 </div>
             `;
         }
@@ -3030,7 +3060,7 @@ export class MeteogramCard extends LitElement {
         }
     }
 
-        // Draw a wind barb at the given position
+    // Draw a wind barb at the given position
     drawWindBarb(g: any, x: number, y: number, speed: number, dirDeg: number, len: number, scale = 0.8) {
         const featherLong = 12;
         const featherShort = 6;
