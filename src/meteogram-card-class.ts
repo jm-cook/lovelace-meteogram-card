@@ -1,6 +1,6 @@
 import { LitElement, css, html, PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { MeteogramCardConfig, MeteogramCardEditorElement, DayRange, ConfigurableHTMLElement } from "./types";
+import { MeteogramCardConfig, MeteogramCardEditorElement, DayRange } from "./types";
 import { version } from "../package.json";
 import { getClientName} from "./diagnostics";
 import { WeatherAPI, ForecastData } from "./weather-api";
@@ -8,6 +8,15 @@ import { WeatherEntityAPI, mapHaConditionToMetnoSymbol } from "./weather-entity"
 import { trnslt } from "./translations";
 import { CARD_NAME, METEOGRAM_CARD_STARTUP_TIME, DIAGNOSTICS_DEFAULT } from "./constants";
 import { convertTemperature, convertPressure, convertWindSpeed, convertPrecipitation, convertDistance } from "./conversions";
+
+type MeteogramStyleModes = {
+  dark?: Record<string, string>;
+  [mode: string]: Record<string, string> | undefined;
+};
+
+export type MeteogramStyleConfig = Record<string, string> & {
+  modes?: MeteogramStyleModes;
+};
 
 @customElement('meteogram-card')
 export class MeteogramCard extends LitElement {
@@ -52,7 +61,7 @@ export class MeteogramCard extends LitElement {
     @property({type: Boolean}) showWind = true;
     @property({type: Boolean}) denseWeatherIcons = true; // NEW: icon density config
     @property({type: String}) meteogramHours: string = "48h"; // Default is now 48h
-    @property({type: Object}) styles: Record<string, string> = {}; // NEW: styles override
+    @property({type: Object}) styles: MeteogramStyleConfig = {}; // NEW: styles override
     @property({type: Boolean}) diagnostics: boolean = DIAGNOSTICS_DEFAULT; // Initialize here
     @property({type: String}) entityId?: string; // NEW: entity_id for weather integration
     @property({type: Boolean}) focussed = false; // NEW: Focussed mode
@@ -219,38 +228,41 @@ export class MeteogramCard extends LitElement {
     static styles = css`
             :host {
                 --meteogram-grid-color: #b8c4d9;
-                --meteogram-grid-color-dark: #444;
                 --meteogram-temp-line-color: orange;
-                --meteogram-temp-line-color-dark: orange;
                 --meteogram-pressure-line-color: #90caf9;
-                --meteogram-pressure-line-color-dark: #90caf9;
                 --meteogram-rain-bar-color: deepskyblue;
-                --meteogram-rain-bar-color-dark: deepskyblue;
                 --meteogram-rain-max-bar-color: #7fdbff;
-                --meteogram-rain-max-bar-color-dark: #7fdbff;
                 --meteogram-rain-label-color: #0058a3;
-                --meteogram-rain-label-color-dark: #a3d8ff;
                 --meteogram-rain-max-label-color: #2693e6;
-                --meteogram-rain-max-label-color-dark: #2693e6;
                 --meteogram-cloud-color: #b0bec5;
-                --meteogram-cloud-color-dark: #eceff1;
                 --meteogram-wind-barb-color: #1976d2;
-                --meteogram-wind-barb-color-dark: #1976d2;
                 --meteogram-label-font-size: var(--mdc-typography-body2-font-size, 0.875rem);
                 --meteogram-legend-font-size: var(--mdc-typography-body1-font-size, 1rem);
                 --meteogram-tick-font-size: var(--mdc-typography-body2-font-size, 0.875rem);
                 --meteogram-axis-label-color: #000;
-                --meteogram-axis-label-color-dark: #fff;
                 --meteogram-timescale-color: #ffb300;
-                --meteogram-timescale-color-dark: #ffd54f;
                 --meteogram-snow-bar-color: #b3e6ff;
-                --meteogram-snow-bar-color-dark: #e0f7fa;
                 display: block;
                 box-sizing: border-box;
                 height: 100%;
                 width: 100%;
                 max-width: 100%;
                 max-height: 100%;
+            }
+
+            :host([dark]) {
+                --meteogram-grid-color: #444;
+                --meteogram-temp-line-color: orange;
+                --meteogram-pressure-line-color: #90caf9;
+                --meteogram-rain-bar-color: deepskyblue;
+                --meteogram-rain-max-bar-color: #7fdbff;
+                --meteogram-rain-label-color: #a3d8ff;
+                --meteogram-rain-max-label-color: #2693e6;
+                --meteogram-cloud-color: #eceff1;
+                --meteogram-wind-barb-color: #1976d2;
+                --meteogram-axis-label-color: #fff;
+                --meteogram-timescale-color: #ffd54f;
+                --meteogram-snow-bar-color: #e0f7fa;
             }
 
             ha-card {
@@ -308,9 +320,6 @@ export class MeteogramCard extends LitElement {
                 fill: none;
             }
 
-            :host([dark]) .temp-line {
-                stroke: var(--meteogram-temp-line-color-dark);
-            }
 
             .pressure-line {
                 stroke: var(--meteogram-pressure-line-color);
@@ -319,27 +328,18 @@ export class MeteogramCard extends LitElement {
                 fill: none;
             }
 
-            :host([dark]) .pressure-line {
-                stroke: var(--meteogram-pressure-line-color-dark);
-            }
 
             .rain-bar {
                 fill: var(--meteogram-rain-bar-color);
                 opacity: 0.8;
             }
 
-            :host([dark]) .rain-bar {
-                fill: var(--meteogram-rain-bar-color-dark);
-            }
 
             .rain-max-bar {
                 fill: var(--meteogram-rain-max-bar-color);
                 opacity: 0.5;
             }
 
-            :host([dark]) .rain-max-bar {
-                fill: var(--meteogram-rain-max-bar-color-dark);
-            }
 
             .rain-label {
                 font: var(--meteogram-label-font-size) sans-serif;
@@ -348,9 +348,6 @@ export class MeteogramCard extends LitElement {
                 fill: var(--meteogram-rain-label-color);
             }
 
-            :host([dark]) .rain-label {
-                fill: var(--meteogram-rain-label-color-dark);
-            }
 
             .rain-max-label {
                 font: var(--meteogram-label-font-size) sans-serif;
@@ -359,15 +356,11 @@ export class MeteogramCard extends LitElement {
                 fill: var(--meteogram-rain-max-label-color);
             }
 
-            :host([dark]) .rain-max-label {
-                fill: var(--meteogram-rain-max-label-color-dark);
-            }
 
             .legend {
                 font: var(--meteogram-legend-font-size) sans-serif;
                 fill: var(--primary-text-color, #222);
             }
-
             :host([dark]) .legend {
                 fill: var(--primary-text-color, #fff);
             }
@@ -376,33 +369,19 @@ export class MeteogramCard extends LitElement {
                 fill: var(--meteogram-temp-line-color);
             }
 
-            :host([dark]) .legend-temp {
-                fill: var(--meteogram-temp-line-color-dark);
-            }
 
             .legend-pressure {
                 fill: var(--meteogram-pressure-line-color);
             }
 
-            :host([dark]) .legend-pressure {
-                fill: var(--meteogram-pressure-line-color-dark);
-            }
 
             .legend-rain {
                 fill: var(--meteogram-rain-bar-color);
             }
 
-            :host([dark]) .legend-rain {
-                fill: var(--meteogram-rain-bar-color-dark);
-            }
 
-            .legend-rain-max {
-                fill: var(--meteogram-rain-max-bar-color);
-            }
 
-            :host([dark]) .legend-rain-max {
-                fill: var(--meteogram-rain-max-bar-color-dark);
-            }
+
 
             .legend-snow {
                 fill: #b3e6ff;
@@ -411,11 +390,6 @@ export class MeteogramCard extends LitElement {
             .legend-cloud {
                 fill: var(--meteogram-cloud-color);
             }
-
-            :host([dark]) .legend-cloud {
-                fill: var(--meteogram-cloud-color-dark);
-            }
-
             .wind-barb {
                 stroke: var(--meteogram-wind-barb-color);
                 stroke-width: 2;
@@ -441,16 +415,7 @@ export class MeteogramCard extends LitElement {
                 fill: var(--meteogram-wind-barb-color);
             }
 
-            :host([dark]) .wind-barb,
-            :host([dark]) .wind-barb-feather,
-            :host([dark]) .wind-barb-half,
-            :host([dark]) .wind-barb-calm {
-                stroke: var(--meteogram-wind-barb-color-dark);
-            }
 
-            :host([dark]) .wind-barb-dot {
-                fill: var(--meteogram-wind-barb-color-dark);
-            }
 
             .top-date-label {
                 font: var(--meteogram-label-font-size, 16px) sans-serif;
@@ -464,10 +429,6 @@ export class MeteogramCard extends LitElement {
                 fill: var(--meteogram-timescale-color);
             }
 
-            :host([dark]) .bottom-hour-label {
-                fill: var(--meteogram-timescale-color-dark);
-            }
-
             .day-bg {
                 fill: transparent !important;
                 opacity: 0;
@@ -478,18 +439,27 @@ export class MeteogramCard extends LitElement {
                 fill: transparent;
             }
 
-            .attribution {
+            /* .attribution is not used, move its styles to .attribution-icon-wrapper for correct layout */
+            .attribution-icon-wrapper {
                 position: absolute;
                 top: 12px;
                 right: 24px;
+                z-index: 3;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                height: 32px;
+                width: 32px;
                 font-size: 0.85em;
                 color: var(--secondary-text-color);
                 text-align: right;
-                z-index: 2;
                 background: rgba(255, 255, 255, 0.7);
                 padding: 2px 8px;
                 border-radius: 6px;
                 pointer-events: auto;
+            }
+            :host([dark]) .attribution-icon-wrapper {
+                background: transparent;
             }
 
             /* Tick text font size for axes */
@@ -504,19 +474,14 @@ export class MeteogramCard extends LitElement {
                 fill: var(--meteogram-cloud-color);
                 opacity: 0.42;
             }
-
             :host([dark]) .cloud-area {
-                fill: var(--meteogram-cloud-color-dark);
+                fill: var(--meteogram-cloud-color);
                 opacity: 0.55;
             }
 
             .axis-label {
                 font: var(--meteogram-label-font-size, 14px) sans-serif;
                 fill: var(--meteogram-axis-label-color);
-            }
-
-            :host([dark]) .axis-label {
-                fill: var(--meteogram-axis-label-color-dark);
             }
 
             .grid line,
@@ -530,101 +495,20 @@ export class MeteogramCard extends LitElement {
             .wind-band-outline {
                 stroke: var(--meteogram-grid-color);
             }
-
-            :host([dark]) .grid line,
-            :host([dark]) .xgrid line,
-            :host([dark]) .wind-band-grid,
-            :host([dark]) .twentyfourh-line,
-            :host([dark]) .twentyfourh-line-wind,
-            :host([dark]) .day-tic,
-            :host([dark]) .temperature-axis path,
-            :host([dark]) .pressure-axis path,
-            :host([dark]) .wind-band-outline {
-                stroke: var(--meteogram-grid-color-dark);
-            }
-
-            /* Tick text font size for axes */
-
-            .temperature-axis .tick text,
-            .pressure-axis .tick text {
-                font-size: var(--meteogram-tick-font-size);
-                fill: var(--primary-text-color, #222);
-            }
-
-            .cloud-area {
-                fill: var(--meteogram-cloud-color);
-                opacity: 0.42;
-            }
-
-            :host([dark]) .cloud-area {
-                fill: var(--meteogram-cloud-color-dark);
-                opacity: 0.55;
-            }
-
-            .axis-label {
-                font: var(--meteogram-label-font-size, 14px) sans-serif;
-                fill: var(--meteogram-axis-label-color);
-            }
-
-            :host([dark]) .axis-label {
-                fill: var(--meteogram-axis-label-color-dark);
-            }
-
-            .grid line {
-                stroke: var(--meteogram-grid-color);
-            }
-
-            .xgrid line {
-                stroke: var(--meteogram-grid-color);
-            }
-
             .wind-band-grid {
-                stroke: var(--meteogram-grid-color);
                 stroke-width: 1;
             }
-
             .twentyfourh-line, .day-tic {
-                stroke: var(--meteogram-grid-color);
                 stroke-width: 3;
                 stroke-dasharray: 6, 5;
                 opacity: 0.7;
             }
-
             .twentyfourh-line-wind {
-                stroke: var(--meteogram-grid-color);
                 stroke-width: 2.5;
                 stroke-dasharray: 6, 5;
                 opacity: 0.5;
             }
 
-            :host([dark]) .grid line,
-            :host([dark]) .xgrid line,
-            :host([dark]) .wind-band-grid,
-            :host([dark]) .twentyfourh-line,
-            :host([dark]) .twentyfourh-line-wind,
-            :host([dark]) .day-tic {
-                stroke: var(--meteogram-grid-color-dark);
-            }
-
-            .temperature-axis path,
-            .pressure-axis path {
-                stroke: var(--meteogram-grid-color);
-            }
-
-            :host([dark]) .temperature-axis path,
-            :host([dark]) .pressure-axis path {
-                stroke: var(--meteogram-grid-color-dark);
-            }
-
-            .wind-band-outline {
-                stroke: var(--meteogram-grid-color);
-                stroke-width: 2;
-                fill: none;
-            }
-
-            :host([dark]) .wind-band-outline {
-                stroke: var(--meteogram-grid-color-dark);
-            }
 
             .attribution-icon-wrapper {
                 position: absolute;
@@ -1147,14 +1031,30 @@ export class MeteogramCard extends LitElement {
 
     // Life cycle hooks
     protected firstUpdated(_: PropertyValues) {
+        // Ensure styles are present in the shadow root and light DOM (host) for all environments
+        const cssText = (this.constructor as typeof MeteogramCard).styles?.cssText || '';
+        // Shadow root
+        const root = this.shadowRoot;
+        if (root && !root.querySelector('style[data-meteogram-card]')) {
+            const style = document.createElement('style');
+            style.setAttribute('data-meteogram-card', '');
+            style.textContent = cssText;
+            root.prepend(style);
+        }
+        // Light DOM (host)
+        if (!this.querySelector('style[data-meteogram-card]')) {
+            const style = document.createElement('style');
+            style.setAttribute('data-meteogram-card', '');
+            style.textContent = cssText;
+            this.prepend(style);
+        }
+
         // Make sure DOM is ready before initial drawing
         setTimeout(() => {
             this.loadD3AndDraw();
         }, 50);
 
         this._updateDarkMode(); // Ensure dark mode is set on first update
-
-
 
         // Call sampleFetchWeatherEntityForecast to log weather entity data
         // if (entityId && entityId !== 'none') {
@@ -1450,7 +1350,7 @@ export class MeteogramCard extends LitElement {
             if (!entityData || !entityData.time || entityData.time.length === 0) {
                 throw new Error(`Weather entity ${this.entityId} is unavailable. Waiting for it to become available...`);
             }
-            this._currentUnits = entityData.units || {};
+            this._currentUnits = (entityData && entityData.units) ? entityData.units : {};
             this.checkMissingForecastKeys(entityData);
             return entityData;
         }
@@ -1510,7 +1410,7 @@ export class MeteogramCard extends LitElement {
                 this._statusApiSuccess = true;
                 this._lastApiSuccess = true;
                 // Store units from API
-                this._currentUnits = result.units || {};
+                this._currentUnits = (result && result.units) ? result.units : {};
                 // Filter result by meteogramHours
                 let hours = 48;
                 if (this.meteogramHours === "8h") hours = 8;
@@ -2179,10 +2079,39 @@ export class MeteogramCard extends LitElement {
     render() {
         this._updateDarkMode(); // Ensure dark mode is set before rendering
 
-        // Build inline style string from styles property
-        const styleVars = Object.entries(this.styles || {})
+        // Build mergedStyles from styles property, supporting styles.modes.dark (and future modes)
+        let mergedStyles = { ...(this.styles || {}) };
+        // Use Home Assistant's dark mode detection if available
+        let isHassDark = false;
+        if (this.hass && this.hass.themes && typeof this.hass.themes.darkMode === 'boolean') {
+            isHassDark = this.hass.themes.darkMode;
+        } else {
+            // Fallback to prefers-color-scheme
+            isHassDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
+        // If modes is present, merge in the correct mode
+        if (mergedStyles.modes && typeof mergedStyles.modes === 'object') {
+            if (isHassDark && mergedStyles.modes.dark) {
+                // Only merge if dark mode and dark object exists
+                mergedStyles = { ...mergedStyles, ...mergedStyles.modes.dark };
+            }
+            delete mergedStyles.modes;
+        }
+        // Debug: log mergedStyles to verify what is being set
+        if (typeof window !== 'undefined' && window.console) {
+            console.debug('[MeteogramCard] mergedStyles to set:', mergedStyles);
+        }
+        // Set CSS variables on the host element (this) and on ha-card for compatibility
+        Object.entries(mergedStyles).forEach(([k, v]) => {
+            if (k.startsWith('--') && typeof v === 'string') {
+                this.style.setProperty(k, v);
+            }
+        });
+        // Also set variables on ha-card via style attribute for legacy/light-dom compatibility
+        const styleVars = Object.entries(mergedStyles)
+            .filter(([k, v]) => k.startsWith('--') && typeof v === 'string')
             .map(([k, v]) => `${k}: ${v};`)
-            .join(" ");
+            .join(' ');
 
         const successRate = WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT > 0
             ? Math.round(100 * WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT / WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT)

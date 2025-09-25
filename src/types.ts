@@ -12,7 +12,7 @@ export interface MeteogramCardConfig {
     show_wind?: boolean;
     dense_weather_icons?: boolean; // Add this line
     meteogram_hours?: string; // "8h", "12h", "24h", "48h", "54h", "max"
-    styles?: Record<string, string>; // <-- Add this line for style overrides
+    styles?: MeteogramStyleConfig; // <-- Updated for mode support
     diagnostics?: boolean; // Add this line
     entity_id?: string; // Add this line for weather entity selection
     focussed?: boolean; // Add this line for Focussed mode
@@ -90,3 +90,13 @@ export interface MeteogramCardEditorElement extends HTMLElement {
   hass?: any;
   config?: MeteogramCardConfig;
 }
+
+// Extend styles to support modes (e.g., dark)
+export type MeteogramStyleModes = {
+  dark?: Record<string, string>;
+  [mode: string]: Record<string, string> | undefined;
+};
+
+export type MeteogramStyleConfig = Record<string, string> & {
+  modes?: MeteogramStyleModes;
+};
