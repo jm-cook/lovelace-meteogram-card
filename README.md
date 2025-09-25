@@ -96,6 +96,7 @@ The meteogram retrieves weather data from the Met.no API or a Home Assistant wea
 - **Title**  
   Optional title for the card, displayed at the top.
 
+
 ### Functionality
 - **Dynamic Location**  
   Automatically uses Home Assistant's configured location, specified coordinates, or weather entity.
@@ -104,36 +105,25 @@ The meteogram retrieves weather data from the Met.no API or a Home Assistant wea
 - **Error Handling**  
   User-friendly error messages for network issues, API errors, and CORS problems.
 - **Dark Mode Support**  
-  Optimized for Home Assistant's dark mode with improved color contrast.
+  Fully supports Home Assistant's dark mode using the `modes:` setting in your theme YAML. All colors and styles adapt automatically. You can override any CSS variable for both light and dark mode using Home Assistant's theme system.
 - **Visual Editor Support**  
   Fully compatible with Home Assistant's visual editor for easy configuration.
 - **Caching**  
   Caches weather data per location or per entity to reduce API calls and improve performance.
-- **Location Handling**  
-  Uses configured coordinates, Home Assistant's location, or falls back to a default location (London).
 
 
 ## Options
 
 | Name                  | Type     | Default         | Description                                                                                       |
 |-----------------------|----------|-----------------|---------------------------------------------------------------------------------------------------|
-| title                 | string   | "Weather Forecast" | Optional title for the card                                                                       |
-| latitude              | number   | HA's default    | Latitude for weather data                                                                         |
-| longitude             | number   | HA's default    | Longitude for weather data                                                                        |
-| altitude              | number   | HA's default    | Altitude (in meters) for weather data. Optional; improves accuracy for some locations.            |
-| entity_id             | string   | none            | Weather entity to use as data source                                                              |
-| show_cloud_cover      | boolean  | true            | Show/hide cloud cover visualization                                                               |
-| show_pressure         | boolean  | true            | Show/hide pressure curve                                                                          |
-| show_precipitation    | boolean  | true            | Show/hide precipitation visualization (replaces deprecated show_rain)                             |
-| show_weather_icons    | boolean  | true            | Show/hide weather icons                                                                           |
-| show_wind             | boolean  | true            | Show/hide wind barbs section                                                                      |
-| dense_weather_icons   | boolean  | true            | Show weather icons every hour (true) or every 2 hours (false)                                     |
-| meteogram_hours       | string   | "48h"           | Number of hours to display in the meteogram (`8h`, `12h`, `24h`, `48h`, `54h`, or `max`)          |
-| aspect_ratio          | string   | "16:9"          | Aspect ratio for the chart (e.g., "16:9", "4:3"). Only applies in panel/grid layout modes.      |
-| layout_mode           | string   | "sections"      | Layout mode for the card: "sections", "panel", or "grid"                                        |
-| diagnostics           | boolean  | false           | Show diagnostics/status panel (for troubleshooting)                                               |
-| display_mode          | string   | "full"          | Display mode: "full", "core", or "focussed" (use display_mode instead of deprecated focussed)   |
-| focussed              | boolean  | false           | (Deprecated) Use display_mode: "focussed" instead.                                               |
+  meteogram-rain-bar-color: "#2196f3"
+  meteogram-rain-max-bar-color: "#90caf9"
+  meteogram-temp-line-color: "#ff9800"
+  meteogram-pressure-line-color: "#1976d2"
+  meteogram-wind-barb-color: "#388e3c"
+  meteogram-rain-label-color: "#d32f2f"
+  meteogram-rain-max-label-color: "#1976d2"
+  meteogram-cloud-color: red
 | styles                | object   | {{}}            | Custom CSS variables for card styling                                                             |
 
 ### Option Notes
@@ -183,6 +173,7 @@ The `aspect_ratio` option allows you to control the width-to-height ratio of the
 **Recommended:**
 - Use the default `sections` layout for most dashboards. Only use `panel` or `grid` (and thus `aspect_ratio`) if you have a specific advanced use case or are maintaining a legacy dashboard.
 
+
 ### Example Configuration
 
 ```yaml
@@ -203,8 +194,8 @@ layout_mode: sections
 diagnostics: false
 display_mode: full
 styles:
-  --meteogram-label-font-size: "16px"
-  --meteogram-grid-color: "#1976d2"
+  meteogram-label-font-size: "16px"
+  meteogram-grid-color: "#1976d2"
 ```
 
 #### Example: Focussed Mode (Minimal Chart)
@@ -221,9 +212,12 @@ aspect_ratio: "21:9"
 ```
 
 #### Example: Diagnostics Panel Enabled
+ 
+For more details and examples, see [doc/STYLES.md](doc/STYLES.md).
 ```yaml
 type: custom:meteogram-card
 diagnostics: true
+The card provides built-in defaults for all CSS variables for both light and dark mode. You can override these in your Home Assistant theme or via the `styles` property. For dark mode, use the `modes: dark:` section in your theme YAML.
 ```
 
 ## Note on Color Codes in Documentation
@@ -235,86 +229,59 @@ diagnostics: true
 ```yaml
 type: custom:meteogram-card
 styles:
-  --meteogram-cloud-color: "#ffb300"
-  --meteogram-grid-color: "#1976d2"
-  --meteogram-cloud-color-dark: "darkgray"
-  --meteogram-grid-color-dark: "dimgray"   # Dark mode grid color
+  meteogram-cloud-color: "#ffb300"
+  meteogram-grid-color: "#1976d2"
 ```
 
 **Example: Change font size for labels, legends, and axis ticks**
 ```yaml
 type: custom:meteogram-card
 styles:
-  --meteogram-label-font-size: "18px"      # Axis labels, date/hour/rain labels
-  --meteogram-legend-font-size: "16px"     # Legend text
-  --meteogram-tick-font-size: "15px"       # Y axis tick text
+  meteogram-label-font-size: "18px"      # Axis labels, date/hour/rain labels
+  meteogram-legend-font-size: "16px"     # Legend text
+  meteogram-tick-font-size: "15px"       # Y axis tick text
 ```
 
 **Example: Customize rain bar, temperature line, pressure line, wind barb colors, and rain label text**
 ```yaml
 type: custom:meteogram-card
 styles:
-  --meteogram-rain-bar-color: "#2196f3"
-  --meteogram-rain-bar-color-dark: "#1565c0"
-  --meteogram-rain-max-bar-color: "#90caf9"
-  --meteogram-rain-max-bar-color-dark: "#1976d2"
-  --meteogram-temp-line-color: "#ff9800"
-  --meteogram-temp-line-color-dark: "#ffd54f"
-  --meteogram-pressure-line-color: "#1976d2"
-  --meteogram-pressure-line-color-dark: "#90caf9"
-  --meteogram-wind-barb-color: "#388e3c"
-  --meteogram-wind-barb-color-dark: "#c8e6c9"
-  --meteogram-rain-label-color: "#d32f2f"
-  --meteogram-rain-label-color-dark: "#ffebee"
-  --meteogram-rain-max-label-color: "#1976d2"
-  --meteogram-rain-max-label-color-dark: "#90caf9"
-  --meteogram-cloud-color: red
-  --meteogram-cloud-color-dark: darkgray
-  --meteogram-grid-color-dark: dimgray
+  meteogram-rain-bar-color: "#2196f3"
+  meteogram-rain-max-bar-color: "#90caf9"
+  meteogram-temp-line-color: "#ff9800"
+  meteogram-pressure-line-color: "#1976d2"
+  meteogram-wind-barb-color: "#388e3c"
+  meteogram-rain-label-color: "#d32f2f"
+  meteogram-rain-max-label-color: "#1976d2"
+  meteogram-cloud-color: red
 ```
-
-
 
 **Usage notes:**
 - All values must be strings.
 - You can override any CSS variable used by the card.
-- For dark mode, if a `-dark` variable is not set, the card will use the corresponding non-dark variable as a fallback.
+- For dark mode, use the `modes: dark:` section in your theme YAML (see [doc/STYLES.md](doc/STYLES.md)).
 - For a full list of variables, see [doc/STYLES.md](doc/STYLES.md).
+
 
 #### List of Customizable CSS Variables
 
-You can override the following CSS variables via the `styles` option:
+You can override the following CSS variables via the `styles` option or your theme YAML (without the `--` prefix):
 
-- `--card-background-color`
-- `--primary-text-color`
-- `--secondary-text-color`
-- `--error-color`
-- `--divider-color`
-- `--meteogram-label-font-size`
-- `--meteogram-legend-font-size`
-- `--meteogram-tick-font-size`
-- `--meteogram-cloud-color`
-- `--meteogram-grid-color`
-- `--meteogram-pressure-line-color`
-- `--meteogram-timescale-color`
-- `--meteogram-rain-bar-color`
-- `--meteogram-rain-max-bar-color`
-- `--meteogram-temp-line-color`
-- `--meteogram-wind-barb-color`
-- `--meteogram-rain-label-color`
-- `--meteogram-rain-max-label-color`
-- `--meteogram-cloud-color-dark`
-- `--meteogram-grid-color-dark`
-- `--meteogram-pressure-line-color-dark`
-- `--meteogram-rain-bar-color-dark`
-- `--meteogram-rain-max-bar-color-dark`
-- `--meteogram-temp-line-color-dark`
-- `--meteogram-wind-barb-color-dark`
-- `--meteogram-rain-label-color-dark`
-- `--meteogram-rain-max-label-color-dark`
-- `--meteogram-snow-bar-color`
-- `--meteogram-snow-bar-color-dark`
-
+- `meteogram-label-font-size`
+- `meteogram-legend-font-size`
+- `meteogram-tick-font-size`
+- `meteogram-cloud-color`
+- `meteogram-grid-color`
+- `meteogram-pressure-line-color`
+- `meteogram-timescale-color`
+- `meteogram-rain-bar-color`
+- `meteogram-rain-max-bar-color`
+- `meteogram-temp-line-color`
+- `meteogram-wind-barb-color`
+- `meteogram-rain-label-color`
+- `meteogram-rain-max-label-color`
+- `meteogram-snow-bar-color`
+- ...and more (see [doc/STYLES.md](doc/STYLES.md) for the full list)
 
 For more details and examples, see [doc/STYLES.md][styledoc-url].
 
@@ -370,43 +337,32 @@ The following are the default configuration properties for the Meteogram Card (a
 
 *Note: `DIAGNOSTICS_DEFAULT` is defined in the code and typically defaults to `false` for production builds.*
 
+
 ## CSS Variable Defaults
 
 The following are the default CSS variables for the card. You can override these in your Home Assistant theme or via the `styles` property:
 
 ```css
 :host {
-    --meteogram-grid-color: #b8c4d9;
-    --meteogram-grid-color-dark: #444;
-    --meteogram-temp-line-color: orange;
-    --meteogram-temp-line-color-dark: orange;
-    --meteogram-pressure-line-color: #90caf9;
-    --meteogram-pressure-line-color-dark: #90caf9;
-    --meteogram-rain-bar-color: deepskyblue;
-    --meteogram-rain-bar-color-dark: deepskyblue;
-    --meteogram-rain-max-bar-color: #7fdbff;
-    --meteogram-rain-max-bar-color-dark: #7fdbff;
-    --meteogram-rain-label-color: #0058a3;
-    --meteogram-rain-label-color-dark: #a3d8ff;
-    --meteogram-rain-max-label-color: #2693e6;
-    --meteogram-rain-max-label-color-dark: #2693e6;
-    --meteogram-cloud-color: #b0bec5;
-    --meteogram-cloud-color-dark: #eceff1;
-    --meteogram-wind-barb-color: #1976d2;
-    --meteogram-wind-barb-color-dark: #1976d2;
-    --meteogram-snow-bar-color: #b3e6ff;
-    --meteogram-snow-bar-color-dark: #e0f7fa;
-    --meteogram-label-font-size: 13px;
-    --meteogram-legend-font-size: 14px;
-    --meteogram-tick-font-size: 13px;
-    --meteogram-axis-label-color: #000;
-    --meteogram-axis-label-color-dark: #fff;
-    --meteogram-timescale-color: #ffb300;
-    --meteogram-timescale-color-dark: #ffd54f;
+  --meteogram-grid-color: #b8c4d9;
+  --meteogram-temp-line-color: orange;
+  --meteogram-pressure-line-color: #90caf9;
+  --meteogram-rain-bar-color: deepskyblue;
+  --meteogram-rain-max-bar-color: #7fdbff;
+  --meteogram-rain-label-color: #0058a3;
+  --meteogram-rain-max-label-color: #2693e6;
+  --meteogram-cloud-color: #b0bec5;
+  --meteogram-wind-barb-color: #1976d2;
+  --meteogram-snow-bar-color: #b3e6ff;
+  --meteogram-label-font-size: 13px;
+  --meteogram-legend-font-size: 14px;
+  --meteogram-tick-font-size: 13px;
+  --meteogram-axis-label-color: #000;
+  --meteogram-timescale-color: #ffb300;
 }
 ```
 
-*Note: The default grid color in dark mode is now a dark grey (`#444`). This improves contrast and visual clarity in dark mode. Override with `--meteogram-grid-color-dark` if desired.*
+*Note: The card no longer uses `-dark` variable names. Instead, all variables are automatically applied for the correct mode using Home Assistant's theme system and the `:host([dark])` selector.*
 
 ### Wind Barbs
 
