@@ -2136,10 +2136,8 @@ export class MeteogramCard extends LitElement {
 
         // Draw weather icons
         if (this.showWeatherIcons) {
-            const iconInterval = this.denseWeatherIcons
-                ? Math.max(1, Math.floor(N / Math.max(8, Math.floor(chartWidth / 60))))
-                : Math.max(1, Math.floor(N / Math.max(5, Math.floor(chartWidth / 100))));
-            this.drawWeatherIcons(chart, symbolCode, temperatureConverted, x, yTemp, data, iconInterval);
+
+            this.drawWeatherIcons(chart, symbolCode, temperatureConverted, x, yTemp, data, chartWidth, N);
         }
 
 
@@ -2894,7 +2892,15 @@ export class MeteogramCard extends LitElement {
     /**
      * Draw weather icons along the temperature curve (minimal helper)
      */
-    private drawWeatherIcons(chart: any, symbolCode: string[], temperatureConverted: (number|null)[], x: any, yTemp: any, data: ForecastData, iconInterval: number) {
+    private drawWeatherIcons(chart: any, symbolCode: string[], temperatureConverted: (number|null)[], x: any, yTemp: any, data: ForecastData, chartWidth: number, N: number) {
+        // If denseWeatherIcons is true, show all icons (interval 1)
+        // Otherwise, space icons so they don't overlap (e.g., 44px per icon)
+        const minIconSpacing = 44; // px, icon is 40px wide
+        const maxIcons = Math.floor(chartWidth / minIconSpacing);
+        const iconInterval = this.denseWeatherIcons
+            ? 1
+            : Math.max(1, Math.ceil(N / maxIcons));
+
         chart.selectAll(".weather-icon")
             .data(symbolCode)
             .enter()
