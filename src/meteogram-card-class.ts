@@ -227,21 +227,6 @@ export class MeteogramCard extends LitElement {
 
     static styles = css`
             :host {
-                --meteogram-grid-color: #b8c4d9;
-                --meteogram-temp-line-color: orange;
-                --meteogram-pressure-line-color: #90caf9;
-                --meteogram-rain-bar-color: deepskyblue;
-                --meteogram-rain-max-bar-color: #7fdbff;
-                --meteogram-rain-label-color: #0058a3;
-                --meteogram-rain-max-label-color: #2693e6;
-                --meteogram-cloud-color: #b0bec5;
-                --meteogram-wind-barb-color: #1976d2;
-                --meteogram-label-font-size: var(--mdc-typography-body2-font-size, 0.875rem);
-                --meteogram-legend-font-size: var(--mdc-typography-body1-font-size, 1rem);
-                --meteogram-tick-font-size: var(--mdc-typography-body2-font-size, 0.875rem);
-                --meteogram-axis-label-color: #000;
-                --meteogram-timescale-color: #ffb300;
-                --meteogram-snow-bar-color: #b3e6ff;
                 display: block;
                 box-sizing: border-box;
                 height: 100%;
@@ -250,20 +235,6 @@ export class MeteogramCard extends LitElement {
                 max-height: 100%;
             }
 
-            :host([dark]) {
-                --meteogram-grid-color: #444;
-                --meteogram-temp-line-color: orange;
-                --meteogram-pressure-line-color: #90caf9;
-                --meteogram-rain-bar-color: deepskyblue;
-                --meteogram-rain-max-bar-color: #7fdbff;
-                --meteogram-rain-label-color: #a3d8ff;
-                --meteogram-rain-max-label-color: #2693e6;
-                --meteogram-cloud-color: #eceff1;
-                --meteogram-wind-barb-color: #1976d2;
-                --meteogram-axis-label-color: #fff;
-                --meteogram-timescale-color: #ffd54f;
-                --meteogram-snow-bar-color: #e0f7fa;
-            }
 
             ha-card {
                 display: flex;
@@ -315,47 +286,60 @@ export class MeteogramCard extends LitElement {
             }
 
             .temp-line {
-                stroke: var(--meteogram-temp-line-color);
+                stroke: var(--meteogram-temp-line-color, orange);
                 stroke-width: 3;
                 fill: none;
             }
-
-
+            :host([dark]) .temp-line {
+                stroke: var(--meteogram-temp-line-color, orange);
+            }
+            
             .pressure-line {
-                stroke: var(--meteogram-pressure-line-color);
+                /* Uses theme variable, fallback is blue for debug */
+                stroke: var(--meteogram-pressure-line-color, blue);
                 stroke-width: 4;
                 stroke-dasharray: 3, 3;
                 fill: none;
             }
-
+            :host([dark]) .pressure-line {
+                stroke: var(--meteogram-pressure-line-color, #90caf9);
+            }
 
             .rain-bar {
-                fill: var(--meteogram-rain-bar-color);
+                fill: var(--meteogram-rain-bar-color, deepskyblue);
                 opacity: 0.8;
             }
-
+            :host([dark]) .rain-bar {
+                fill: var(--meteogram-rain-bar-color, deepskyblue);
+            }
 
             .rain-max-bar {
-                fill: var(--meteogram-rain-max-bar-color);
+                fill: var(--meteogram-rain-max-bar-color, #7fdbff);
                 opacity: 0.5;
             }
-
+            :host([dark]) .rain-max-bar {
+                fill: var(--meteogram-rain-max-bar-color, #7fdbff);
+            }
 
             .rain-label {
-                font: var(--meteogram-label-font-size) sans-serif;
+                font: var(--meteogram-label-font-size, 0.875rem) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: var(--meteogram-rain-label-color);
+                fill: var(--meteogram-rain-label-color, #0058a3);
             }
-
+            :host([dark]) .rain-label {
+                fill: var(--meteogram-rain-label-color, #a3d8ff);
+            }
 
             .rain-max-label {
-                font: var(--meteogram-label-font-size) sans-serif;
+                font: var(--meteogram-label-font-size, 0.875rem) sans-serif;
                 text-anchor: middle;
                 font-weight: bold;
-                fill: var(--meteogram-rain-max-label-color);
+                fill: var(--meteogram-rain-max-label-color, #2693e6);
             }
-
+            :host([dark]) .rain-max-label {
+                fill: var(--meteogram-rain-max-label-color, #2693e6);
+            }
 
             .legend {
                 font: var(--meteogram-legend-font-size) sans-serif;
@@ -366,56 +350,78 @@ export class MeteogramCard extends LitElement {
             }
 
             .legend-temp {
-                fill: var(--meteogram-temp-line-color);
+                fill: var(--meteogram-temp-line-color, orange);
             }
-
+            :host([dark]) .legend-temp {
+                fill: var(--meteogram-temp-line-color, orange);
+            }
 
             .legend-pressure {
-                fill: var(--meteogram-pressure-line-color);
+                fill: var(--meteogram-pressure-line-color, #90caf9);
             }
-
+            :host([dark]) .legend-pressure {
+                fill: var(--meteogram-pressure-line-color, #90caf9);
+            }
 
             .legend-rain {
-                fill: var(--meteogram-rain-bar-color);
+                fill: var(--meteogram-rain-bar-color, deepskyblue);
+            }
+            :host([dark]) .legend-rain {
+                fill: var(--meteogram-rain-bar-color, deepskyblue);
             }
 
-
-
-
-
             .legend-snow {
-                fill: #b3e6ff;
+                fill: var(--meteogram-snow-bar-color, #b3e6ff);
+            }
+            :host([dark]) .legend-snow {
+                fill: var(--meteogram-snow-bar-color, #e0f7fa);
             }
 
             .legend-cloud {
-                fill: var(--meteogram-cloud-color);
+                fill: var(--meteogram-cloud-color, #b0bec5);
+            }
+            :host([dark]) .legend-cloud {
+                fill: var(--meteogram-cloud-color, #eceff1);
             }
             .wind-barb {
-                stroke: var(--meteogram-wind-barb-color);
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
                 stroke-width: 2;
                 fill: none;
             }
+            :host([dark]) .wind-barb {
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
+            }
 
             .wind-barb-feather {
-                stroke: var(--meteogram-wind-barb-color);
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
                 stroke-width: 1.4;
+            }
+            :host([dark]) .wind-barb-feather {
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
             }
 
             .wind-barb-half {
-                stroke: var(--meteogram-wind-barb-color);
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
                 stroke-width: 0.8;
+            }
+            :host([dark]) .wind-barb-half {
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
             }
 
             .wind-barb-calm {
-                stroke: var(--meteogram-wind-barb-color);
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
                 fill: none;
+            }
+            :host([dark]) .wind-barb-calm {
+                stroke: var(--meteogram-wind-barb-color, #1976d2);
             }
 
             .wind-barb-dot {
-                fill: var(--meteogram-wind-barb-color);
+                fill: var(--meteogram-wind-barb-color, #1976d2);
             }
-
-
+            :host([dark]) .wind-barb-dot {
+                fill: var(--meteogram-wind-barb-color, #1976d2);
+            }
 
             .top-date-label {
                 font: var(--meteogram-label-font-size, 16px) sans-serif;
@@ -423,10 +429,16 @@ export class MeteogramCard extends LitElement {
                 font-weight: bold;
                 dominant-baseline: hanging;
             }
+            :host([dark]) .top-date-label {
+                fill: var(--primary-text-color, #fff);
+            }
 
             .bottom-hour-label {
-                font: var(--meteogram-label-font-size) sans-serif;
-                fill: var(--meteogram-timescale-color);
+                font: var(--meteogram-label-font-size, 0.875rem) sans-serif;
+                fill: var(--meteogram-timescale-color, #ffb300);
+            }
+            :host([dark]) .bottom-hour-label {
+                fill: var(--meteogram-timescale-color, #ffd54f);
             }
 
             .day-bg {
@@ -471,17 +483,20 @@ export class MeteogramCard extends LitElement {
             }
 
             .cloud-area {
-                fill: var(--meteogram-cloud-color);
+                fill: var(--meteogram-cloud-color, #b0bec5);
                 opacity: 0.42;
             }
             :host([dark]) .cloud-area {
-                fill: var(--meteogram-cloud-color);
+                fill: var(--meteogram-cloud-color, #eceff1);
                 opacity: 0.55;
             }
 
             .axis-label {
                 font: var(--meteogram-label-font-size, 14px) sans-serif;
-                fill: var(--meteogram-axis-label-color);
+                fill: var(--meteogram-axis-label-color, #000);
+            }
+            :host([dark]) .axis-label {
+                fill: var(--meteogram-axis-label-color, #fff);
             }
 
             .grid line,
@@ -493,7 +508,18 @@ export class MeteogramCard extends LitElement {
             .temperature-axis path,
             .pressure-axis path,
             .wind-band-outline {
-                stroke: var(--meteogram-grid-color);
+                stroke: var(--meteogram-grid-color, #b8c4d9);
+            }
+            :host([dark]) .grid line,
+            :host([dark]) .xgrid line,
+            :host([dark]) .wind-band-grid,
+            :host([dark]) .twentyfourh-line,
+            :host([dark]) .twentyfourh-line-wind,
+            :host([dark]) .day-tic,
+            :host([dark]) .temperature-axis path,
+            :host([dark]) .pressure-axis path,
+            :host([dark]) .wind-band-outline {
+                stroke: var(--meteogram-grid-color, #444);
             }
             .wind-band-grid {
                 stroke-width: 1;
@@ -2635,7 +2661,9 @@ export class MeteogramCard extends LitElement {
      * Draw pressure line (converted data)
      */
     private drawPressureLine(chart: any, pressure: (number|null)[], x: any, yPressure: any, chartWidth: number, legendX?: number, legendY?: number) {
-        const d3 = window.d3;
+    const d3 = window.d3;
+    // Debug: Log pressure data before drawing
+    console.log('[MeteogramCard] Pressure data for chart:', pressure);
         const pressureLine = d3.line()
             .defined((d: number | null) => d !== null && typeof d === "number" && !isNaN(d))
             .x((_: number, i: number) => x(i))
@@ -2645,7 +2673,9 @@ export class MeteogramCard extends LitElement {
             .datum(pressure)
             .attr("class", "pressure-line")
             .attr("d", pressureLine)
-            .attr("stroke", "currentColor");
+            .attr("fill", "none"); // Ensure no area fill, let CSS handle stroke
+
+        // Note: Do NOT draw a polygon/area for pressure. Only the line.
 
         // Draw right-side pressure axis
         // Use passed chartWidth for consistency
