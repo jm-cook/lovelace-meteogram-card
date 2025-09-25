@@ -2558,29 +2558,8 @@ export class MeteogramCard extends LitElement {
                 });
         }
 
-        // Bottom hour labels - always placed below the chart area
-        const hourLabelY = margin.top + chartHeight + windBandHeight + 15;
-
-        // FIX: Place hour labels at the same x as their vertical grid line (i.e., x(i))
-        svg.selectAll(".bottom-hour-label")
-            .data(data.time)
-            .enter()
-            .append("text")
-            .attr("class", "bottom-hour-label")
-            .attr("x", (_: Date, i: number) => margin.left + x(i))
-            .attr("y", hourLabelY)
-            .attr("text-anchor", "middle")
-            .text((d: Date, i: number) => {
-                const haLocale = this.getHaLocale();
-                const hour = d.toLocaleTimeString(haLocale, {hour: "2-digit", hour12: false});
-                if (width < 400) {
-                    return i % 6 === 0 ? hour : "";
-                } else if (width > 800) {
-                    return i % 2 === 0 ? hour : "";
-                } else {
-                    return i % 3 === 0 ? hour : "";
-                }
-            });
+        // Draw bottom hour labels using helper
+        this.drawBottomHourLabels(svg, data.time, margin, x, chartHeight, windBandHeight, width);
 
         // Draw all chart elements in order of background to foreground
         // 1. Cloud band (if enabled)
@@ -3014,5 +2993,38 @@ export class MeteogramCard extends LitElement {
 
     private getSystemPrecipitationUnit(): "mm" | "in" {
         return this._precipUnit;
+    }
+    /**
+     * Draw bottom hour labels below the chart area
+     */
+    private drawBottomHourLabels(
+        svg: any,
+        time: Date[],
+        margin: { top: number; right: number; bottom: number; left: number },
+        x: any,
+        chartHeight: number,
+        windBandHeight: number,
+        width: number
+    ) {
+        const hourLabelY = margin.top + chartHeight + windBandHeight + 15;
+        svg.selectAll(".bottom-hour-label")
+            .data(time)
+            .enter()
+            .append("text")
+            .attr("class", "bottom-hour-label")
+            .attr("x", (_: Date, i: number) => margin.left + x(i))
+            .attr("y", hourLabelY)
+            .attr("text-anchor", "middle")
+            .text((d: Date, i: number) => {
+                const haLocale = this.getHaLocale();
+                const hour = d.toLocaleTimeString(haLocale, {hour: "2-digit", hour12: false});
+                if (width < 400) {
+                    return i % 6 === 0 ? hour : "";
+                } else if (width > 800) {
+                    return i % 2 === 0 ? hour : "";
+                } else {
+                    return i % 3 === 0 ? hour : "";
+                }
+            });
     }
 }
