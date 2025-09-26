@@ -86,6 +86,7 @@ export class MeteogramCard extends LitElement {
     private _pendingRender = false;
     private _lastApiSuccess = false;
     private _margin = { top: 32, right: 48, bottom: 32, left: 48 };
+    private _this._chartWidth = 0;
 
     static lastD3RetryTime = 0;
 
@@ -1919,17 +1920,17 @@ export class MeteogramCard extends LitElement {
         // Cap the chart width to only what's needed for the data
         const maxHourSpacing = 90;
         const baseWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
-        const chartWidth = width - margin.left - margin.right;
+        this._chartWidth = width - margin.left - margin.right;
 
         // Adjust dx for wider charts - ensure elements don't get too stretched or squished
-        let dx = chartWidth / (N - 1);
+        let dx = this._chartWidth / (N - 1);
         // If the chart is very wide, adjust spacing so elements don't get too stretched
         const hourSpacing = Math.min(dx, maxHourSpacing); // Cap the hour spacing at 45px
 
         // X scale - for wider charts, maintain reasonable hour spacing
         const x = d3.scaleLinear()
             .domain([0, N - 1])
-            .range([0, chartWidth]);
+            .range([0, this._chartWidth]);
 
         // Adjust the actual dx to what's being used by the scale
         dx = x(1) - x(0);
@@ -1999,7 +2000,7 @@ export class MeteogramCard extends LitElement {
         // Calculate legend positions
         const numLegends = enabledLegends.length;
         const legendPositions = enabledLegends.map((_, i) => {
-            const slotWidth = chartWidth / numLegends;
+            const slotWidth = this._chartWidth / numLegends;
             return {
                 x: i * slotWidth + 2,
                 y: -45
@@ -2015,17 +2016,17 @@ export class MeteogramCard extends LitElement {
             .attr("x", (d: DayRange) => margin.left + x(d.start))
             .attr("y", margin.top - 42)
             // Limit width to only main chart area (do not extend to right axis)
-            .attr("width", (d: DayRange) => Math.min(x(Math.max(d.end - 1, d.start)) - x(d.start) + dx, chartWidth - x(d.start)))
+            .attr("width", (d: DayRange) => Math.min(x(Math.max(d.end - 1, d.start)) - x(d.start) + dx, this._chartWidth - x(d.start)))
             // Limit height to only main chart area (do not extend to lower x axis)
             .attr("height", chartHeight + 42)
             .attr("opacity", (_: DayRange, i: number) => i % 2 === 0 ? 0.16 : 0);
 
         // Draw chart grid background
-        this.drawChartGrid(svg, chart, d3, x, yTemp, N, margin, chartHeight, dayStarts, chartWidth);
-        this.drawGridOutline(chart, chartWidth, chartHeight);
+        this.drawChartGrid(svg, chart, d3, x, yTemp, N, margin, chartHeight, dayStarts);
+        this.drawGridOutline(chart, chartHeight);
 
         // Draw date labels at top
-        this.drawDateLabels(svg, time, dayStarts, margin, x, chartWidth, dateLabelY);
+        this.drawDateLabels(svg, time, dayStarts, margin, x, dateLabelY);
 
         // Draw bottom hour labels using helper
         this.drawBottomHourLabels(svg, data.time, margin, x, chartHeight, windBandHeight, width);
@@ -2067,15 +2068,15 @@ export class MeteogramCard extends LitElement {
             const pressureLegendIndex = enabledLegends.findIndex(l => l.class.includes("legend-pressure"));
             if (pressureLegendIndex >= 0) {
                 const legendPos = legendPositions[pressureLegendIndex];
-                this.drawPressureLine(chart, pressure, x, yPressure, chartWidth, legendPos.x, legendPos.y);
+                this.drawPressureLine(chart, pressure, x, yPressure, legendPos.x, legendPos.y);
             } else {
-                this.drawPressureLine(chart, pressure, x, yPressure, chartWidth);
+                this.drawPressureLine(chart, pressure, x, yPressure);
             }
         }
 
         // Wind band grid lines (if wind band is enabled)
         if (windAvailable) {
-            this.drawWindBand(svg, x, windBandHeight, chartWidth, margin, chartHeight, width, N, time, windSpeed, windDirection);
+            this.drawWindBand(svg, x, windBandHeight, margin, chartHeight, width, N, time, windSpeed, windDirection);
         }
 
 
@@ -2093,7 +2094,7 @@ export class MeteogramCard extends LitElement {
         // Draw weather icons
         if (this.showWeatherIcons) {
 
-            this.drawWeatherIcons(chart, symbolCode, temperatureConverted, x, yTemp, data, chartWidth, N);
+            this.drawWeatherIcons(chart, symbolCode, temperatureConverted, x, yTemp, data, N);
         }
 
 
@@ -2472,8 +2473,7 @@ export class MeteogramCard extends LitElement {
         N: number,
         margin: { top: number; right: number; bottom: number; left: number },
         chartHeight: number,
-        dayStarts: number[],
-        chartWidth: number
+        dayStarts: number[]
     ) {
         // Day boundary ticks (top short ticks)
         const tickLength = 12; // Short tick length above the top line
@@ -2500,7 +2500,7 @@ export class MeteogramCard extends LitElement {
         chart.append("g")
             .attr("class", "grid")
             .call(window.d3.axisLeft(yTemp)
-                .tickSize(-chartWidth)
+                .tickSize(-this._chartWidth)
                 .tickFormat(() => ""));
 
         // Add vertical gridlines
@@ -2525,7 +2525,6 @@ export class MeteogramCard extends LitElement {
         dayStarts: number[],
         margin: { top: number; right: number; bottom: number; left: number },
         x: any,
-        chartWidth: number,
         dateLabelY: number
     ) {
         if (!this.focussed) {
@@ -2539,7 +2538,7 @@ export class MeteogramCard extends LitElement {
                     const rawX = margin.left + x(d);
                     if (i === dayStarts.length - 1) {
                         // Cap to chart right edge minus a small margin
-                        return Math.min(rawX, margin.left + chartWidth - 80);
+                        return Math.min(rawX, margin.left + this._chartWidth - 80);
                     }
                     return rawX;
                 })
@@ -2604,13 +2603,12 @@ export class MeteogramCard extends LitElement {
      */
     private drawGridOutline(
         chart: any,
-        chartWidth: number,
         chartHeight: number
     ) {
         // Top horizontal solid line (thicker, uses grid color)
         chart.append("line")
             .attr("class", "line")
-            .attr("x1", 0).attr("x2", chartWidth)
+            .attr("x1", 0).attr("x2", this._chartWidth)
             .attr("y1", 0).attr("y2", 0)
             .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
             .attr("stroke-width", 3);
@@ -2618,14 +2616,14 @@ export class MeteogramCard extends LitElement {
         // Bottom solid line (uses grid color)
         chart.append("line")
             .attr("class", "line")
-            .attr("x1", 0).attr("x2", chartWidth)
+            .attr("x1", 0).attr("x2", this._chartWidth)
             .attr("y1", chartHeight).attr("y2", chartHeight)
             .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)");
 
         // Right vertical solid line (always drawn, slightly thicker)
         chart.append("line")
             .attr("class", "line")
-            .attr("x1", chartWidth).attr("x2", chartWidth)
+            .attr("x1", this._chartWidth).attr("x2", this._chartWidth)
             .attr("y1", 0).attr("y2", chartHeight)
             .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
             .attr("stroke-width", 3);
@@ -2679,7 +2677,7 @@ export class MeteogramCard extends LitElement {
     /**
      * Draw pressure line (converted data)
      */
-    private drawPressureLine(chart: any, pressure: (number|null)[], x: any, yPressure: any, chartWidth: number, legendX?: number, legendY?: number) {
+    private drawPressureLine(chart: any, pressure: (number|null)[], x: any, yPressure: any, legendX?: number, legendY?: number) {
     const d3 = window.d3;
     // Debug: Log pressure data before drawing
     console.log('[MeteogramCard] Pressure data for chart:', pressure);
@@ -2697,7 +2695,7 @@ export class MeteogramCard extends LitElement {
         // Note: Do NOT draw a polygon/area for pressure. Only the line.
 
         // Draw right-side pressure axis
-        // Use passed chartWidth for consistency
+        // Use passed this._chartWidth for consistency
         // Calculate integer tick values for pressure axis
         const pressureDomain = yPressure.domain();
         const minPressure = Math.ceil(pressureDomain[0]);
@@ -2708,7 +2706,7 @@ export class MeteogramCard extends LitElement {
         }
         chart.append("g")
             .attr("class", "pressure-axis")
-            .attr("transform", `translate(${chartWidth}, 0)`)
+            .attr("transform", `translate(${this._chartWidth}, 0)`)
             .call(d3.axisRight(yPressure)
                 .tickValues(pressureTicks)
                 .tickFormat(d3.format('d')));
@@ -2718,7 +2716,7 @@ export class MeteogramCard extends LitElement {
             chart.append("text")
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
-                .attr("transform", `translate(${chartWidth + this._margin.right-20},${yPressure.range()[0] / 2}) rotate(90)`)
+                .attr("transform", `translate(${this._chartWidth + this._margin.right-20},${yPressure.range()[0] / 2}) rotate(90)`)
                 .text(trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") + " (" + this._pressureUnit + ")");
         }
 
@@ -2900,11 +2898,11 @@ export class MeteogramCard extends LitElement {
     /**
      * Draw weather icons along the temperature curve (minimal helper)
      */
-    private drawWeatherIcons(chart: any, symbolCode: string[], temperatureConverted: (number|null)[], x: any, yTemp: any, data: ForecastData, chartWidth: number, N: number) {
+    private drawWeatherIcons(chart: any, symbolCode: string[], temperatureConverted: (number|null)[], x: any, yTemp: any, data: ForecastData, N: number) {
         // If denseWeatherIcons is true, show all icons (interval 1)
         // Otherwise, space icons so they don't overlap (e.g., 44px per icon)
         const minIconSpacing = 44; // px, icon is 40px wide
-        const maxIcons = Math.floor(chartWidth / minIconSpacing);
+        const maxIcons = Math.floor(this._chartWidth / minIconSpacing);
         const iconInterval = this.denseWeatherIcons
             ? 1
             : Math.max(1, Math.ceil(N / maxIcons));
@@ -2954,7 +2952,7 @@ export class MeteogramCard extends LitElement {
     /**
      * Draw wind band (barbs, grid, background, border)
      */
-    private drawWindBand(svg: any, x: any, windBandHeight: number, chartWidth: number, margin: any, chartHeight: number, width: number, N: number, time: Date[], windSpeed: (number|null)[], windDirection: (number|null)[]) {
+    private drawWindBand(svg: any, x: any, windBandHeight: number, margin: any, chartHeight: number, width: number, N: number, time: Date[], windSpeed: (number|null)[], windDirection: (number|null)[]) {
         const d3 = window.d3;
         const windBandYOffset = margin.top + chartHeight;
         const windBand = svg.append('g')
@@ -2983,7 +2981,7 @@ export class MeteogramCard extends LitElement {
             .attr("class", "wind-band-outline")
             .attr("x", 0)
             .attr("y", 0)
-            .attr("width", chartWidth)
+            .attr("width", this._chartWidth)
             .attr("height", windBandHeight)
             .attr("stroke", "currentColor")
             .attr("stroke-width", 2)
@@ -2993,7 +2991,7 @@ export class MeteogramCard extends LitElement {
             .attr("class", "wind-band-bg")
             .attr("x", 0)
             .attr("y", 0)
-            .attr("width", chartWidth)
+            .attr("width", this._chartWidth)
             .attr("height", windBandHeight);
 
         // Day change lines in wind band
