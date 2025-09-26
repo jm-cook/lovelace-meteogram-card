@@ -29,60 +29,62 @@ A custom card showing a meteogram with wind barbs, powered by Met.no API or Home
 4. Click **Install**.
 5. Restart Home Assistant if prompted.
 
-You no longer need to add a custom repository. The card is available directly in HACS.
-
-## Usage
-
+type: custom:meteogram-card
+styles:
+  meteogram-cloud-color: "#ffb300"
+  meteogram-grid-color: "#1976d2"
 Add the card to your dashboard:
 
 ```yaml
 type: custom:meteogram-card
-title: Weather Forecast
-# Optional: specify coordinates, or use Home Assistant's default location
-latitude: 51.5074
-longitude: -0.1278
-# Optional: use a Home Assistant weather entity
+type: custom:meteogram-card
+styles:
+  meteogram-label-font-size: "18px"      # Axis labels, date/hour/rain labels
+  meteogram-legend-font-size: "16px"     # Legend text
+  meteogram-tick-font-size: "15px"       # Y axis tick text
 entity_id: weather.home
 # Optional: toggle display components
 show_cloud_cover: true
 show_pressure: true
-show_weather_icons: true
-show_wind: true
-show_precipitation: true
+type: custom:meteogram-card
+styles:
+  meteogram-rain-bar-color: "#2196f3"
+  meteogram-rain-max-bar-color: "#90caf9"
+  meteogram-temp-line-color: "#ff9800"
+  meteogram-pressure-line-color: "#1976d2"
+  meteogram-wind-barb-color: "#388e3c"
+  meteogram-rain-label-color: "#d32f2f"
+  meteogram-rain-max-label-color: "#1976d2"
+  meteogram-cloud-color: red
 ```
-
-### Weather Entity Mode
-
-If you set `entity_id`, the card will use the forecast from that entity.  
-Supported entities: any Home Assistant weather entity with a `forecast` attribute.
 
 **Important Note:**  
 Most Home Assistant weather integrations do **not** provide the full set of attributes that meteogram-card can display.  
 For example, some integrations may lack cloud cover, `precipitation_max`, or even wind speed and direction.  
-Additionally, weather integration entities may only provide data for a limited number of hours (often 24 or 48), which may restrict the length of the meteogram.  
-For example some Weather integrations for Home Assistant only provide 24 hours of forecast data, which gives a 23 hour meteogram.
-For best functionality and a complete meteogram, passing `latitude` and `longitude` (to use the Met.no API) is recommended.  
-
+- All values must be strings.
+- You can override any CSS variable used by the card.
+- For dark mode, use the `modes: dark:` section in your theme YAML (see below).
+- For a full list of variables, see [doc/STYLES.md](doc/STYLES.md).
 **Caching:**  
 Forecasts are cached in localStorage under `meteogram-card-entity-weather-cache`, keyed by entity ID.  
 Multiple entities can be cached and retrieved independently.
 
 ### Met.no API Mode
-
-If no `entity_id` is set, the card uses the Met.no API and caches per location.
-
-## Features in detail
-
-The meteogram retrieves weather data from the Met.no API or a Home Assistant weather entity and displays it in a visually appealing format. 
-
-### Graphical elements
-- **Temperature Curve**  
-  Displays temperature over the next specified period with weather icons for each hour.
-- **Precipitation Visualization**  
-  Shows rain and snow probability with bars indicating expected precipitation.
-- **Cloud Coverage**  
-  Visualizes cloud cover as a shaded area on the chart.
-- **Wind Barbs**  
+- `meteogram-label-font-size`
+- `meteogram-legend-font-size`
+- `meteogram-tick-font-size`
+- `meteogram-cloud-color`
+- `meteogram-grid-color`
+- `meteogram-pressure-line-color`
+- `meteogram-timescale-color`
+- `meteogram-rain-bar-color`
+- `meteogram-rain-max-bar-color`
+- `meteogram-temp-line-color`
+- `meteogram-wind-barb-color`
+- `meteogram-rain-label-color`
+- `meteogram-rain-max-label-color`
+- `meteogram-snow-bar-color`
+- ...and more (see [doc/STYLES.md](doc/STYLES.md) for the full list)
   Displays wind speed and direction using professional-style wind barbs.
 - **Barometric Pressure**  
   Shows the pressure trend over the next 48 hours with an optional right-side axis.
@@ -112,19 +114,43 @@ The meteogram retrieves weather data from the Met.no API or a Home Assistant wea
   Caches weather data per location or per entity to reduce API calls and improve performance.
 
 
+
 ## Options
 
-| Name                  | Type     | Default         | Description                                                                                       |
-|-----------------------|----------|-----------------|---------------------------------------------------------------------------------------------------|
-  meteogram-rain-bar-color: "#2196f3"
-  meteogram-rain-max-bar-color: "#90caf9"
-  meteogram-temp-line-color: "#ff9800"
-  meteogram-pressure-line-color: "#1976d2"
-  meteogram-wind-barb-color: "#388e3c"
-  meteogram-rain-label-color: "#d32f2f"
-  meteogram-rain-max-label-color: "#1976d2"
-  meteogram-cloud-color: red
-| styles                | object   | {{}}            | Custom CSS variables for card styling                                                             |
+Below are the main configuration options for the Meteogram Card:
+
+| Name                | Type     | Default         | Description                                                                                       |
+|---------------------|----------|-----------------|---------------------------------------------------------------------------------------------------|
+| title               | string   | "Weather Forecast" | Optional title for the card                                                                       |
+| latitude            | number   | HA's default    | Latitude for weather data                                                                         |
+| longitude           | number   | HA's default    | Longitude for weather data                                                                        |
+| altitude            | number   | HA's default    | Altitude (in meters) for weather data. Optional; improves accuracy for some locations.            |
+| entity_id           | string   | none            | Weather entity to use as data source                                                              |
+| show_cloud_cover    | boolean  | true            | Show/hide cloud cover visualization                                                               |
+| show_pressure       | boolean  | true            | Show/hide pressure curve                                                                          |
+| show_precipitation  | boolean  | true            | Show/hide precipitation visualization (replaces deprecated show_rain)                             |
+| show_weather_icons  | boolean  | true            | Show/hide weather icons                                                                           |
+| show_wind           | boolean  | true            | Show/hide wind barbs section                                                                      |
+| dense_weather_icons | boolean  | true            | Show weather icons every hour (true) or every 2 hours (false)                                     |
+| meteogram_hours     | string   | "48h"           | Number of hours to display in the meteogram (`8h`, `12h`, `24h`, `48h`, `54h`, or `max`)          |
+| aspect_ratio        | string   | "16:9"          | Aspect ratio for the chart (e.g., "16:9", "4:3"). Only applies in panel/grid layout modes.      |
+| layout_mode         | string   | "sections"      | Layout mode for the card: "sections", "panel", or "grid"                                        |
+| diagnostics         | boolean  | false           | Show diagnostics/status panel (for troubleshooting)                                               |
+| display_mode        | string   | "full"          | Display mode: "full", "core", or "focussed" (use display_mode instead of deprecated focussed)   |
+| focussed            | boolean  | false           | (Deprecated) Use display_mode: "focussed" instead.                                               |
+| styles              | object   | {{}}             | Custom CSS variables for card styling (see below)                                                 |
+
+### Option Notes
+- `show_precipitation` replaces the deprecated `show_rain` option. For backward compatibility, `show_rain` is still supported but will be ignored if `show_precipitation` is set.
+- `meteogram_hours` replaces the deprecated `meteogram_length` option. For backward compatibility, `meteogram_length` is still supported but will be ignored if `meteogram_hours` is set.
+- `layout_mode` controls the card's layout. Possible values:
+  - `sections` (default): Standard Home Assistant card layout.
+  - `panel`: Wide, single-panel layout (good for dashboards).
+  - `grid`: Grid layout for advanced dashboarding.
+- `aspect_ratio` only applies in `panel` or `grid` layout modes.
+- `diagnostics` enables a status panel for troubleshooting API/data issues.
+- `display_mode` is the preferred way to set the card's display style. Use `"focussed"` for a minimal chart-only view.
+- `altitude` is optional and can be set to improve forecast accuracy for locations at significant elevation. If not set, the Home Assistant default altitude is used (if available).
 
 ### Option Notes
 - `show_precipitation` replaces the deprecated `show_rain` option. For backward compatibility, `show_rain` is still supported but will be ignored if `show_precipitation` is set.
@@ -256,11 +282,25 @@ styles:
   meteogram-cloud-color: red
 ```
 
+
 **Usage notes:**
 - All values must be strings.
 - You can override any CSS variable used by the card.
-- For dark mode, use the `modes: dark:` section in your theme YAML (see [doc/STYLES.md](doc/STYLES.md)).
+- For dark mode, you can customize variables directly in your card config using a `modes: dark:` section inside `styles:`. This works just like in Home Assistant themes.
 - For a full list of variables, see [doc/STYLES.md](doc/STYLES.md).
+
+**Example: Customizing dark mode in your card config**
+```yaml
+type: custom:meteogram-card
+styles:
+  meteogram-grid-color: "#1976d2"
+  meteogram-cloud-color: "#ffb300"
+  modes:
+    dark:
+      meteogram-grid-color: "#444444"
+      meteogram-cloud-color: "darkgray"
+```
+This will apply the dark mode colors only when Home Assistant is in dark mode, for this card instance.
 
 
 #### List of Customizable CSS Variables

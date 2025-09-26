@@ -3232,7 +3232,20 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     render() {
         this._updateDarkMode(); // Ensure dark mode is set before rendering
         // Build mergedStyles from styles property, supporting styles.modes.dark (and future modes)
-        let mergedStyles = { ...(this.styles || {}) };
+        // Accept both '--meteogram-foo' and 'meteogram-foo' as keys in styles
+        let mergedStylesRaw = { ...(this.styles || {}) };
+        // Normalize keys: add '--' if missing
+        let mergedStyles = {};
+        for (const [k, v] of Object.entries(mergedStylesRaw)) {
+            if (k === 'modes' && typeof v === 'object') {
+                // Copy modes as-is for dark mode merging
+                mergedStyles.modes = v;
+            }
+            else if (typeof v === 'string' || typeof v === 'number') {
+                const cssVar = k.startsWith('--') ? k : `--${k}`;
+                mergedStyles[cssVar] = String(v);
+            }
+        }
         // Use Home Assistant's dark mode detection if available
         let isHassDark = false;
         if (this.hass && this.hass.themes && typeof this.hass.themes.darkMode === 'boolean') {
@@ -3246,7 +3259,13 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         if (mergedStyles.modes && typeof mergedStyles.modes === 'object') {
             if (isHassDark && mergedStyles.modes.dark) {
                 // Only merge if dark mode and dark object exists
-                mergedStyles = { ...mergedStyles, ...mergedStyles.modes.dark };
+                // Also normalize dark mode keys
+                const darkModeVars = {};
+                for (const [k, v] of Object.entries(mergedStyles.modes.dark)) {
+                    const cssVar = k.startsWith('--') ? k : `--${k}`;
+                    darkModeVars[cssVar] = String(v);
+                }
+                mergedStyles = { ...mergedStyles, ...darkModeVars };
             }
             delete mergedStyles.modes;
         }
