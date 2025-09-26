@@ -86,7 +86,8 @@ export class MeteogramCard extends LitElement {
     private _pendingRender = false;
     private _lastApiSuccess = false;
     private _margin = { top: 32, right: 48, bottom: 32, left: 48 };
-    private _this._chartWidth = 0;
+    private _chartWidth = 0;
+    private _chartHeight = 0;
 
     static lastD3RetryTime = 0;
 
@@ -1695,7 +1696,7 @@ export class MeteogramCard extends LitElement {
             const windBandHeight = windAvailable ? 45 : 0;
             const hourLabelBand = 30;
 
-            // --- ADJUST: Remove chartHeight cap and use full height ---
+            // --- ADJUST: Remove this._chartHeight cap and use full height ---
 
             // Store dimensions for resize detection
             this._lastWidth = availableWidth;
@@ -1914,7 +1915,7 @@ export class MeteogramCard extends LitElement {
         }
         const margin = this._margin;
 
-        const chartHeight = this.focussed
+        this._chartHeight = this.focussed
             ? height - windBandHeight - hourLabelBand - 10
             : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
         // Cap the chart width to only what's needed for the data
@@ -1958,12 +1959,12 @@ export class MeteogramCard extends LitElement {
         const tempValues = temperatureConverted.filter((t): t is number => t !== null);
         const yTemp = d3.scaleLinear()
             .domain([Math.floor(d3.min(tempValues) - 2), Math.ceil(d3.max(tempValues) + 2)])
-            .range([chartHeight, 0]);
+            .range([this._chartHeight, 0]);
 
         // Precipitation Y scale
         const yPrecip = d3.scaleLinear()
             .domain([0, Math.max(2, d3.max([...rainMax, ...rain, ...snow]) + 1)])
-            .range([chartHeight, 0]); // <-- FIXED: range goes from chartHeight (bottom) to 0 (top)
+            .range([this._chartHeight, 0]); // <-- FIXED: range goes from this._chartHeight (bottom) to 0 (top)
 
         // Pressure Y scale - we'll use the right side of the chart
         // Only create if pressure is shown and at least one value is not null/undefined
@@ -1978,7 +1979,7 @@ export class MeteogramCard extends LitElement {
                     Math.floor((pressureRange[0] - pressurePadding) / 5) * 5,
                     Math.ceil((pressureRange[1] + pressurePadding) / 5) * 5
                 ])
-                .range([chartHeight, 0]);
+                .range([this._chartHeight, 0]);
         }
 
 
@@ -2018,18 +2019,18 @@ export class MeteogramCard extends LitElement {
             // Limit width to only main chart area (do not extend to right axis)
             .attr("width", (d: DayRange) => Math.min(x(Math.max(d.end - 1, d.start)) - x(d.start) + dx, this._chartWidth - x(d.start)))
             // Limit height to only main chart area (do not extend to lower x axis)
-            .attr("height", chartHeight + 42)
+            .attr("height", this._chartHeight + 42)
             .attr("opacity", (_: DayRange, i: number) => i % 2 === 0 ? 0.16 : 0);
 
         // Draw chart grid background
-        this.drawChartGrid(svg, chart, d3, x, yTemp, N, margin, chartHeight, dayStarts);
-        this.drawGridOutline(chart, chartHeight);
+        this.drawChartGrid(svg, chart, d3, x, yTemp, N, margin, dayStarts);
+        this.drawGridOutline(chart);
 
         // Draw date labels at top
         this.drawDateLabels(svg, time, dayStarts, margin, x, dateLabelY);
 
         // Draw bottom hour labels using helper
-        this.drawBottomHourLabels(svg, data.time, margin, x, chartHeight, windBandHeight, width);
+        this.drawBottomHourLabels(svg, data.time, margin, x, windBandHeight, width);
 
         // Draw all chart elements in order of background to foreground
         // 1. Cloud band (if enabled)
@@ -2045,9 +2046,9 @@ export class MeteogramCard extends LitElement {
             const cloudLegendIndex = enabledLegends.findIndex(l => l.class.includes("legend-cloud"));
             if (cloudLegendIndex >= 0) {
                 const legendPos = legendPositions[cloudLegendIndex];
-                this.drawCloudBand(chart, cloudCover, N, x, chartHeight, legendPos.x, legendPos.y);
+                this.drawCloudBand(chart, cloudCover, N, x, legendPos.x, legendPos.y);
             } else {
-                this.drawCloudBand(chart, cloudCover, N, x, chartHeight );
+                this.drawCloudBand(chart, cloudCover, N, x );
             }
         }
         // Draw rain bars with legend
@@ -2056,10 +2057,10 @@ export class MeteogramCard extends LitElement {
             if (rainLegendIndex >= 0) {
                 const legendPos = legendPositions[rainLegendIndex];
                 this.drawRainBars(chart, rainConverted, rainMaxConverted, snowConverted,
-                    N, x, yPrecip, dx, chartHeight, snowAvailable, legendPos.x, legendPos.y);
+                    N, x, yPrecip, dx, snowAvailable, legendPos.x, legendPos.y);
             } else {
                 this.drawRainBars(chart, rainConverted, rainMaxConverted, snowConverted,
-                    N, x, yPrecip, dx, chartHeight, snowAvailable);
+                    N, x, yPrecip, dx, snowAvailable);
             }
         }
 
@@ -2076,7 +2077,7 @@ export class MeteogramCard extends LitElement {
 
         // Wind band grid lines (if wind band is enabled)
         if (windAvailable) {
-            this.drawWindBand(svg, x, windBandHeight, margin, chartHeight, width, N, time, windSpeed, windDirection);
+            this.drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, windDirection);
         }
 
 
@@ -2472,7 +2473,6 @@ export class MeteogramCard extends LitElement {
         yTemp: any,
         N: number,
         margin: { top: number; right: number; bottom: number; left: number },
-        chartHeight: number,
         dayStarts: number[]
     ) {
         // Day boundary ticks (top short ticks)
@@ -2485,7 +2485,7 @@ export class MeteogramCard extends LitElement {
             .attr("x1", (d: number) => margin.left + x(d))
             .attr("x2", (d: number) => margin.left + x(d))
             .attr("y1", margin.top - tickLength)
-            .attr("y2", chartHeight + margin.top)
+            .attr("y2", this._chartHeight + margin.top)
             .attr("stroke", "#1a237e")
             .attr("stroke-width", 3)
             .attr("opacity", 0.6);
@@ -2512,7 +2512,7 @@ export class MeteogramCard extends LitElement {
             .attr("x1", (i: number) => x(i))
             .attr("x2", (i: number) => x(i))
             .attr("y1", 0)
-            .attr("y2", chartHeight)
+            .attr("y2", this._chartHeight)
             .attr("stroke", "currentColor")
             .attr("stroke-width", 1);
      }
@@ -2572,11 +2572,10 @@ export class MeteogramCard extends LitElement {
         time: Date[],
         margin: { top: number; right: number; bottom: number; left: number },
         x: any,
-        chartHeight: number,
         windBandHeight: number,
         width: number
     ) {
-        const hourLabelY = margin.top + chartHeight + windBandHeight + 15;
+        const hourLabelY = margin.top + this._chartHeight + windBandHeight + 15;
         svg.selectAll(".bottom-hour-label")
             .data(time)
             .enter()
@@ -2602,8 +2601,7 @@ export class MeteogramCard extends LitElement {
      * Draw the grid outline (outer frame) for the chart
      */
     private drawGridOutline(
-        chart: any,
-        chartHeight: number
+        chart: any
     ) {
         // Top horizontal solid line (thicker, uses grid color)
         chart.append("line")
@@ -2617,14 +2615,14 @@ export class MeteogramCard extends LitElement {
         chart.append("line")
             .attr("class", "line")
             .attr("x1", 0).attr("x2", this._chartWidth)
-            .attr("y1", chartHeight).attr("y2", chartHeight)
+            .attr("y1", this._chartHeight).attr("y2", this._chartHeight)
             .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)");
 
         // Right vertical solid line (always drawn, slightly thicker)
         chart.append("line")
             .attr("class", "line")
             .attr("x1", this._chartWidth).attr("x2", this._chartWidth)
-            .attr("y1", 0).attr("y2", chartHeight)
+            .attr("y1", 0).attr("y2", this._chartHeight)
             .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
             .attr("stroke-width", 3);
 
@@ -2632,7 +2630,7 @@ export class MeteogramCard extends LitElement {
         chart.append("line")
             .attr("class", "line")
             .attr("x1", 0).attr("x2", 0)
-            .attr("y1", 0).attr("y2" , chartHeight)
+            .attr("y1", 0).attr("y2" , this._chartHeight)
             .attr("stroke", "var(--meteogram-grid-color, #e0e0e0)")
             .attr("stroke-width", 3);
     }
@@ -2734,12 +2732,12 @@ export class MeteogramCard extends LitElement {
     /**
      * Draw cloud cover band (handles nulls as zeros)
      */
-    private drawCloudBand(chart: any, cloudCover: (number|null)[], N: number, x: any, chartHeight: number, legendX?: number, legendY?: number) {
+    private drawCloudBand(chart: any, cloudCover: (number|null)[], N: number, x: any, legendX?: number, legendY?: number) {
         const d3 = window.d3;
         // Filter out nulls for cloudCover array
         const cloudFiltered = cloudCover.map(c => c ?? 0);
-        const bandTop = chartHeight * 0.01;
-        const bandHeight = chartHeight * 0.20;
+        const bandTop = this._chartHeight * 0.01;
+        const bandHeight = this._chartHeight * 0.20;
         const cloudBandPoints: [number, number][] = [];
         for (let i = 0; i < N; i++) {
             cloudBandPoints.push([x(i), bandTop + (bandHeight / 2) * (1 - cloudFiltered[i] / 100)]);
@@ -2773,7 +2771,6 @@ export class MeteogramCard extends LitElement {
         x: any,
         yPrecip: any,
         dx: number,
-        chartHeight: number,
         snowAvailable: boolean,
         legendX?: number,
         legendY?: number
@@ -2792,13 +2789,13 @@ export class MeteogramCard extends LitElement {
             .attr("class", "rain-max-bar")
             .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
             .attr("y", (d: number) => {
-                const h = chartHeight - yPrecip(d);
+                const h = this._chartHeight - yPrecip(d);
                 const scaledH = h < 2 && d > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
                 return yPrecip(0) - scaledH;
             })
             .attr("width", barWidth)
             .attr("height", (d: number) => {
-                const h = chartHeight - yPrecip(d);
+                const h = this._chartHeight - yPrecip(d);
                 return h < 2 && d > 0 ? 2 : h * 0.7;
             })
             .attr("fill", "currentColor");
@@ -2810,13 +2807,13 @@ export class MeteogramCard extends LitElement {
             .attr("class", "rain-bar")
             .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
             .attr("y", (d: number) => {
-                const h = chartHeight - yPrecip(d);
+                const h = this._chartHeight - yPrecip(d);
                 const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
                 return yPrecip(0) - scaledH;
             })
             .attr("width", barWidth)
             .attr("height", (d: number) => {
-                const h = chartHeight - yPrecip(d);
+                const h = this._chartHeight - yPrecip(d);
                 return h < 2 && d > 0 ? 2 : h * 0.7;
             })
             .attr("fill", "currentColor");
@@ -2829,7 +2826,7 @@ export class MeteogramCard extends LitElement {
             .attr("class", "rain-label")
             .attr("x", (_: number, i: number) => x(i) + dx / 2)
             .attr("y", (d: number) => {
-                const h = chartHeight - yPrecip(d);
+                const h = this._chartHeight - yPrecip(d);
                 const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
                 return yPrecip(0) - scaledH - 4; // 4px above the top of the bar
             })
@@ -2848,7 +2845,7 @@ export class MeteogramCard extends LitElement {
             .attr("x", (_: number, i: number) => x(i) + dx / 2)
             // Remove unused 'i' from the function signature
             .attr("y", (d: number) => {
-                const h = chartHeight - yPrecip(d);
+                const h = this._chartHeight - yPrecip(d);
                 const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
                 return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
             })
@@ -2870,13 +2867,13 @@ export class MeteogramCard extends LitElement {
                 .attr("class", "snow-bar")
                 .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
                 .attr("y", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
+                    const h = this._chartHeight - yPrecip(d);
                     const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
                     return yPrecip(0) - scaledH; // 18px above the top of the max bar
                 })
                 .attr("width", barWidth)
                 .attr("height", (d: number) => {
-                    const h = chartHeight - yPrecip(d);
+                    const h = this._chartHeight - yPrecip(d);
                     return h < 2 && d > 0 ? 2 : h * 0.7;
                 })
                 .attr("fill", "currentColor");
@@ -2952,9 +2949,9 @@ export class MeteogramCard extends LitElement {
     /**
      * Draw wind band (barbs, grid, background, border)
      */
-    private drawWindBand(svg: any, x: any, windBandHeight: number, margin: any, chartHeight: number, width: number, N: number, time: Date[], windSpeed: (number|null)[], windDirection: (number|null)[]) {
+    private drawWindBand(svg: any, x: any, windBandHeight: number, margin: any, width: number, N: number, time: Date[], windSpeed: (number|null)[], windDirection: (number|null)[]) {
         const d3 = window.d3;
-        const windBandYOffset = margin.top + chartHeight;
+        const windBandYOffset = margin.top + this._chartHeight;
         const windBand = svg.append('g')
             .attr('transform', `translate(${margin.left},${windBandYOffset})`);
 
