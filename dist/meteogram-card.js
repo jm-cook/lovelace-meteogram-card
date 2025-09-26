@@ -466,6 +466,53 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         else {
             this._initialize();
         }
+        // Only emit minimal config if this is the initial setup (empty config)
+        if (Object.keys(this._config).length === 0 || Object.keys(config).length === 0) {
+            this._emitMinimalConfig();
+        }
+        else {
+            // For subsequent loads/edits, emit the full config as-is
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: { ...this._config } }
+            }));
+        }
+    }
+    _emitMinimalConfig() {
+        const defaultConfig = {
+            title: '',
+            latitude: undefined,
+            longitude: undefined,
+            altitude: undefined,
+            show_cloud_cover: true,
+            show_pressure: true,
+            show_precipitation: true, // treat true as default for minimalization
+            show_weather_icons: true,
+            show_wind: true,
+            dense_weather_icons: true,
+            meteogram_hours: '48h',
+            styles: undefined,
+            diagnostics: false,
+            entity_id: undefined,
+            focussed: false,
+            display_mode: 'full',
+            aspect_ratio: '16:9',
+            layout_mode: 'sections',
+        };
+        const minimalConfig = {};
+        Object.keys(this._config).forEach((key) => {
+            const value = this._config[key];
+            const def = defaultConfig[key];
+            if (typeof def === 'undefined') {
+                if (typeof value !== 'undefined')
+                    minimalConfig[key] = value;
+            }
+            else if (value !== def) {
+                minimalConfig[key] = value;
+            }
+        });
+        this.dispatchEvent(new CustomEvent('config-changed', {
+            detail: { config: minimalConfig }
+        }));
     }
     get config() {
         return this._config;
@@ -504,9 +551,7 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
             : (((_f = (_e = this.hass) === null || _e === void 0 ? void 0 : _e.config) === null || _f === void 0 ? void 0 : _f.altitude) !== undefined ? String(this.hass.config.altitude) : ''), 'value');
         setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
         setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
-        // Use show_precipitation if present, else fallback to show_rain for legacy support
-        const precipitationValue = this._config.show_precipitation !== undefined ? this._config.show_precipitation : (this._config.show_rain !== undefined ? this._config.show_rain : true);
-        setValue(this._elements.get('show_precipitation'), precipitationValue, 'checked');
+        setValue(this._elements.get('show_precipitation'), this._config.show_precipitation !== undefined ? this._config.show_precipitation : true, 'checked');
         setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
         setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
         setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
@@ -534,14 +579,12 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         // Get current toggle values or default to true
         const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
         const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
-        this._config.show_rain !== undefined ? this._config.show_rain : true;
         const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
         const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
         const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
         const meteogramHours = this._config.meteogram_hours || "48h";
         const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : false;
         this._config.focussed !== undefined ? this._config.focussed : false;
-        const precipitationValue = this._config.show_precipitation !== undefined ? this._config.show_precipitation : (this._config.show_rain !== undefined ? this._config.show_rain : true);
         const displayMode = this._config.display_mode || 'full';
         const aspectRatio = this._config.aspect_ratio || "16:9";
         const div = document.createElement('div');
@@ -694,7 +737,7 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
           <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.precipitation", "Show Precipitation (Rain & Snow)")}</div>
           <ha-switch
             id="show-precipitation"
-            .checked="${precipitationValue}"
+            .checked="${this._config.show_precipitation !== undefined ? this._config.show_precipitation : true}"
           ></ha-switch>
         </div>
 
@@ -912,9 +955,8 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         let newValue = target.value;
         // List of boolean config fields
         const boolFields = [
-            'show_cloud_cover', 'show_pressure', 'show_precipitation', 'show_rain', 'show_weather_icons',
-            'show_wind', 'dense_weather_icons', /* 'fill_container', */ 'diagnostics',
-            'focussed'
+            'show_cloud_cover', 'show_pressure', 'show_precipitation', 'show_weather_icons',
+            'show_wind', 'dense_weather_icons', 'diagnostics', 'focussed'
         ];
         // Handle different input types
         if (target.tagName === 'HA-SWITCH') {
@@ -932,15 +974,8 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
             }
         }
         else if (newValue === '') {
-            // For boolean fields, set undefined instead of empty string
-            if (boolFields.includes(target.configValue)) {
-                newValue = undefined;
-            }
-            else {
-                newValue = undefined;
-            }
+            newValue = undefined;
         }
-        // Ensure boolean config fields never receive an empty string ("")
         if (boolFields.includes(target.configValue)) {
             if (newValue === "") {
                 newValue = undefined;
@@ -969,7 +1004,6 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
         }
         // In _valueChanged, handle displayMode as a string
         if (target.configValue === 'display_mode') {
-            // Only allow valid display_mode values
             const allowedModes = ['full', 'core', 'focussed'];
             const modeValue = allowedModes.includes(target.value) ? target.value : undefined;
             this._config = {
@@ -978,7 +1012,6 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
             };
         }
         else {
-            // TS18048: Ensure newValue is not undefined for boolean fields
             let configValue;
             if (boolFields.includes(target.configValue)) {
                 if (typeof newValue === "undefined") {
@@ -991,13 +1024,19 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
             else {
                 configValue = newValue;
             }
-            // Special handling for precipitation: update both show_precipitation and legacy show_rain for compatibility
             if (target.configValue === 'show_precipitation') {
-                this._config = {
-                    ...this._config,
-                    show_precipitation: configValue,
-                    show_rain: configValue // legacy support
-                };
+                // Only set show_precipitation if user has toggled it away from the default (true)
+                if (configValue === false) {
+                    this._config = {
+                        ...this._config,
+                        show_precipitation: false
+                    };
+                }
+                else {
+                    // Remove show_precipitation if true (default)
+                    const { show_precipitation, ...rest } = this._config;
+                    this._config = { ...rest };
+                }
             }
             else {
                 this._config = {
@@ -1006,8 +1045,9 @@ let MeteogramCardEditor = class MeteogramCardEditor extends i {
                 };
             }
         }
+        // After initial setup, always emit the full config (all user-set options)
         this.dispatchEvent(new CustomEvent('config-changed', {
-            detail: { config: this._config }
+            detail: { config: { ...this._config } }
         }));
     }
     // Ensure _updateConfig method exists and handles generic property updates:
@@ -1700,6 +1740,11 @@ function convertPrecipitation(value, from, to) {
 
 var MeteogramCard_1;
 let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
+    // Getter for precipitation display (replaces showRain)
+    get showPrecipitation() {
+        // Prefer config property if present, else default to true
+        return this.show_precipitation !== undefined ? this.show_precipitation : true;
+    }
     constructor() {
         super();
         // Store missing keys for diagnostics/info panel
@@ -1708,7 +1753,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Add new configuration properties with default values
         this.showCloudCover = true;
         this.showPressure = true;
-        this.showRain = true;
         this.showWeatherIcons = true;
         this.showWind = true;
         this.denseWeatherIcons = true; // NEW: icon density config
@@ -1818,7 +1862,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this.longitude = undefined;
         this.showCloudCover = true;
         this.showPressure = true;
-        this.showRain = true;
         this.showWeatherIcons = true;
         this.showWind = true;
         this.denseWeatherIcons = true;
@@ -1926,10 +1969,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         else {
             this.altitude = undefined;
         }
-        // Use show_precipitation if present, else fallback to show_rain for legacy support
         this.showCloudCover = config.show_cloud_cover !== undefined ? config.show_cloud_cover : true;
         this.showPressure = config.show_pressure !== undefined ? config.show_pressure : true;
-        this.showRain = config.show_precipitation !== undefined ? config.show_precipitation : (config.show_rain !== undefined ? config.show_rain : true);
         this.showWeatherIcons = config.show_weather_icons !== undefined ? config.show_weather_icons : true;
         this.showWind = config.show_wind !== undefined ? config.show_wind : true;
         this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
@@ -2352,7 +2393,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             // changedProps.has('hass') ||
             changedProps.has('showCloudCover') ||
             changedProps.has('showPressure') ||
-            changedProps.has('showRain') ||
+            changedProps.has('show_precipitation') ||
             changedProps.has('showWeatherIcons') ||
             changedProps.has('showWind') ||
             changedProps.has('denseWeatherIcons') ||
@@ -2364,7 +2405,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 // hass: changedProps.has('hass'),
                 showCloudCover: changedProps.has('showCloudCover'),
                 showPressure: changedProps.has('showPressure'),
-                showRain: changedProps.has('showRain'),
+                showPrecipitation: changedProps.has('show_precipitation'),
                 showWeatherIcons: changedProps.has('showWeatherIcons'),
                 showWind: changedProps.has('showWind'),
                 denseWeatherIcons: changedProps.has('denseWeatherIcons'),
@@ -3132,7 +3173,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             if (this.showCloudCover) {
                 enabledLegends.push({ class: "legend legend-cloud", label: trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + " (%)" });
             }
-            if (this.showRain) {
+            if (this.showPrecipitation) {
                 enabledLegends.push({ class: "legend legend-rain", label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Precipitation") + ` (${this._precipUnit})` });
             }
             enabledLegends.push({ class: "legend legend-temp", label: trnslt(this.hass, "ui.card.meteogram.attributes.temperature", "Temperature") + ` (${this._tempUnit})` });
@@ -3189,7 +3230,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             }
         }
         // Draw rain bars with legend
-        if (this.showRain) {
+        if (this.showPrecipitation) {
             const rainLegendIndex = enabledLegends.findIndex(l => l.class.includes("legend-rain"));
             if (rainLegendIndex >= 0) {
                 const legendPos = legendPositions[rainLegendIndex];
@@ -4504,9 +4545,6 @@ __decorate([
 __decorate([
     n({ type: Boolean })
 ], MeteogramCard$1.prototype, "showPressure", void 0);
-__decorate([
-    n({ type: Boolean })
-], MeteogramCard$1.prototype, "showRain", void 0);
 __decorate([
     n({ type: Boolean })
 ], MeteogramCard$1.prototype, "showWeatherIcons", void 0);

@@ -1,3 +1,7 @@
+## BREAKING CHANGE (September 2025)
+
+- The legacy `show_rain` option has been **removed**. Only `show_precipitation` is now supported for controlling precipitation (rain and snow) display. Update your configuration to use `show_precipitation` only.
+
 ## [NEXT VERSION] Breaking Change: Styles config and dark mode
 
 **BREAKING:** The `styles:` config for the card now uses variable names without the `--` prefix (e.g., `meteogram-grid-color` instead of `--meteogram-grid-color`).

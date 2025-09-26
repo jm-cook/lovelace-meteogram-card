@@ -128,7 +128,7 @@ Below are the main configuration options for the Meteogram Card:
 | entity_id           | string   | none            | Weather entity to use as data source                                                              |
 | show_cloud_cover    | boolean  | true            | Show/hide cloud cover visualization                                                               |
 | show_pressure       | boolean  | true            | Show/hide pressure curve                                                                          |
-| show_precipitation  | boolean  | true            | Show/hide precipitation visualization (replaces deprecated show_rain)                             |
+| show_precipitation  | boolean  | true            | Show/hide precipitation visualization (rain and snow)                             |
 | show_weather_icons  | boolean  | true            | Show/hide weather icons                                                                           |
 | show_wind           | boolean  | true            | Show/hide wind barbs section                                                                      |
 | dense_weather_icons | boolean  | true            | Show weather icons every hour (true) or every 2 hours (false)                                     |
@@ -141,7 +141,7 @@ Below are the main configuration options for the Meteogram Card:
 | styles              | object   | {{}}             | Custom CSS variables for card styling (see below)                                                 |
 
 ### Option Notes
-- `show_precipitation` replaces the deprecated `show_rain` option. For backward compatibility, `show_rain` is still supported but will be ignored if `show_precipitation` is set.
+**Breaking change:** `show_precipitation` is now the only supported option for precipitation display. The legacy `show_rain` option has been removed and is no longer supported. Update your configuration to use `show_precipitation` only.
 - `meteogram_hours` replaces the deprecated `meteogram_length` option. For backward compatibility, `meteogram_length` is still supported but will be ignored if `meteogram_hours` is set.
 - `layout_mode` controls the card's layout. Possible values:
   - `sections` (default): Standard Home Assistant card layout.

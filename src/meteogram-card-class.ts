@@ -20,6 +20,11 @@ export type MeteogramStyleConfig = Record<string, string> & {
 
 @customElement('meteogram-card')
 export class MeteogramCard extends LitElement {
+    // Getter for precipitation display (replaces showRain)
+    get showPrecipitation() {
+        // Prefer config property if present, else default to true
+        return (this as any).show_precipitation !== undefined ? (this as any).show_precipitation : true;
+    }
     // Store missing keys for diagnostics/info panel
     private _missingForecastKeys: string[] = [];
     constructor(
@@ -31,7 +36,6 @@ export class MeteogramCard extends LitElement {
         this.longitude = undefined;
         this.showCloudCover = true;
         this.showPressure = true;
-        this.showRain = true;
         this.showWeatherIcons = true;
         this.showWind = true;
         this.denseWeatherIcons = true;
@@ -56,7 +60,6 @@ export class MeteogramCard extends LitElement {
     // Add new configuration properties with default values
     @property({type: Boolean}) showCloudCover = true;
     @property({type: Boolean}) showPressure = true;
-    @property({type: Boolean}) showRain = true;
     @property({type: Boolean}) showWeatherIcons = true;
     @property({type: Boolean}) showWind = true;
     @property({type: Boolean}) denseWeatherIcons = true; // NEW: icon density config
@@ -608,15 +611,13 @@ export class MeteogramCard extends LitElement {
             this.altitude = undefined;
         }
 
-        // Use show_precipitation if present, else fallback to show_rain for legacy support
-        this.showCloudCover = config.show_cloud_cover !== undefined ? config.show_cloud_cover : true;
-        this.showPressure = config.show_pressure !== undefined ? config.show_pressure : true;
-        this.showRain = config.show_precipitation !== undefined ? config.show_precipitation : (config.show_rain !== undefined ? config.show_rain : true);
-        this.showWeatherIcons = config.show_weather_icons !== undefined ? config.show_weather_icons : true;
-        this.showWind = config.show_wind !== undefined ? config.show_wind : true;
-        this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
-        this.meteogramHours = config.meteogram_hours || "48h";
-        this.styles = config.styles || {};
+    this.showCloudCover = config.show_cloud_cover !== undefined ? config.show_cloud_cover : true;
+    this.showPressure = config.show_pressure !== undefined ? config.show_pressure : true;
+    this.showWeatherIcons = config.show_weather_icons !== undefined ? config.show_weather_icons : true;
+    this.showWind = config.show_wind !== undefined ? config.show_wind : true;
+    this.denseWeatherIcons = config.dense_weather_icons !== undefined ? config.dense_weather_icons : true;
+    this.meteogramHours = config.meteogram_hours || "48h";
+    this.styles = config.styles || {};
         // Add diagnostics option
         this.diagnostics = config.diagnostics !== undefined ? config.diagnostics : DIAGNOSTICS_DEFAULT;
         // Set entityId from config
@@ -1101,7 +1102,7 @@ export class MeteogramCard extends LitElement {
             // changedProps.has('hass') ||
             changedProps.has('showCloudCover') ||
             changedProps.has('showPressure') ||
-            changedProps.has('showRain') ||
+            changedProps.has('show_precipitation') ||
             changedProps.has('showWeatherIcons') ||
             changedProps.has('showWind') ||
             changedProps.has('denseWeatherIcons') ||
@@ -1114,7 +1115,7 @@ export class MeteogramCard extends LitElement {
                 // hass: changedProps.has('hass'),
                 showCloudCover: changedProps.has('showCloudCover'),
                 showPressure: changedProps.has('showPressure'),
-                showRain: changedProps.has('showRain'),
+                showPrecipitation: changedProps.has('show_precipitation'),
                 showWeatherIcons: changedProps.has('showWeatherIcons'),
                 showWind: changedProps.has('showWind'),
                 denseWeatherIcons: changedProps.has('denseWeatherIcons'),
@@ -1986,7 +1987,7 @@ export class MeteogramCard extends LitElement {
             if (this.showCloudCover) {
                 enabledLegends.push({ class: "legend legend-cloud", label: trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + " (%)" });
             }
-            if (this.showRain) {
+            if (this.showPrecipitation) {
                 enabledLegends.push({ class: "legend legend-rain", label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Precipitation") + ` (${this._precipUnit})` });
             }
             enabledLegends.push({ class: "legend legend-temp", label: trnslt(this.hass, "ui.card.meteogram.attributes.temperature", "Temperature") + ` (${this._tempUnit})` });
@@ -2049,7 +2050,7 @@ export class MeteogramCard extends LitElement {
             }
         }
         // Draw rain bars with legend
-        if (this.showRain) {
+    if (this.showPrecipitation) {
             const rainLegendIndex = enabledLegends.findIndex(l => l.class.includes("legend-rain"));
             if (rainLegendIndex >= 0) {
                 const legendPos = legendPositions[rainLegendIndex];
