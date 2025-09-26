@@ -100,3 +100,10 @@ export type MeteogramStyleModes = {
 export type MeteogramStyleConfig = Record<string, string> & {
   modes?: MeteogramStyleModes;
 };
+
+// Extend the Window interface to include mapHaConditionToMetnoSymbol
+declare global {
+  interface Window {
+    mapHaConditionToMetnoSymbol?: (symbol: string, forecastTime: Date, isDay: boolean) => string;
+  }
+}
