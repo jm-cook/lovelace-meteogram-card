@@ -1137,18 +1137,14 @@ export class MeteogramCard extends LitElement {
             'cloudCover', 'windSpeed', 'windDirection', 'symbolCode', 'pressure'
         ];
         if (!data || typeof data !== 'object') {
-            console.warn('[MeteogramCard] checkMissingForecastKeys: data is not an object:', data);
             this._missingForecastKeys = requiredKeys;
             return;
         }
         const missing = requiredKeys.filter(key => !(key in data) || !Array.isArray(data[key]) || data[key].length === 0);
-        console.log('[MeteogramCard] checkMissingForecastKeys:', {
-            dataKeys: Object.keys(data),
-            missing,
-            dataSample: Object.fromEntries(requiredKeys.map(k => [k, Array.isArray(data[k]) ? data[k].length : (typeof data[k])]))
-        });
         this._missingForecastKeys = missing;
     }
+
+    private _lastWeatherData: any = null;
 
     async _drawMeteogram(caller: string = "unknown") {
         this.logMethodEntry('_drawMeteogram', { caller });
@@ -1294,6 +1290,7 @@ export class MeteogramCard extends LitElement {
         chartDiv.innerHTML = "";
         // Fetch weather data and render
         this.fetchWeatherData().then((data: ForecastData) => {
+            this._lastWeatherData = data;
             // If using weather entity and it's unavailable, do not render
             if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
                 const entityData = this._weatherEntityApiInstance.getForecastData();
@@ -1734,6 +1731,7 @@ export class MeteogramCard extends LitElement {
             const legendPos = legendPositions[tempLegendIndex];
             this._chartRenderer.drawTemperatureLine(chart, temperatureConverted, x, yTemp, legendPos.x, legendPos.y);
         } else {
+
             this._chartRenderer.drawTemperatureLine(chart, temperatureConverted, x, yTemp);
         }
 
@@ -1788,10 +1786,6 @@ export class MeteogramCard extends LitElement {
                 mergedStyles = { ...mergedStyles, ...darkModeVars };
             }
             delete mergedStyles.modes;
-        }
-        // Debug: log mergedStyles to verify what is being set
-        if (typeof window !== 'undefined' && window.console) {
-            console.debug('[MeteogramCard] mergedStyles to set:', mergedStyles);
         }
         // Set CSS variables on the host element (this) and on ha-card for compatibility
         Object.entries(mergedStyles).forEach(([k, v]) => {
@@ -1890,7 +1884,9 @@ export class MeteogramCard extends LitElement {
                         Integration: ${integrationDocUrl ? `<a href='${integrationDocUrl}' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>${integrationName}</a>` : integrationName}
                         <span style='color:#888;'>(${this.entityId})</span>
                     </div>
-                    ${this._missingForecastKeys && this._missingForecastKeys.length > 0 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(', ')}</div>` : ''}
+                    ${this._missingForecastKeys && this._missingForecastKeys.length > 0 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(', ')}
+                    <br>Some supported features cannot be plotted because the required data is not provided.</div>` : ''}
+                    <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                 </div>
             `;
         } else {
@@ -1901,6 +1897,7 @@ export class MeteogramCard extends LitElement {
                         licensed under <a href='https://creativecommons.org/licenses/by/4.0/' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>CC BY 4.0</a>
                     </div>
                     ${this._missingForecastKeys && this._missingForecastKeys.length > 0 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(', ')}</div>` : ''}
+                    <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                 </div>
             `;
         }
@@ -2107,6 +2104,28 @@ export class MeteogramCard extends LitElement {
         return this._precipUnit;
     }
 
+    // Helper to get the number of hours available in the data source
+    private getAvailableHours(): number | string {
+        // Try to use the last fetched data if available
+        if (this._lastWeatherData && Array.isArray(this._lastWeatherData.time) && this._lastWeatherData.time.length > 1) {
+            const arr = this._lastWeatherData.time;
+            const first = arr[0];
+            const last = arr[arr.length - 1];
+            // If Date objects, calculate hours between (inclusive)
+            if (first instanceof Date && last instanceof Date) {
+                const ms = last.getTime() - first.getTime();
+                return Math.round(ms / (1000 * 60 * 60)) + 1;
+            }
+            // If ISO strings, parse as dates (inclusive)
+            if (typeof first === 'string' && typeof last === 'string') {
+                const ms = new Date(last).getTime() - new Date(first).getTime();
+                return Math.round(ms / (1000 * 60 * 60)) + 1;
+            }
+            // Fallback: just return array length
+            return arr.length;
+        }
+        return 'unknown';
+    }
     /**
      * Draw the background grid (not the outer frame) for the chart
      */

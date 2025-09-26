@@ -2482,8 +2482,7 @@ class MeteogramChart {
     }
     drawPressureLine(chart, pressure, x, yPressure, legendX, legendY) {
         const d3 = window.d3;
-        // Debug: Log pressure data before drawing
-        console.log('[MeteogramCard] Pressure data for chart:', pressure);
+        //
         const pressureLine = d3.line()
             .defined((d) => d !== null && typeof d === "number" && !isNaN(d))
             .x((_, i) => x(i))
@@ -2778,6 +2777,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this._pressureUnit = "hPa";
         this._windSpeedUnit = "m/s";
         this._precipUnit = "mm";
+        this._lastWeatherData = null;
         this.title = "";
         this.latitude = undefined;
         this.longitude = undefined;
@@ -3656,16 +3656,10 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             'cloudCover', 'windSpeed', 'windDirection', 'symbolCode', 'pressure'
         ];
         if (!data || typeof data !== 'object') {
-            console.warn('[MeteogramCard] checkMissingForecastKeys: data is not an object:', data);
             this._missingForecastKeys = requiredKeys;
             return;
         }
         const missing = requiredKeys.filter(key => !(key in data) || !Array.isArray(data[key]) || data[key].length === 0);
-        console.log('[MeteogramCard] checkMissingForecastKeys:', {
-            dataKeys: Object.keys(data),
-            missing,
-            dataSample: Object.fromEntries(requiredKeys.map(k => [k, Array.isArray(data[k]) ? data[k].length : (typeof data[k])]))
-        });
         this._missingForecastKeys = missing;
     }
     async _drawMeteogram(caller = "unknown") {
@@ -3799,6 +3793,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         chartDiv.innerHTML = "";
         // Fetch weather data and render
         this.fetchWeatherData().then((data) => {
+            this._lastWeatherData = data;
             // If using weather entity and it's unavailable, do not render
             if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
                 const entityData = this._weatherEntityApiInstance.getForecastData();
@@ -4159,7 +4154,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Wind band grid lines (if wind band is enabled)
         if (windAvailable) {
-            this.drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, windDirection);
+            this._chartRenderer.drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, windDirection);
         }
         // Draw temperature line with legend
         const tempLegendIndex = enabledLegends.findIndex(l => l.class.includes("legend-temp"));
@@ -4215,10 +4210,6 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 mergedStyles = { ...mergedStyles, ...darkModeVars };
             }
             delete mergedStyles.modes;
-        }
-        // Debug: log mergedStyles to verify what is being set
-        if (typeof window !== 'undefined' && window.console) {
-            console.debug('[MeteogramCard] mergedStyles to set:', mergedStyles);
         }
         // Set CSS variables on the host element (this) and on ha-card for compatibility
         Object.entries(mergedStyles).forEach(([k, v]) => {
@@ -4312,7 +4303,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                         Integration: ${integrationDocUrl ? `<a href='${integrationDocUrl}' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>${integrationName}</a>` : integrationName}
                         <span style='color:#888;'>(${this.entityId})</span>
                     </div>
-                    ${this._missingForecastKeys && this._missingForecastKeys.length > 0 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(', ')}</div>` : ''}
+                    ${this._missingForecastKeys && this._missingForecastKeys.length > 0 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(', ')}
+                    <br>Some supported features cannot be plotted because the required data is not provided.</div>` : ''}
+                    <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                 </div>
             `;
         }
@@ -4324,6 +4317,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                         licensed under <a href='https://creativecommons.org/licenses/by/4.0/' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>CC BY 4.0</a>
                     </div>
                     ${this._missingForecastKeys && this._missingForecastKeys.length > 0 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(', ')}</div>` : ''}
+                    <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                 </div>
             `;
         }
@@ -4527,199 +4521,27 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     getSystemPrecipitationUnit() {
         return this._precipUnit;
     }
-    /**
-     * Draw the background grid (not the outer frame) for the chart
-     */
-    // Chart rendering methods moved to MeteogramChart
-    /**
-     * Draw date labels at the top of the chart
-     */
-    // Chart rendering methods moved to MeteogramChart
-    /**
-     * Draw pressure line (converted data)
-     */
-    /**
-     * Draw cloud cover band (handles nulls as zeros)
-     */
-    /**
-     * Draw weather icons along the temperature curve (minimal helper)
-     */
-    drawWeatherIcons(chart, symbolCode, temperatureConverted, x, yTemp, data, N) {
-        // If denseWeatherIcons is true, show all icons (interval 1)
-        // Otherwise, space icons so they don't overlap (e.g., 44px per icon)
-        const minIconSpacing = 44; // px, icon is 40px wide
-        const maxIcons = Math.floor(this._chartWidth / minIconSpacing);
-        const iconInterval = this.denseWeatherIcons
-            ? 1
-            : Math.max(1, Math.ceil(N / maxIcons));
-        chart.selectAll(".weather-icon")
-            .data(symbolCode)
-            .enter()
-            .append("foreignObject")
-            .attr("class", "weather-icon")
-            .attr("x", (_, i) => x(i) - 20)
-            .attr("y", (_, i) => {
-            const temp = temperatureConverted[i];
-            return temp !== null ? yTemp(temp) - 40 : -999;
-        })
-            .attr("width", 40)
-            .attr("height", 40)
-            .attr("opacity", (_, i) => (temperatureConverted[i] !== null && i % iconInterval === 0) ? 1 : 0)
-            .each((d, i, nodes) => {
-            if (i % iconInterval !== 0)
-                return;
-            const node = nodes[i];
-            if (!d)
-                return;
-            let iconName = d;
-            if (this.entityId && this.entityId !== 'none' && this._weatherEntityApiInstance) {
-                const forecastTime = data.time[i];
-                const isDay = this.isDaytimeAt(forecastTime);
-                iconName = mapHaConditionToMetnoSymbol(d, forecastTime, isDay);
+    // Helper to get the number of hours available in the data source
+    getAvailableHours() {
+        // Try to use the last fetched data if available
+        if (this._lastWeatherData && Array.isArray(this._lastWeatherData.time) && this._lastWeatherData.time.length > 1) {
+            const arr = this._lastWeatherData.time;
+            const first = arr[0];
+            const last = arr[arr.length - 1];
+            // If Date objects, calculate hours between (inclusive)
+            if (first instanceof Date && last instanceof Date) {
+                const ms = last.getTime() - first.getTime();
+                return Math.round(ms / (1000 * 60 * 60)) + 1;
             }
-            iconName = iconName
-                .replace(/^lightssleet/, 'lightsleet')
-                .replace(/^lightssnow/, 'lightsnow')
-                .replace(/^lightrainshowers$/, 'lightrainshowersday')
-                .replace(/^rainshowers$/, 'rainshowersday')
-                .replace(/^heavyrainshowers$/, 'heavyrainshowersday');
-            this.getIconSVG(iconName).then(svgContent => {
-                if (svgContent) {
-                    const div = document.createElement('div');
-                    div.style.width = '40px';
-                    div.style.height = '40px';
-                    div.innerHTML = svgContent;
-                    node.appendChild(div);
-                }
-            });
-        });
-    }
-    /**
-     * Draw wind band (barbs, grid, background, border)
-     */
-    drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, windDirection) {
-        const d3 = window.d3;
-        const windBandYOffset = margin.top + this._chartHeight;
-        const windBand = svg.append('g')
-            .attr('transform', `translate(${margin.left},${windBandYOffset})`);
-        // Even hour grid lines
-        const twoHourIdx = [];
-        for (let i = 0; i < N; i++) {
-            if (time[i].getHours() % 2 === 0)
-                twoHourIdx.push(i);
+            // If ISO strings, parse as dates (inclusive)
+            if (typeof first === 'string' && typeof last === 'string') {
+                const ms = new Date(last).getTime() - new Date(first).getTime();
+                return Math.round(ms / (1000 * 60 * 60)) + 1;
+            }
+            // Fallback: just return array length
+            return arr.length;
         }
-        windBand.selectAll(".wind-band-grid")
-            .data(twoHourIdx)
-            .enter()
-            .append("line")
-            .attr("class", "wind-band-grid")
-            .attr("x1", (i) => x(i))
-            .attr("x2", (i) => x(i))
-            .attr("y1", 0)
-            .attr("y2", windBandHeight)
-            .attr("stroke", "currentColor")
-            .attr("stroke-width", 1);
-        // Wind band border (outline)
-        windBand.append("rect")
-            .attr("class", "wind-band-outline")
-            .attr("x", 0)
-            .attr("y", 0)
-            .attr("width", this._chartWidth)
-            .attr("height", windBandHeight)
-            .attr("stroke", "currentColor")
-            .attr("stroke-width", 2)
-            .attr("fill", "none");
-        windBand.append("rect")
-            .attr("class", "wind-band-bg")
-            .attr("x", 0)
-            .attr("y", 0)
-            .attr("width", this._chartWidth)
-            .attr("height", windBandHeight);
-        // Day change lines in wind band
-        const dayChangeIdx = [];
-        for (let i = 1; i < N; i++) {
-            if (time[i].getDate() !== time[i - 1].getDate())
-                dayChangeIdx.push(i);
-        }
-        windBand.selectAll(".twentyfourh-line-wind")
-            .data(dayChangeIdx)
-            .enter()
-            .append("line")
-            .attr("class", "twentyfourh-line-wind")
-            .attr("x1", (i) => x(i))
-            .attr("x2", (i) => x(i))
-            .attr("y1", 0)
-            .attr("y2", windBandHeight);
-        // Find the even hours for grid lines first
-        const evenHourIdx = [];
-        for (let i = 0; i < N; i++) {
-            if (time[i].getHours() % 2 === 0)
-                evenHourIdx.push(i);
-        }
-        // Now place wind barbs exactly in the middle between even hours
-        const windBarbY = windBandHeight / 2;
-        for (let idx = 0; idx < evenHourIdx.length - 1; idx++) {
-            const startIdx = evenHourIdx[idx];
-            const endIdx = evenHourIdx[idx + 1];
-            if (width < 400 && idx % 2 !== 0)
-                continue;
-            const centerX = (x(startIdx) + x(endIdx)) / 2;
-            const dataIdx = Math.floor((startIdx + endIdx) / 2);
-            const speed = windSpeed[dataIdx];
-            const dir = windDirection[dataIdx];
-            if (typeof speed !== 'number' || typeof dir !== 'number' || isNaN(speed) || isNaN(dir))
-                continue;
-            const minBarbLen = width < 400 ? 18 : 23;
-            const maxBarbLen = width < 400 ? 30 : 38;
-            const windLenScale = d3.scaleLinear()
-                .domain([0, Math.max(15, d3.max(windSpeed.filter(v => typeof v === 'number' && !isNaN(v))) || 20)])
-                .range([minBarbLen, maxBarbLen]);
-            const barbLen = windLenScale(speed);
-            this.drawWindBarb(windBand, centerX, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
-        }
-    }
-    // Draw a wind barb at the given position
-    drawWindBarb(g, x, y, speed, dirDeg, len, scale = 0.8) {
-        const featherLong = 12;
-        const featherShort = 6;
-        const featherYOffset = 3;
-        const barbGroup = g.append("g")
-            .attr("transform", `translate(${x},${y}) rotate(${(dirDeg + 180) % 360}) scale(${scale})`);
-        const y0 = -len / 2, y1 = +len / 2;
-        if (speed < 2) {
-            barbGroup.append("circle")
-                .attr("class", "wind-barb-calm")
-                .attr("cx", 0)
-                .attr("cy", 0)
-                .attr("r", 4);
-            return;
-        }
-        barbGroup.append("line")
-            .attr("class", "wind-barb")
-            .attr("x1", 0).attr("y1", y0)
-            .attr("x2", 0).attr("y2", y1);
-        barbGroup.append("circle")
-            .attr("class", "wind-barb-dot")
-            .attr("cx", 0)
-            .attr("cy", y1)
-            .attr("r", 4);
-        let v = speed, wy = y0, step = 7;
-        let n10 = Math.floor(v / 10);
-        v -= n10 * 10;
-        let n5 = Math.floor(v / 5);
-        v -= n5 * 5;
-        for (let i = 0; i < n10; i++, wy += step) {
-            barbGroup.append("line")
-                .attr("class", "wind-barb-feather")
-                .attr("x1", 0).attr("y1", wy)
-                .attr("x2", featherLong).attr("y2", wy + featherYOffset);
-        }
-        for (let i = 0; i < n5; i++, wy += step) {
-            barbGroup.append("line")
-                .attr("class", "wind-barb-half")
-                .attr("x1", 0).attr("y1", wy)
-                .attr("x2", featherShort).attr("y2", wy + featherYOffset / 1.5);
-        }
+        return 'unknown';
     }
 };
 MeteogramCard$1.meteogramCardVersion = version;

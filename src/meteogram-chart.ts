@@ -439,8 +439,7 @@ export class MeteogramChart {
     }
     public drawPressureLine(chart: any, pressure: (number|null)[], x: any, yPressure: any, legendX?: number, legendY?: number) {
         const d3 = window.d3;
-        // Debug: Log pressure data before drawing
-        console.log('[MeteogramCard] Pressure data for chart:', pressure);
+    //
         const pressureLine = d3.line()
             .defined((d: number | null) => d !== null && typeof d === "number" && !isNaN(d))
             .x((_: number, i: number) => x(i))
