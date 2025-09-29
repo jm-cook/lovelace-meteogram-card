@@ -3911,7 +3911,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             // Determine if wind data is available
             const windAvailable = this.showWind &&
                 Array.isArray(data.windSpeed) &&
-                data.windSpeed.length > 0 &&
+                data.windSpeed.length > 1 &&
                 data.windSpeed.some((v) => typeof v === "number");
             // Set windBand based on wind availability
             const windBandHeight = windAvailable ? 45 : 0;
@@ -3957,7 +3957,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 symbolCode: sliceData(data.symbolCode),
                 pressure: sliceData(data.pressure),
             };
-            this.renderMeteogram(this.svg, slicedData, width, height, windBandHeight, hourLabelBand);
+            this.renderMeteogram(this.svg, slicedData, width, height, windBandHeight, hourLabelBand, windAvailable);
             // Reset error tracking on success
             this.errorCount = 0;
             // Clear retry timer if successful
@@ -4059,14 +4059,14 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         return hour >= 6 && hour < 18;
     }
     // Update renderMeteogram to add windBarbBand and hourLabelBand as arguments
-    renderMeteogram(svg, data, width, height, windBandHeight = 0, hourLabelBand = 24) {
+    renderMeteogram(svg, data, width, height, windBandHeight = 0, hourLabelBand = 24, windAvailable = false) {
         const d3 = window.d3;
         const { time, temperature, rain, rainMin, rainMax, snow, cloudCover, windSpeed, windDirection, symbolCode, pressure, } = data;
         const N = time.length;
         this.getSystemTemperatureUnit();
-        const pressureUnit = this.getSystemPressureUnit();
-        const windSpeedUnit = this.getSystemWindSpeedUnit();
-        const precipUnit = this.getSystemPrecipitationUnit();
+        this.getSystemPressureUnit();
+        this.getSystemWindSpeedUnit();
+        this.getSystemPrecipitationUnit();
         // Only convert values if using WeatherAPI (entityId is not set or is 'none')
         let temperatureConverted;
         let rainConverted;
@@ -4075,12 +4075,12 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         windDirection.some((d) => d !== null);
         if (!this.entityId || this.entityId === "none") {
             temperatureConverted = temperature.map((t) => this.convertTemperature(t));
-            pressure.map((p) => convertPressure(p, "hPa", pressureUnit));
-            windSpeed.map((w) => convertWindSpeed(w, "m/s", windSpeedUnit));
-            rainConverted = rain.map((r) => convertPrecipitation(r !== null && r !== void 0 ? r : 0, "mm", precipUnit));
-            rainMin.map((r) => convertPrecipitation(r !== null && r !== void 0 ? r : 0, "mm", precipUnit));
-            rainMaxConverted = rainMax.map((r) => convertPrecipitation(r !== null && r !== void 0 ? r : 0, "mm", precipUnit));
-            snowConverted = snow.map((s) => convertPrecipitation(s !== null && s !== void 0 ? s : 0, "mm", precipUnit));
+            pressure.map((p) => this.convertPressure(p));
+            windSpeed.map((w) => this.convertWindSpeed(w));
+            rainConverted = rain.map((r) => this.convertPrecipitation(r !== null && r !== void 0 ? r : 0));
+            rainMin.map((r) => this.convertPrecipitation(r !== null && r !== void 0 ? r : 0));
+            rainMaxConverted = rainMax.map((r) => this.convertPrecipitation(r !== null && r !== void 0 ? r : 0));
+            snowConverted = snow.map((s) => this.convertPrecipitation(s !== null && s !== void 0 ? s : 0));
         }
         else {
             temperatureConverted = temperature;
@@ -4093,11 +4093,22 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         rainMaxConverted.map((r) => r !== null && r !== void 0 ? r : 0);
         snowConverted.map((s) => s !== null && s !== void 0 ? s : 0);
         const pressureAvailable = this.showPressure && pressure && pressure.length > 0;
-        const windAvailable = this.showWind && windSpeed && windSpeed.length > 0;
+        // windAvailable is now passed as an argument from _renderChart
         const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
         const snowAvailable = snow &&
             snow.length > 0 &&
             snow.some((s) => typeof s === "number" && !isNaN(s) && s > 0);
+        const enabledLegends = [];
+        if (cloudAvailable) {
+            enabledLegends.push({ class: "legend-cloud", label: "Cloud Cover" });
+        }
+        if (this.showPrecipitation) {
+            enabledLegends.push({ class: "legend-rain", label: "Precipitation" });
+        }
+        if (pressureAvailable) {
+            enabledLegends.push({ class: "legend-pressure", label: "Pressure" });
+        }
+        enabledLegends.push({ class: "legend-temp", label: "Temperature" });
         // SVG and chart parameters
         // In focussed mode, remove top margin for legends
         // Adjust margins based on focussed mode, pressure axis, and displayMode
@@ -4210,35 +4221,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 .range([this._chartHeight, 0]);
         }
         // Calculate legend positions
-        const enabledLegends = [];
-        if (this.displayMode !== "core" && !this.focussed) {
-            if (this.showCloudCover) {
-                enabledLegends.push({
-                    class: "legend legend-cloud",
-                    label: trnslt(this.hass, "ui.card.meteogram.attributes.cloud_coverage", "Cloud Cover") + " (%)",
-                });
-            }
-            if (this.showPrecipitation) {
-                enabledLegends.push({
-                    class: "legend legend-rain",
-                    label: trnslt(this.hass, "ui.card.meteogram.attributes.precipitation", "Precipitation") + ` (${this._precipUnit})`,
-                });
-            }
-            enabledLegends.push({
-                class: "legend legend-temp",
-                label: trnslt(this.hass, "ui.card.meteogram.attributes.temperature", "Temperature") + ` (${this._tempUnit})`,
-            });
-            if (this.showPressure) {
-                enabledLegends.push({
-                    class: "legend legend-pressure",
-                    label: trnslt(this.hass, "ui.card.meteogram.attributes.air_pressure", "Pressure") +
-                        " (" +
-                        this._pressureUnit +
-                        ")",
-                });
-            }
-        }
-        // Calculate legend positions
+        // Only allocate slots for enabled legends, so they fill left-to-right
         const numLegends = enabledLegends.length;
         const legendPositions = enabledLegends.map((_, i) => {
             const slotWidth = this._chartWidth / numLegends;
@@ -4257,7 +4240,13 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             .attr("x", (d) => margin.left + x(d.start))
             .attr("y", margin.top - 42)
             // Limit width to only main chart area (do not extend to right axis)
-            .attr("width", (d) => Math.min(x(Math.max(d.end - 1, d.start)) - x(d.start) + dx, this._chartWidth - x(d.start)))
+            .attr("width", (d) => {
+            // Defensive: ensure width is never negative
+            const rawWidth = x(Math.max(d.end - 1, d.start)) - x(d.start) + dx;
+            const maxWidth = this._chartWidth - x(d.start);
+            const safeWidth = Math.max(0, Math.min(rawWidth, maxWidth));
+            return safeWidth;
+        })
             // Limit height to only main chart area (do not extend to lower x axis)
             .attr("height", this._chartHeight + 42)
             .attr("opacity", (_, i) => (i % 2 === 0 ? 0.16 : 0));
@@ -4727,6 +4716,27 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         const unit = this.getSystemTemperatureUnit();
         // Use the shared conversion helper
         return convertTemperature(tempC, "°C", unit);
+    }
+    // Add a helper to convert pressure units
+    convertPressure(pressure) {
+        if (pressure === null || pressure === undefined)
+            return pressure;
+        const unit = this.getSystemPressureUnit();
+        return convertPressure(pressure, "hPa", unit);
+    }
+    // Add a helper to convert wind speed units
+    convertWindSpeed(windSpeed) {
+        if (windSpeed === null || windSpeed === undefined)
+            return windSpeed;
+        const unit = this.getSystemWindSpeedUnit();
+        return convertWindSpeed(windSpeed, "m/s", unit);
+    }
+    // Add a helper to convert precipitation units
+    convertPrecipitation(precip) {
+        if (precip === null || precip === undefined)
+            return precip;
+        const unit = this.getSystemPrecipitationUnit();
+        return convertPrecipitation(precip, "mm", unit);
     }
     // Add initialization method for units
     _initializeUnits() {

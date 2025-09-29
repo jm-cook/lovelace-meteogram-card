@@ -1575,7 +1575,7 @@ export class MeteogramCard extends LitElement {
         const windAvailable =
           this.showWind &&
           Array.isArray(data.windSpeed) &&
-          data.windSpeed.length > 0 &&
+          data.windSpeed.length > 1 &&
           data.windSpeed.some((v) => typeof v === "number");
 
         // Set windBand based on wind availability
@@ -1632,7 +1632,8 @@ export class MeteogramCard extends LitElement {
           width,
           height,
           windBandHeight,
-          hourLabelBand
+          hourLabelBand,
+          windAvailable
         );
         // Reset error tracking on success
         this.errorCount = 0;
@@ -1759,7 +1760,8 @@ export class MeteogramCard extends LitElement {
     width: number,
     height: number,
     windBandHeight: number = 0,
-    hourLabelBand: number = 24
+    hourLabelBand: number = 24,
+    windAvailable: boolean = false
   ): void {
     const d3 = window.d3;
     const {
@@ -1792,24 +1794,12 @@ export class MeteogramCard extends LitElement {
     windDirection.some((d) => d !== null);
     if (!this.entityId || this.entityId === "none") {
       temperatureConverted = temperature.map((t) => this.convertTemperature(t));
-      pressureConverted = pressure.map((p) =>
-        convertPressure(p, "hPa", pressureUnit)
-      );
-      windSpeedConverted = windSpeed.map((w) =>
-        convertWindSpeed(w, "m/s", windSpeedUnit)
-      );
-      rainConverted = rain.map((r) =>
-        convertPrecipitation(r ?? 0, "mm", precipUnit)
-      );
-      rainMinConverted = rainMin.map((r) =>
-        convertPrecipitation(r ?? 0, "mm", precipUnit)
-      );
-      rainMaxConverted = rainMax.map((r) =>
-        convertPrecipitation(r ?? 0, "mm", precipUnit)
-      );
-      snowConverted = snow.map((s) =>
-        convertPrecipitation(s ?? 0, "mm", precipUnit)
-      );
+      pressureConverted = pressure.map((p) => this.convertPressure(p));
+      windSpeedConverted = windSpeed.map((w) => this.convertWindSpeed(w));
+      rainConverted = rain.map((r) => this.convertPrecipitation(r ?? 0));
+      rainMinConverted = rainMin.map((r) => this.convertPrecipitation(r ?? 0));
+      rainMaxConverted = rainMax.map((r) => this.convertPrecipitation(r ?? 0));
+      snowConverted = snow.map((s) => this.convertPrecipitation(s ?? 0));
     } else {
       temperatureConverted = temperature;
       pressureConverted = pressure;
@@ -1826,13 +1816,26 @@ export class MeteogramCard extends LitElement {
 
     const pressureAvailable =
       this.showPressure && pressure && pressure.length > 0;
-    const windAvailable = this.showWind && windSpeed && windSpeed.length > 0;
+    // windAvailable is now passed as an argument from _renderChart
     const cloudAvailable =
       this.showCloudCover && cloudCover && cloudCover.length > 0;
     const snowAvailable =
       snow &&
       snow.length > 0 &&
       snow.some((s) => typeof s === "number" && !isNaN(s) && s > 0);
+    // Define enabledLegends array based on which chart elements are enabled
+    type LegendInfo = { class: string; label: string };
+    const enabledLegends: LegendInfo[] = [];
+    if (cloudAvailable) {
+      enabledLegends.push({ class: "legend-cloud", label: "Cloud Cover" });
+    }
+    if (this.showPrecipitation) {
+      enabledLegends.push({ class: "legend-rain", label: "Precipitation" });
+    }
+    if (pressureAvailable) {
+      enabledLegends.push({ class: "legend-pressure", label: "Pressure" });
+    }
+    enabledLegends.push({ class: "legend-temp", label: "Temperature" });
     // SVG and chart parameters
     // In focussed mode, remove top margin for legends
 
@@ -1974,58 +1977,9 @@ export class MeteogramCard extends LitElement {
     }
 
     // Calculate legend positions
-    const enabledLegends = [];
-    if (this.displayMode !== "core" && !this.focussed) {
-      if (this.showCloudCover) {
-        enabledLegends.push({
-          class: "legend legend-cloud",
-          label:
-            trnslt(
-              this.hass,
-              "ui.card.meteogram.attributes.cloud_coverage",
-              "Cloud Cover"
-            ) + " (%)",
-        });
-      }
-      if (this.showPrecipitation) {
-        enabledLegends.push({
-          class: "legend legend-rain",
-          label:
-            trnslt(
-              this.hass,
-              "ui.card.meteogram.attributes.precipitation",
-              "Precipitation"
-            ) + ` (${this._precipUnit})`,
-        });
-      }
-      enabledLegends.push({
-        class: "legend legend-temp",
-        label:
-          trnslt(
-            this.hass,
-            "ui.card.meteogram.attributes.temperature",
-            "Temperature"
-          ) + ` (${this._tempUnit})`,
-      });
-      if (this.showPressure) {
-        enabledLegends.push({
-          class: "legend legend-pressure",
-          label:
-            trnslt(
-              this.hass,
-              "ui.card.meteogram.attributes.air_pressure",
-              "Pressure"
-            ) +
-            " (" +
-            this._pressureUnit +
-            ")",
-        });
-      }
-    }
-
-    // Calculate legend positions
+    // Only allocate slots for enabled legends, so they fill left-to-right
     const numLegends = enabledLegends.length;
-    const legendPositions = enabledLegends.map((_, i) => {
+    const legendPositions = enabledLegends.map((_: LegendInfo, i: number) => {
       const slotWidth = this._chartWidth / numLegends;
       return {
         x: i * slotWidth + 2,
@@ -2043,12 +1997,13 @@ export class MeteogramCard extends LitElement {
       .attr("x", (d: DayRange) => margin.left + x(d.start))
       .attr("y", margin.top - 42)
       // Limit width to only main chart area (do not extend to right axis)
-      .attr("width", (d: DayRange) =>
-        Math.min(
-          x(Math.max(d.end - 1, d.start)) - x(d.start) + dx,
-          this._chartWidth - x(d.start)
-        )
-      )
+      .attr("width", (d: DayRange) => {
+        // Defensive: ensure width is never negative
+        const rawWidth = x(Math.max(d.end - 1, d.start)) - x(d.start) + dx;
+        const maxWidth = this._chartWidth - x(d.start);
+        const safeWidth = Math.max(0, Math.min(rawWidth, maxWidth));
+        return safeWidth;
+      })
       // Limit height to only main chart area (do not extend to lower x axis)
       .attr("height", this._chartHeight + 42)
       .attr("opacity", (_: DayRange, i: number) => (i % 2 === 0 ? 0.16 : 0));
@@ -2087,6 +2042,7 @@ export class MeteogramCard extends LitElement {
 
     // Draw bottom hour labels using helper
     this._chartRenderer.drawBottomHourLabels(
+
       svg,
       data.time,
       margin,
@@ -2106,7 +2062,7 @@ export class MeteogramCard extends LitElement {
     // Draw cloud cover band with legend
     // Cloud cover band - only if enabled
     if (cloudAvailable) {
-      const cloudLegendIndex = enabledLegends.findIndex((l) =>
+      const cloudLegendIndex = enabledLegends.findIndex((l: LegendInfo) =>
         l.class.includes("legend-cloud")
       );
       if (cloudLegendIndex >= 0) {
@@ -2125,7 +2081,7 @@ export class MeteogramCard extends LitElement {
     }
     // Draw rain bars with legend
     if (this.showPrecipitation) {
-      const rainLegendIndex = enabledLegends.findIndex((l) =>
+      const rainLegendIndex = enabledLegends.findIndex((l: LegendInfo) =>
         l.class.includes("legend-rain")
       );
       if (rainLegendIndex >= 0) {
@@ -2160,7 +2116,7 @@ export class MeteogramCard extends LitElement {
 
     // Draw pressure line with legend
     if (pressureAvailable && yPressure) {
-      const pressureLegendIndex = enabledLegends.findIndex((l) =>
+      const pressureLegendIndex = enabledLegends.findIndex((l: LegendInfo) =>
         l.class.includes("legend-pressure")
       );
       if (pressureLegendIndex >= 0) {
@@ -2194,7 +2150,7 @@ export class MeteogramCard extends LitElement {
     }
 
     // Draw temperature line with legend
-    const tempLegendIndex = enabledLegends.findIndex((l) =>
+    const tempLegendIndex = enabledLegends.findIndex((l: LegendInfo) =>
       l.class.includes("legend-temp")
     );
     if (tempLegendIndex >= 0) {
@@ -2695,6 +2651,27 @@ export class MeteogramCard extends LitElement {
     const unit = this.getSystemTemperatureUnit();
     // Use the shared conversion helper
     return convertTemperature(tempC, "°C", unit);
+  }
+
+  // Add a helper to convert pressure units
+  private convertPressure(pressure: number | null): number | null {
+    if (pressure === null || pressure === undefined) return pressure;
+    const unit = this.getSystemPressureUnit();
+    return convertPressure(pressure, "hPa", unit);
+  }
+
+  // Add a helper to convert wind speed units
+  private convertWindSpeed(windSpeed: number | null): number | null {
+    if (windSpeed === null || windSpeed === undefined) return windSpeed;
+    const unit = this.getSystemWindSpeedUnit();
+    return convertWindSpeed(windSpeed, "m/s", unit);
+  }
+
+  // Add a helper to convert precipitation units
+  private convertPrecipitation(precip: number | null): number | null {
+    if (precip === null || precip === undefined) return precip;
+    const unit = this.getSystemPrecipitationUnit();
+    return convertPrecipitation(precip, "mm", unit);
   }
 
   // Add initialization method for units
