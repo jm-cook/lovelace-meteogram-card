@@ -4222,8 +4222,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Calculate legend positions
         // Only allocate slots for enabled legends, so they fill left-to-right
-        const numLegends = enabledLegends.length;
-        const legendPositions = enabledLegends.map((_, i) => {
+        // Skip legends entirely in "core" display mode
+        const numLegends = this.displayMode === "core" ? 0 : enabledLegends.length;
+        const legendPositions = this.displayMode === "core" ? [] : enabledLegends.map((_, i) => {
             const slotWidth = this._chartWidth / numLegends;
             return {
                 x: i * slotWidth + 2,
@@ -4273,8 +4274,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Draw cloud cover band with legend
         // Cloud cover band - only if enabled
         if (cloudAvailable) {
-            const cloudLegendIndex = enabledLegends.findIndex((l) => l.class.includes("legend-cloud"));
-            if (cloudLegendIndex >= 0) {
+            const cloudLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-cloud"));
+            if (cloudLegendIndex >= 0 && legendPositions.length > 0) {
                 const legendPos = legendPositions[cloudLegendIndex];
                 this._chartRenderer.drawCloudBand(chart, cloudCover, N, x, legendPos.x, legendPos.y);
             }
@@ -4284,8 +4285,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Draw rain bars with legend
         if (this.showPrecipitation) {
-            const rainLegendIndex = enabledLegends.findIndex((l) => l.class.includes("legend-rain"));
-            if (rainLegendIndex >= 0) {
+            const rainLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-rain"));
+            if (rainLegendIndex >= 0 && legendPositions.length > 0) {
                 const legendPos = legendPositions[rainLegendIndex];
                 this._chartRenderer.drawRainBars(chart, rainConverted, rainMaxConverted, snowConverted, N, x, yPrecip, dx, snowAvailable, legendPos.x, legendPos.y);
             }
@@ -4295,8 +4296,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Draw pressure line with legend
         if (pressureAvailable && yPressure) {
-            const pressureLegendIndex = enabledLegends.findIndex((l) => l.class.includes("legend-pressure"));
-            if (pressureLegendIndex >= 0) {
+            const pressureLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-pressure"));
+            if (pressureLegendIndex >= 0 && legendPositions.length > 0) {
                 const legendPos = legendPositions[pressureLegendIndex];
                 this._chartRenderer.drawPressureLine(chart, pressure, x, yPressure, legendPos.x, legendPos.y);
             }
@@ -4309,8 +4310,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             this._chartRenderer.drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, windDirection);
         }
         // Draw temperature line with legend
-        const tempLegendIndex = enabledLegends.findIndex((l) => l.class.includes("legend-temp"));
-        if (tempLegendIndex >= 0) {
+        const tempLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-temp"));
+        if (tempLegendIndex >= 0 && legendPositions.length > 0) {
             const legendPos = legendPositions[tempLegendIndex];
             this._chartRenderer.drawTemperatureLine(chart, temperatureConverted, x, yTemp, legendPos.x, legendPos.y);
         }
@@ -4497,6 +4498,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                     <br>Some supported features cannot be plotted because the required data is not provided.</div>`
                 : ""}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
+                    <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard_1.meteogramCardVersion}</div>
                 </div>
             `;
         }
@@ -4512,6 +4514,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(", ")}</div>`
                 : ""}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
+                    <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard_1.meteogramCardVersion}</div>
                 </div>
             `;
         }

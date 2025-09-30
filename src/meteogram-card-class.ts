@@ -1978,8 +1978,9 @@ export class MeteogramCard extends LitElement {
 
     // Calculate legend positions
     // Only allocate slots for enabled legends, so they fill left-to-right
-    const numLegends = enabledLegends.length;
-    const legendPositions = enabledLegends.map((_: LegendInfo, i: number) => {
+    // Skip legends entirely in "core" display mode
+    const numLegends = this.displayMode === "core" ? 0 : enabledLegends.length;
+    const legendPositions = this.displayMode === "core" ? [] : enabledLegends.map((_: LegendInfo, i: number) => {
       const slotWidth = this._chartWidth / numLegends;
       return {
         x: i * slotWidth + 2,
@@ -2062,10 +2063,10 @@ export class MeteogramCard extends LitElement {
     // Draw cloud cover band with legend
     // Cloud cover band - only if enabled
     if (cloudAvailable) {
-      const cloudLegendIndex = enabledLegends.findIndex((l: LegendInfo) =>
+      const cloudLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l: LegendInfo) =>
         l.class.includes("legend-cloud")
       );
-      if (cloudLegendIndex >= 0) {
+      if (cloudLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[cloudLegendIndex];
         this._chartRenderer.drawCloudBand(
           chart,
@@ -2081,10 +2082,10 @@ export class MeteogramCard extends LitElement {
     }
     // Draw rain bars with legend
     if (this.showPrecipitation) {
-      const rainLegendIndex = enabledLegends.findIndex((l: LegendInfo) =>
+      const rainLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l: LegendInfo) =>
         l.class.includes("legend-rain")
       );
-      if (rainLegendIndex >= 0) {
+      if (rainLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[rainLegendIndex];
         this._chartRenderer.drawRainBars(
           chart,
@@ -2116,10 +2117,10 @@ export class MeteogramCard extends LitElement {
 
     // Draw pressure line with legend
     if (pressureAvailable && yPressure) {
-      const pressureLegendIndex = enabledLegends.findIndex((l: LegendInfo) =>
+      const pressureLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l: LegendInfo) =>
         l.class.includes("legend-pressure")
       );
-      if (pressureLegendIndex >= 0) {
+      if (pressureLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[pressureLegendIndex];
         this._chartRenderer.drawPressureLine(
           chart,
@@ -2150,10 +2151,10 @@ export class MeteogramCard extends LitElement {
     }
 
     // Draw temperature line with legend
-    const tempLegendIndex = enabledLegends.findIndex((l: LegendInfo) =>
+    const tempLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l: LegendInfo) =>
       l.class.includes("legend-temp")
     );
-    if (tempLegendIndex >= 0) {
+    if (tempLegendIndex >= 0 && legendPositions.length > 0) {
       const legendPos = legendPositions[tempLegendIndex];
       this._chartRenderer.drawTemperatureLine(
         chart,
@@ -2384,6 +2385,7 @@ export class MeteogramCard extends LitElement {
                         : ""
                     }
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
+                    <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard.meteogramCardVersion}</div>
                 </div>
             `;
     } else {
@@ -2402,6 +2404,7 @@ export class MeteogramCard extends LitElement {
                         : ""
                     }
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
+                    <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard.meteogramCardVersion}</div>
                 </div>
             `;
     }
