@@ -275,25 +275,167 @@ styles:
   --meteogram-temp-line-color-dark: "orange"
   --meteogram-pressure-line-color: "deepskyblue"
   --meteogram-pressure-line-color-dark: "magenta"
-  --meteogram-wind-barb-color: "black"
-  --meteogram-wind-barb-color-dark: "yellow"
-  --meteogram-rain-label-color: "crimson"
-  --meteogram-rain-label-color-dark: "chartreuse"
-  --meteogram-rain-max-label-color: "navy"
-  --meteogram-rain-max-label-color-dark: "fuchsia"
-  --meteogram-cloud-color: "gray"
-  --meteogram-cloud-color-dark: "white"
-  --meteogram-timescale-color: "purple"
-  --meteogram-timescale-color-dark: "orange"
-```
 
-![img.png](../images/meteogram-card-quirky-colours.png)
+  # Meteogram Card Styles and Theming
 
-### Example: Custom snow bar color
+  This document describes how to customize the appearance of the Meteogram Card using CSS variables, including support for dark mode and Home Assistant themes.
 
-```yaml
-type: custom:meteogram-card
-styles:
-  --meteogram-snow-bar-color: "lightblue"
-  --meteogram-snow-bar-color-dark: "white"
-```
+  ## Overview
+
+  The Meteogram Card uses CSS variables for all colors, fonts, and layout options. You can override these variables in two ways:
+
+  1. **Via the `styles:` option in the card YAML** (applies only to that card instance)
+  2. **Via your Home Assistant theme** (applies globally to all cards)
+
+  ## Dark Mode
+
+  The card fully supports Home Assistant's dark mode using the `modes:` setting in your theme YAML. All colors and styles adapt automatically. You can override any CSS variable for both light and dark mode using Home Assistant's theme system.
+
+  **Note:** The card detects dark mode using the `:host([dark])` selector. This is compatible with Home Assistant's dark mode system. You do **not** need to use `-dark` variable names; simply use the `modes: dark:` section in your theme YAML.
+
+  ## List of CSS Variables
+
+  The following CSS variables are used by the card. You can override any of these in your theme or via the `styles:` option. In your theme YAML, omit the leading `--`.
+
+  | Variable                       | Description
+  |--------------------------------|------------------------------------------
+  | meteogram-label-font-size      | Axis/legend label font size
+  | meteogram-legend-font-size     | Legend font size
+  | meteogram-tick-font-size       | Y axis tick font size
+  | meteogram-cloud-color          | Cloud cover color
+  | meteogram-grid-color           | Grid lines and axis color
+  | meteogram-pressure-line-color  | Pressure curve color
+  | meteogram-timescale-color      | Timescale highlight color
+  | meteogram-rain-bar-color       | Rain bar color
+  | meteogram-rain-max-bar-color   | Rain max bar color
+  | meteogram-temp-line-color      | Temperature curve color
+  | meteogram-wind-barb-color      | Wind barb color
+  | meteogram-rain-label-color     | Rain label color
+  | meteogram-rain-max-label-color | Rain max label color
+  | meteogram-snow-bar-color       | Snow bar color
+
+  **You can override any of these variables in your theme or card YAML.**
+
+  ## How to Override Styles
+
+
+  ### 1. In Card YAML
+
+  Add a `styles:` section to your card configuration. **Do not use the `--` prefix.**
+
+  ```yaml
+  type: custom:meteogram-card
+  styles:
+    meteogram-grid-color: "#1976d2"
+    meteogram-cloud-color: "#ffb300"
+    meteogram-label-font-size: "18px"
+  ```
+
+  ### 2. In Home Assistant Theme
+
+  Add variables to your theme YAML. **Do not include the leading `--` in the YAML keys.**
+
+  ```yaml
+  meteogram-card:
+    meteogram-grid-color: "#1976d2"
+    meteogram-cloud-color: "#ffb300"
+    meteogram-label-font-size: "18px"
+  ```
+
+  ### 3. Dark Mode in Themes
+
+  To customize styles for dark mode, use the `modes:` key in your theme YAML:
+
+  ```yaml
+  my_custom_theme:
+    meteogram-grid-color: "#1976d2"
+    meteogram-cloud-color: "#ffb300"
+    modes:
+      dark:
+        meteogram-grid-color: "#444444"
+        meteogram-cloud-color: "darkgray"
+  ```
+
+  **Important:**
+  - Home Assistant automatically adds the `--` prefix when applying these variables as CSS variables.
+  - You do **not** need to use `-dark` variable names. The card will use the correct variable for the current mode.
+
+  ## Example: Full Theme YAML
+
+  ```yaml
+  my_custom_theme:
+    # Light mode
+    meteogram-label-font-size: "18px"
+    meteogram-grid-color: "#1976d2"
+    meteogram-cloud-color: "#ffb300"
+    # ... other variables ...
+    modes:
+      dark:
+        meteogram-label-font-size: "18px"
+        meteogram-grid-color: "#444444"
+        meteogram-cloud-color: "darkgray"
+        # ... other variables ...
+  ```
+
+  ## Usage Notes
+
+  - All values must be strings.
+  - You can override any CSS variable used by the card.
+  - For dark mode, use the `modes: dark:` section in your theme YAML.
+
+
+  ## Example: Customizing Colors and Fonts
+
+  ```yaml
+  type: custom:meteogram-card
+  styles:
+    meteogram-label-font-size: "18px"
+    meteogram-grid-color: "#1976d2"
+    meteogram-cloud-color: "#ffb300"
+    meteogram-temp-line-color: "#ff9800"
+    meteogram-pressure-line-color: "#1976d2"
+    meteogram-wind-barb-color: "#388e3c"
+    meteogram-rain-bar-color: "#2196f3"
+    meteogram-rain-max-bar-color: "#90caf9"
+    meteogram-rain-label-color: "#d32f2f"
+    meteogram-rain-max-label-color: "#1976d2"
+    meteogram-snow-bar-color: "#b3e6ff"
+  ```
+
+  ## Example: Customizing for Dark Mode
+
+  ```yaml
+  my_custom_theme:
+    meteogram-label-font-size: "18px"
+    meteogram-grid-color: "#1976d2"
+    meteogram-cloud-color: "#ffb300"
+    modes:
+      dark:
+        meteogram-label-font-size: "18px"
+        meteogram-grid-color: "#444444"
+        meteogram-cloud-color: "darkgray"
+  ```
+
+  ## Default CSS Variable Values
+
+These are the built-in defaults for the card. For each variable, both the light and dark mode defaults are shown (use these names in your theme or styles config):
+
+| Variable                      | Light Mode Default | Dark Mode Default |
+|-------------------------------|--------------------|-------------------|
+| meteogram-grid-color          | #b8c4d9           | #444              |
+| meteogram-temp-line-color     | orange            | orange            |
+| meteogram-pressure-line-color | #90caf9           | #90caf9           |
+| meteogram-rain-bar-color      | deepskyblue       | deepskyblue       |
+| meteogram-rain-max-bar-color  | #7fdbff           | #7fdbff           |
+| meteogram-rain-label-color    | #0058a3           | #a3d8ff           |
+| meteogram-rain-max-label-color| #2693e6           | #2693e6           |
+| meteogram-cloud-color         | #b0bec5           | #eceff1           |
+| meteogram-wind-barb-color     | #1976d2           | #1976d2           |
+| meteogram-snow-bar-color      | #b3e6ff           | #e0f7fa           |
+| meteogram-label-font-size     | 13px              | 13px              |
+| meteogram-legend-font-size    | 14px              | 14px              |
+| meteogram-tick-font-size      | 13px              | 13px              |
+| meteogram-axis-label-color    | #000              | #fff              |
+| meteogram-timescale-color     | #ffb300           | #ffd54f           |
+
+*Note: The card no longer uses `-dark` variable names. Instead, all variables are automatically applied for the correct mode using Home Assistant's theme system and the `:host([dark])` selector. Use the `modes: dark:` section in your theme YAML to override dark mode values.*

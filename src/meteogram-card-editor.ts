@@ -13,14 +13,61 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
     private _elements: Map<string, ConfigurableHTMLElement> = new Map();
 
 
-    setConfig(config: MeteogramCardConfig): void {
-        this._config = config || {};
-        if (this._initialized) {
-            this._updateValues();
-        } else {
-            this._initialize();
-        }
+
+
+  setConfig(config: MeteogramCardConfig): void {
+    this._config = config || {};
+    if (this._initialized) {
+      this._updateValues();
+    } else {
+      this._initialize();
     }
+    // Only emit minimal config if this is the initial setup (empty config)
+    if (Object.keys(this._config).length === 0 || Object.keys(config).length === 0) {
+      this._emitMinimalConfig();
+    } else {
+      // For subsequent loads/edits, emit the full config as-is
+      this.dispatchEvent(new CustomEvent('config-changed', {
+        detail: { config: { ...this._config } }
+      }));
+    }
+  }
+
+  private _emitMinimalConfig() {
+    const defaultConfig = {
+      title: '',
+      latitude: undefined,
+      longitude: undefined,
+      altitude: undefined,
+      show_cloud_cover: true,
+      show_pressure: true,
+      show_precipitation: true, // treat true as default for minimalization
+      show_weather_icons: true,
+      show_wind: true,
+      dense_weather_icons: true,
+      meteogram_hours: '48h',
+      styles: undefined,
+      diagnostics: false,
+      entity_id: undefined,
+      focussed: false,
+      display_mode: 'full',
+      aspect_ratio: '16:9',
+      layout_mode: 'sections',
+    };
+    const minimalConfig: any = {};
+    Object.keys(this._config).forEach((key) => {
+      const value = (this._config as any)[key];
+      const def = (defaultConfig as any)[key];
+      if (typeof def === 'undefined') {
+        if (typeof value !== 'undefined') minimalConfig[key] = value;
+      } else if (value !== def) {
+        minimalConfig[key] = value;
+      }
+    });
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: minimalConfig }
+    }));
+  }
 
     get config() {
         return this._config;
@@ -61,9 +108,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
 
         setValue(this._elements.get('show_cloud_cover'), this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true, 'checked');
         setValue(this._elements.get('show_pressure'), this._config.show_pressure !== undefined ? this._config.show_pressure : true, 'checked');
-        // Use show_precipitation if present, else fallback to show_rain for legacy support
-        const precipitationValue = this._config.show_precipitation !== undefined ? this._config.show_precipitation : (this._config.show_rain !== undefined ? this._config.show_rain : true);
-        setValue(this._elements.get('show_precipitation'), precipitationValue, 'checked');
+  setValue(this._elements.get('show_precipitation'), this._config.show_precipitation !== undefined ? this._config.show_precipitation : true, 'checked');
         setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
         setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
         setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
@@ -94,14 +139,12 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         // Get current toggle values or default to true
         const showCloudCover = this._config.show_cloud_cover !== undefined ? this._config.show_cloud_cover : true;
         const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
-        const showRain = this._config.show_rain !== undefined ? this._config.show_rain : true;
         const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
         const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
         const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
         const meteogramHours = this._config.meteogram_hours || "48h";
         const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : false;
         const focussed = this._config.focussed !== undefined ? this._config.focussed : false;
-        const precipitationValue = this._config.show_precipitation !== undefined ? this._config.show_precipitation : (this._config.show_rain !== undefined ? this._config.show_rain : true);
         const displayMode = this._config.display_mode || 'full';
         const aspectRatio = this._config.aspect_ratio || "16:9";
         const div = document.createElement('div');
@@ -258,7 +301,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
           <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.precipitation", "Show Precipitation (Rain & Snow)")}</div>
           <ha-switch
             id="show-precipitation"
-            .checked="${precipitationValue}"
+            .checked="${this._config.show_precipitation !== undefined ? this._config.show_precipitation : true}"
           ></ha-switch>
         </div>
 
@@ -482,106 +525,104 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
     }
 
     // Add the missing _valueChanged method
-    private _valueChanged(ev: Event) {
-        const target = ev.target as ConfigurableHTMLElement;
-        if (!this._config || !target || !target.configValue) return;
 
-        let newValue: string | number | boolean | undefined = target.value;
+  private _valueChanged(ev: Event) {
+    const target = ev.target as ConfigurableHTMLElement;
+    if (!this._config || !target || !target.configValue) return;
 
-        // List of boolean config fields
-        const boolFields = [
-            'show_cloud_cover', 'show_pressure', 'show_precipitation', 'show_rain', 'show_weather_icons',
-            'show_wind', 'dense_weather_icons', /* 'fill_container', */ 'diagnostics',
-            'focussed'
-        ];
+    let newValue: string | number | boolean | undefined = target.value;
 
-        // Handle different input types
-        if (target.tagName === 'HA-SWITCH') {
-            newValue = target.checked;
-        } else if ((target as HTMLInputElement).type === 'number') {
-            if (newValue === '') {
-                newValue = undefined;
-            } else {
-                const numValue = parseFloat(newValue?.toString() ?? '');
-                if (!isNaN(numValue)) {
-                    newValue = numValue;
-                }
-            }
-        } else if (newValue === '') {
-            // For boolean fields, set undefined instead of empty string
-            if (boolFields.includes(target.configValue)) {
-                newValue = undefined;
-            } else {
-                newValue = undefined;
-            }
+    // List of boolean config fields
+    const boolFields = [
+  'show_cloud_cover', 'show_pressure', 'show_precipitation', 'show_weather_icons',
+      'show_wind', 'dense_weather_icons', 'diagnostics', 'focussed'
+    ];
+
+    // Handle different input types
+    if (target.tagName === 'HA-SWITCH') {
+      newValue = target.checked;
+    } else if ((target as HTMLInputElement).type === 'number') {
+      if (newValue === '') {
+        newValue = undefined;
+      } else {
+        const numValue = parseFloat(newValue?.toString() ?? '');
+        if (!isNaN(numValue)) {
+          newValue = numValue;
         }
-
-        // Ensure boolean config fields never receive an empty string ("")
-        if (boolFields.includes(target.configValue)) {
-            if (newValue === "") {
-                newValue = undefined;
-            } else if (typeof newValue !== "boolean" && typeof newValue !== "undefined") {
-                newValue = Boolean(newValue);
-            }
-        }
-
-        // Special handling for weather entity selection
-        if (target.configValue === 'entity_id') {
-            if (newValue === 'none') {
-                newValue = undefined;
-            }
-            setTimeout(() => {
-                const latInput = this.querySelector('#latitude-input') as ConfigurableHTMLElement;
-                const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
-                const altitudeInput = this.querySelector('#altitude-input') as ConfigurableHTMLElement;
-                const isWeatherEntitySelected = !!(newValue && newValue !== 'none');
-                if (latInput) latInput.disabled = isWeatherEntitySelected;
-                if (lonInput) lonInput.disabled = isWeatherEntitySelected;
-                if (altitudeInput) altitudeInput.disabled = isWeatherEntitySelected;
-            }, 0);
-        }
-
-        // In _valueChanged, handle displayMode as a string
-        if (target.configValue === 'display_mode') {
-            // Only allow valid display_mode values
-            const allowedModes = ['full', 'core', 'focussed'] as const;
-            const modeValue = allowedModes.includes(target.value as any) ? target.value as typeof allowedModes[number] : undefined;
-            this._config = {
-                ...this._config,
-                display_mode: modeValue
-            };
-        } else {
-            // TS18048: Ensure newValue is not undefined for boolean fields
-            let configValue: boolean | string | number | undefined;
-            if (boolFields.includes(target.configValue)) {
-                if (typeof newValue === "undefined") {
-                    configValue = undefined;
-                } else {
-                    configValue = Boolean(newValue);
-                }
-            } else {
-                configValue = newValue;
-            }
-
-            // Special handling for precipitation: update both show_precipitation and legacy show_rain for compatibility
-            if (target.configValue === 'show_precipitation') {
-                this._config = {
-                    ...this._config,
-                    show_precipitation: configValue as boolean | undefined,
-                    show_rain: configValue as boolean | undefined // legacy support
-                };
-            } else {
-                this._config = {
-                    ...this._config,
-                    [target.configValue]: configValue
-                };
-            }
-        }
-
-        this.dispatchEvent(new CustomEvent('config-changed', {
-            detail: {config: this._config}
-        }));
+      }
+    } else if (newValue === '') {
+      newValue = undefined;
     }
+
+    if (boolFields.includes(target.configValue)) {
+      if (newValue === "") {
+        newValue = undefined;
+      } else if (typeof newValue !== "boolean" && typeof newValue !== "undefined") {
+        newValue = Boolean(newValue);
+      }
+    }
+
+    // Special handling for weather entity selection
+    if (target.configValue === 'entity_id') {
+      if (newValue === 'none') {
+        newValue = undefined;
+      }
+      setTimeout(() => {
+        const latInput = this.querySelector('#latitude-input') as ConfigurableHTMLElement;
+        const lonInput = this.querySelector('#longitude-input') as ConfigurableHTMLElement;
+        const altitudeInput = this.querySelector('#altitude-input') as ConfigurableHTMLElement;
+        const isWeatherEntitySelected = !!(newValue && newValue !== 'none');
+        if (latInput) latInput.disabled = isWeatherEntitySelected;
+        if (lonInput) lonInput.disabled = isWeatherEntitySelected;
+        if (altitudeInput) altitudeInput.disabled = isWeatherEntitySelected;
+      }, 0);
+    }
+
+    // In _valueChanged, handle displayMode as a string
+    if (target.configValue === 'display_mode') {
+      const allowedModes = ['full', 'core', 'focussed'] as const;
+      const modeValue = allowedModes.includes(target.value as any) ? target.value as typeof allowedModes[number] : undefined;
+      this._config = {
+        ...this._config,
+        display_mode: modeValue
+      };
+    } else {
+      let configValue: boolean | string | number | undefined;
+      if (boolFields.includes(target.configValue)) {
+        if (typeof newValue === "undefined") {
+          configValue = undefined;
+        } else {
+          configValue = Boolean(newValue);
+        }
+      } else {
+        configValue = newValue;
+      }
+
+      if (target.configValue === 'show_precipitation') {
+        // Only set show_precipitation if user has toggled it away from the default (true)
+        if (configValue === false) {
+          this._config = {
+            ...this._config,
+            show_precipitation: false
+          };
+        } else {
+          // Remove show_precipitation if true (default)
+          const { show_precipitation, ...rest } = this._config;
+          this._config = { ...rest };
+        }
+      } else {
+        this._config = {
+          ...this._config,
+          [target.configValue]: configValue
+        };
+      }
+    }
+
+    // After initial setup, always emit the full config (all user-set options)
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: { ...this._config } }
+    }));
+  }
 
     // Ensure _updateConfig method exists and handles generic property updates:
     private _updateConfig(property: keyof MeteogramCardConfig, value: any) {

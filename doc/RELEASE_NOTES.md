@@ -1,3 +1,24 @@
+## BREAKING CHANGE (September 2025)
+
+- The legacy `show_rain` option has been **removed**. Only `show_precipitation` is now supported for controlling precipitation (rain and snow) display. Update your configuration to use `show_precipitation` only.
+
+## [NEXT VERSION] Breaking Change: Styles config and dark mode
+
+**BREAKING:** The `styles:` config for the card now uses variable names without the `--` prefix (e.g., `meteogram-grid-color` instead of `--meteogram-grid-color`).
+
+You can now also specify dark mode overrides directly in your card config using a `modes: dark:` section inside `styles:` (just like in Home Assistant themes). The old `-dark` variable names are no longer supported in the config.
+
+**Example:**
+```yaml
+type: custom:meteogram-card
+styles:
+  meteogram-grid-color: "#1976d2"
+  modes:
+    dark:
+      meteogram-grid-color: "#444"
+```
+
+Update your card YAML and any automations/scripts that set styles accordingly. See the README and STYLES.md for full details and migration instructions.
 ## v3.0.3 – Wind Barb Direction Correction
 
 **Highlights:**
