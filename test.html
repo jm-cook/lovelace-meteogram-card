@@ -15,6 +15,12 @@
             padding: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             margin-bottom: 20px;
+            height: 500px; /* Make the card taller */
+        }
+        meteogram-card {
+            display: block;
+            height: 100%;
+            min-height: 400px; /* Ensure minimum height for the meteogram */
         }
         .controls {
             margin-bottom: 20px;
@@ -50,6 +56,10 @@
     <label for="title">Title:</label>
     <input type="text" id="title" value="London Weather">
 
+    <label>
+        <input type="checkbox" id="diagnostics" checked="false"> Enable Debug Panel
+    </label>
+
     <button id="updateBtn">Update Meteogram</button>
 </div>
 
@@ -73,11 +83,16 @@
             const lat = parseFloat(document.getElementById('latitude').value);
             const lon = parseFloat(document.getElementById('longitude').value);
             const title = document.getElementById('title').value;
+            const diagnostics = document.getElementById('diagnostics').checked;
+
+            console.log('Updating card with diagnostics:', diagnostics); // Debug log
 
             meteogram.setConfig({
                 latitude: lat,
                 longitude: lon,
-                title: title
+                title: title,
+                diagnostics: diagnostics,
+                dense_weather_icons: false  // Use spaced icons instead of dense
             });
         }
 
@@ -86,6 +101,9 @@
 
         // Update when button is clicked
         updateBtn.addEventListener('click', updateCard);
+
+        // Also update when checkbox changes
+        document.getElementById('diagnostics').addEventListener('change', updateCard);
     });
 </script>
 </body>

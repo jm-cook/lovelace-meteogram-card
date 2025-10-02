@@ -29,19 +29,27 @@ export class MeteogramChart {
         const iconInterval = this.card.denseWeatherIcons
             ? 1
             : Math.max(1, Math.ceil(N / maxIcons));
+        
+        console.log('Icon spacing debug:', {
+            denseWeatherIcons: this.card.denseWeatherIcons,
+            chartWidth,
+            maxIcons,
+            N,
+            iconInterval
+        });
 
         chart.selectAll(".weather-icon")
             .data(symbolCode)
             .enter()
             .append("foreignObject")
             .attr("class", "weather-icon")
-            .attr("x", (_: string, i: number) => x(i) - 20)
+            .attr("x", (_: string, i: number) => x(i) - 15) // Centered: 30px / 2 = 15px
             .attr("y", (_: string, i: number) => {
                 const temp = temperatureConverted[i];
-                return temp !== null ? yTemp(temp) - 40 : -999;
+                return temp !== null ? yTemp(temp) - 30 : -999; // 30px height
             })
-            .attr("width", 40)
-            .attr("height", 40)
+            .attr("width", 30)  // 75% of 40px = 30px
+            .attr("height", 30) // 75% of 40px = 30px
             .attr("opacity", (_: string, i: number) =>
                 (temperatureConverted[i] !== null && i % iconInterval === 0) ? 1 : 0)
             .each((d: string, i: number, nodes: any) => {
@@ -66,13 +74,39 @@ export class MeteogramChart {
                     this.card.getIconSVG(iconName).then((svgContent: string) => {
                         if (svgContent) {
                             const div = document.createElement('div');
-                            div.style.width = '40px';
-                            div.style.height = '40px';
+                            div.style.width = '30px';  // 75% of 40px
+                            div.style.height = '30px'; // 75% of 40px
                             div.innerHTML = svgContent;
                             node.appendChild(div);
                         }
                     });
                 }
+            });
+
+        // Add temperature labels below weather icons
+        chart.selectAll(".temp-label")
+            .data(temperatureConverted)
+            .enter()
+            .append("text")
+            .attr("class", "temp-label")
+            .attr("x", (_: number | null, i: number) => x(i))
+            .attr("y", (_: number | null, i: number) => {
+                const temp = temperatureConverted[i];
+                return temp !== null ? yTemp(temp) + 10 : -999; // 10px below the smaller icon
+            })
+            .attr("text-anchor", "middle")
+            .attr("font-size", "11px")
+            .attr("font-weight", "500")
+            .attr("fill", "currentColor")
+            .attr("opacity", (_: number | null, i: number) =>
+                (temperatureConverted[i] !== null && i % iconInterval === 0) ? 1 : 0)
+            .text((_: number | null, i: number) => {
+                if (i % iconInterval !== 0) return "";
+                const temp = temperatureConverted[i];
+                if (temp === null) return "";
+                // Format temperature with unit
+                const tempUnit = this.card.getSystemTemperatureUnit();
+                return Math.round(temp) + tempUnit;
             });
     }
     private card: any;
@@ -170,7 +204,10 @@ export class MeteogramChart {
             .datum(temperature)
             .attr("class", "temp-line")
             .attr("d", line)
-            .attr("stroke", "currentColor");
+            .attr("stroke", "currentColor")
+            .attr("stroke-width", "1.5")
+            .attr("opacity", "0.6")
+            .attr("fill", "none");
 
             // Always draw axis label (if not in focussed mode)
             if (!this.card.focussed && this.card.displayMode !== "core") {
