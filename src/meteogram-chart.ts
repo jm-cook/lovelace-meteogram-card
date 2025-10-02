@@ -453,10 +453,10 @@ export class MeteogramChart {
 
         // Draw right-side pressure axis
         const pressureDomain = yPressure.domain();
-        const minPressure = Math.ceil(pressureDomain[0]);
-        const maxPressure = Math.floor(pressureDomain[1]);
+        const minPressure = Math.ceil(pressureDomain[0] / 10) * 10; // Round to nearest 10
+        const maxPressure = Math.floor(pressureDomain[1] / 10) * 10; // Round to nearest 10
         const pressureTicks = [];
-        for (let p = minPressure; p <= maxPressure; p++) {
+        for (let p = minPressure; p <= maxPressure; p += 10) { // Increment by 10 instead of 1
             pressureTicks.push(p);
         }
         chart.append("g")

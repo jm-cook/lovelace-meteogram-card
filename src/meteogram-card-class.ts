@@ -1970,8 +1970,8 @@ export class MeteogramCard extends LitElement {
       yPressure = d3
         .scaleLinear()
         .domain([
-          Math.floor((pressureRange[0] - pressurePadding) / 5) * 5,
-          Math.ceil((pressureRange[1] + pressurePadding) / 5) * 5,
+          Math.floor((pressureRange[0] - pressurePadding) / 100) * 100,
+          Math.ceil((pressureRange[1] + pressurePadding) / 100) * 100,
         ])
         .range([this._chartHeight, 0]);
     }

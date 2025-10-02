@@ -2494,10 +2494,10 @@ class MeteogramChart {
             .attr("fill", "none"); // Ensure no area fill, let CSS handle stroke
         // Draw right-side pressure axis
         const pressureDomain = yPressure.domain();
-        const minPressure = Math.ceil(pressureDomain[0]);
-        const maxPressure = Math.floor(pressureDomain[1]);
+        const minPressure = Math.ceil(pressureDomain[0] / 10) * 10; // Round to nearest 10
+        const maxPressure = Math.floor(pressureDomain[1] / 10) * 10; // Round to nearest 10
         const pressureTicks = [];
-        for (let p = minPressure; p <= maxPressure; p++) {
+        for (let p = minPressure; p <= maxPressure; p += 10) { // Increment by 10 instead of 1
             pressureTicks.push(p);
         }
         chart.append("g")
@@ -4215,8 +4215,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             yPressure = d3
                 .scaleLinear()
                 .domain([
-                Math.floor((pressureRange[0] - pressurePadding) / 5) * 5,
-                Math.ceil((pressureRange[1] + pressurePadding) / 5) * 5,
+                Math.floor((pressureRange[0] - pressurePadding) / 10) * 10,
+                Math.ceil((pressureRange[1] + pressurePadding) / 10) * 10,
             ])
                 .range([this._chartHeight, 0]);
         }
