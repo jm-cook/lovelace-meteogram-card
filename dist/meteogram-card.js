@@ -1115,10 +1115,18 @@ class WeatherAPI {
         // Only one fetch at a time, and throttle to 1 per 60 seconds
         const now = Date.now();
         if (this._lastFetchTime &&
-            now - this._lastFetchTime < 60000 &&
-            this._fetchPromise) {
-            await this._fetchPromise;
-            return this._forecastData;
+            now - this._lastFetchTime < 60000) {
+            // If there's an active fetch, wait for it
+            if (this._fetchPromise) {
+                await this._fetchPromise;
+                return this._forecastData;
+            }
+            // If we're in throttle period but no active fetch, return cached data if available
+            // This prevents the "retrying in 60 seconds" issue when fetch failed
+            if (this._forecastData) {
+                console.debug('[weather-api] Using expired cached data during throttle period');
+                return this._forecastData;
+            }
         }
         if (!this._fetchPromise) {
             this._fetchPromise = this._fetchWeatherDataFromAPI();
@@ -1128,6 +1136,10 @@ class WeatherAPI {
         }
         finally {
             this._fetchPromise = null;
+        }
+        // Final safeguard: if we still don't have data, throw an error
+        if (!this._forecastData) {
+            throw new Error('Weather data fetch completed but no valid data was obtained');
         }
         return this._forecastData;
     }
@@ -1277,6 +1289,8 @@ class WeatherAPI {
         }
         catch (error) {
             this.lastError = error;
+            // Reset throttling on fetch failure to allow retry sooner
+            this._lastFetchTime = null;
             const diag = this.getDiagnosticText() +
                 `API URL: <code>${urlToUse}</code><br>` +
                 `Origin header: <code>${headers['Origin']}</code><br>`;
