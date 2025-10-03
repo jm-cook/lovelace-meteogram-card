@@ -2807,7 +2807,7 @@ class MeteogramChart {
         const featherShort = 6;
         const featherYOffset = 3;
         const barbGroup = g.append("g")
-            .attr("transform", `translate(${x},${y}) rotate(${(dirDeg + 180) % 360}) scale(${scale})`);
+            .attr("transform", `translate(${x},${y}) rotate(${(dirDeg) % 360}) scale(${scale})`);
         const y0 = -len / 2, y1 = +len / 2;
         if (speed < 2) {
             barbGroup.append("circle")
