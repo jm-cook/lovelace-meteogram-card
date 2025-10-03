@@ -1321,7 +1321,7 @@ class WeatherAPI {
                 result.temperature.push(instant.air_temperature);
                 result.cloudCover.push(instant.cloud_area_fraction);
                 result.windSpeed.push(instant.wind_speed);
-                result.windGust.push(instant.wind_speed_of_gust || instant.wind_speed || 0);
+                result.windGust.push(instant.wind_speed_of_gust || null);
                 result.windDirection.push(instant.wind_from_direction);
                 result.pressure.push(instant.air_pressure_at_sea_level);
                 if (next1h) {
@@ -1471,6 +1471,9 @@ class WeatherEntityAPI {
             if ('wind_gust' in item && typeof item.wind_gust === 'number') {
                 result.windGust.push(item.wind_gust);
             }
+            else if ('wind_gust_speed' in item && typeof item.wind_gust_speed === 'number') {
+                result.windGust.push(item.wind_gust_speed);
+            }
             else if ('wind_speed_gust' in item && typeof item.wind_speed_gust === 'number') {
                 result.windGust.push(item.wind_speed_gust);
             }
@@ -1478,13 +1481,8 @@ class WeatherEntityAPI {
                 result.windGust.push(item.gust_speed);
             }
             else {
-                // Default to wind_speed if no gust data available
-                if ('wind_speed' in item && typeof item.wind_speed === 'number') {
-                    result.windGust.push(item.wind_speed);
-                }
-                else {
-                    result.windGust.push(0);
-                }
+                // No gust data available - push null instead of duplicating wind_speed
+                result.windGust.push(null);
             }
             result.symbolCode.push((_c = item.condition) !== null && _c !== void 0 ? _c : "");
             // Map pressure attribute for renderer compatibility
@@ -2717,7 +2715,8 @@ class MeteogramChart {
                 .attr("stroke-width", 2);
         }
         // Draw gust feathers on the opposite side (left side) in yellow/orange
-        if (typeof gust === 'number' && !isNaN(gust) && gust > 0) {
+        // Only show gusts if they are greater than sustained wind speed
+        if (typeof gust === 'number' && !isNaN(gust) && gust > speed) {
             let gustWy = y0;
             let gustV = gust; // Show absolute gust speed, not difference
             const gustStep = 7;
@@ -3830,6 +3829,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             "cloudCover",
             "windSpeed",
             "windDirection",
+            "windGust",
             "symbolCode",
             "pressure",
         ];
@@ -3838,7 +3838,11 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             this._availableHours = "unknown";
             return;
         }
-        const missing = requiredKeys.filter((key) => !(key in data) || !Array.isArray(data[key]) || data[key].length === 0);
+        const missing = requiredKeys.filter((key) => !(key in data) ||
+            !Array.isArray(data[key]) ||
+            data[key].length === 0 ||
+            // Check if array contains only null/undefined values
+            data[key].every((value) => value === null || value === undefined));
         this._missingForecastKeys = missing;
         // Calculate available hours from raw time array
         if (Array.isArray(data.time) && data.time.length > 1) {
@@ -4061,6 +4065,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 windDirection: sliceData(data.windDirection),
                 symbolCode: sliceData(data.symbolCode),
                 pressure: sliceData(data.pressure),
+                units: data.units, // Preserve units from original data
             };
             this.renderMeteogram(this.svg, slicedData, width, height, windBandHeight, hourLabelBand, windAvailable);
             // Reset error tracking on success
@@ -4414,9 +4419,13 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Wind band grid lines (if wind band is enabled)
         if (windAvailable) {
-            // For wind barbs, use raw wind speeds in their original units (API uses m/s)
-            // and let the chart convert to knots for proper barb calculation
-            const rawWindUnit = ((_a = data.units) === null || _a === void 0 ? void 0 : _a.windSpeed) || "m/s";
+            // For wind barbs, use the exact units that were stored with the cached weather data
+            // This is the authoritative source - it reflects the actual units from when the data was fetched
+            let rawWindUnit = (_a = data.units) === null || _a === void 0 ? void 0 : _a.windSpeed;
+            if (!rawWindUnit) {
+                // Only use fallbacks if no units were stored (shouldn't happen with proper entity data)
+                rawWindUnit = (!this.entityId || this.entityId === "none") ? "m/s" : this.getSystemWindSpeedUnit();
+            }
             this._chartRenderer.drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, // Use raw wind speeds for barb calculation
             windGust, // Use raw gust speeds for barb calculation
             windDirection, rawWindUnit);
@@ -4877,8 +4886,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Wind speed unit
         if ((_j = (_h = (_g = this.hass) === null || _g === void 0 ? void 0 : _g.config) === null || _h === void 0 ? void 0 : _h.unit_system) === null || _j === void 0 ? void 0 : _j.wind_speed) {
             const unit = this.hass.config.unit_system.wind_speed;
-            if (unit === "m/s" || unit === "km/h" || unit === "mph")
-                this._windSpeedUnit = unit;
+            if (unit === "m/s" || unit === "km/h" || unit === "mph" || unit === "kt" || unit === "kn")
+                this._windSpeedUnit = unit === "kn" ? "kt" : unit; // Normalize knots to "kt"
         }
         // Precipitation unit
         if ((_m = (_l = (_k = this.hass) === null || _k === void 0 ? void 0 : _k.config) === null || _l === void 0 ? void 0 : _l.unit_system) === null || _m === void 0 ? void 0 : _m.precipitation) {

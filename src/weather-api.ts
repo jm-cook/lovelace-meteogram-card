@@ -11,7 +11,7 @@ export interface ForecastData {
     snow: number[];
     cloudCover: number[];
     windSpeed: number[];
-    windGust: number[];
+    windGust: (number | null)[];
     windDirection: number[];
     symbolCode: string[];
     fetchTimestamp?: string;
@@ -291,7 +291,7 @@ export class WeatherAPI {
                 result.temperature.push(instant.air_temperature);
                 result.cloudCover.push(instant.cloud_area_fraction);
                 result.windSpeed.push(instant.wind_speed);
-                result.windGust.push(instant.wind_speed_of_gust || instant.wind_speed || 0);
+                result.windGust.push(instant.wind_speed_of_gust || null);
                 result.windDirection.push(instant.wind_from_direction);
                 result.pressure.push(instant.air_pressure_at_sea_level);
 

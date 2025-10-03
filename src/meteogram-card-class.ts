@@ -162,7 +162,7 @@ export class MeteogramCard extends LitElement {
   // Add unit system class variables
   private _tempUnit: "°C" | "°F" = "°C";
   private _pressureUnit: "hPa" | "inHg" = "hPa";
-  private _windSpeedUnit: "m/s" | "km/h" | "mph" = "m/s";
+  private _windSpeedUnit: "m/s" | "km/h" | "mph" | "kt" = "m/s";
   private _precipUnit: "mm" | "in" = "mm";
 
   static lastD3RetryTime = 0;
@@ -1360,6 +1360,7 @@ export class MeteogramCard extends LitElement {
       "cloudCover",
       "windSpeed",
       "windDirection",
+      "windGust",
       "symbolCode",
       "pressure",
     ];
@@ -1370,7 +1371,11 @@ export class MeteogramCard extends LitElement {
     }
     const missing = requiredKeys.filter(
       (key) =>
-        !(key in data) || !Array.isArray(data[key]) || data[key].length === 0
+        !(key in data) || 
+        !Array.isArray(data[key]) || 
+        data[key].length === 0 ||
+        // Check if array contains only null/undefined values
+        data[key].every((value: any) => value === null || value === undefined)
     );
     this._missingForecastKeys = missing;
     // Calculate available hours from raw time array
@@ -1625,6 +1630,7 @@ export class MeteogramCard extends LitElement {
           windDirection: sliceData(data.windDirection),
           symbolCode: sliceData(data.symbolCode),
           pressure: sliceData(data.pressure),
+          units: data.units, // Preserve units from original data
         };
 
         this.renderMeteogram(
@@ -2142,9 +2148,13 @@ export class MeteogramCard extends LitElement {
 
     // Wind band grid lines (if wind band is enabled)
     if (windAvailable) {
-      // For wind barbs, use raw wind speeds in their original units (API uses m/s)
-      // and let the chart convert to knots for proper barb calculation
-      const rawWindUnit = data.units?.windSpeed || "m/s";
+      // For wind barbs, use the exact units that were stored with the cached weather data
+      // This is the authoritative source - it reflects the actual units from when the data was fetched
+      let rawWindUnit = data.units?.windSpeed;
+      if (!rawWindUnit) {
+        // Only use fallbacks if no units were stored (shouldn't happen with proper entity data)
+        rawWindUnit = (!this.entityId || this.entityId === "none") ? "m/s" : this.getSystemWindSpeedUnit();
+      }
       this._chartRenderer.drawWindBand(
         svg,
         x,
@@ -2707,8 +2717,8 @@ export class MeteogramCard extends LitElement {
     // Wind speed unit
     if (this.hass?.config?.unit_system?.wind_speed) {
       const unit = this.hass.config.unit_system.wind_speed;
-      if (unit === "m/s" || unit === "km/h" || unit === "mph")
-        this._windSpeedUnit = unit;
+      if (unit === "m/s" || unit === "km/h" || unit === "mph" || unit === "kt" || unit === "kn")
+        this._windSpeedUnit = unit === "kn" ? "kt" : unit; // Normalize knots to "kt"
     }
 
     // Precipitation unit
@@ -2727,7 +2737,7 @@ export class MeteogramCard extends LitElement {
     return this._pressureUnit;
   }
 
-  private getSystemWindSpeedUnit(): "m/s" | "km/h" | "mph" {
+  private getSystemWindSpeedUnit(): "m/s" | "km/h" | "mph" | "kt" {
     return this._windSpeedUnit;
   }
 

@@ -92,17 +92,15 @@ export class WeatherEntityAPI {
             }
             if ('wind_gust' in item && typeof item.wind_gust === 'number') {
                 result.windGust.push(item.wind_gust);
+            } else if ('wind_gust_speed' in item && typeof item.wind_gust_speed === 'number') {
+                result.windGust.push(item.wind_gust_speed);
             } else if ('wind_speed_gust' in item && typeof item.wind_speed_gust === 'number') {
                 result.windGust.push(item.wind_speed_gust);
             } else if ('gust_speed' in item && typeof item.gust_speed === 'number') {
                 result.windGust.push(item.gust_speed);
             } else {
-                // Default to wind_speed if no gust data available
-                if ('wind_speed' in item && typeof item.wind_speed === 'number') {
-                    result.windGust.push(item.wind_speed);
-                } else {
-                    result.windGust.push(0);
-                }
+                // No gust data available - push null instead of duplicating wind_speed
+                result.windGust.push(null);
             }
 
             result.symbolCode.push(item.condition ?? "");

@@ -675,7 +675,8 @@ export class MeteogramChart {
         }
 
         // Draw gust feathers on the opposite side (left side) in yellow/orange
-        if (typeof gust === 'number' && !isNaN(gust) && gust > 0) {
+        // Only show gusts if they are greater than sustained wind speed
+        if (typeof gust === 'number' && !isNaN(gust) && gust > speed) {
             let gustWy = y0;
             let gustV = gust; // Show absolute gust speed, not difference
             const gustStep = 7;
