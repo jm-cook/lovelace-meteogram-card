@@ -120,9 +120,44 @@ export class WeatherAPI {
         return btoa(keyStr);
     }
 
+    // Clean up old cache entries (older than 24h)
+    private static cleanupOldCacheEntries() {
+        try {
+            const cacheStr = localStorage.getItem('metno-weather-cache');
+            if (!cacheStr) return;
+            
+            const cacheObj = JSON.parse(cacheStr);
+            if (!cacheObj["forecast-data"]) return;
+            
+            const now = Date.now();
+            const twentyFourHours = 24 * 60 * 60 * 1000;
+            let removedCount = 0;
+            
+            // Remove entries older than 24h
+            for (const [key, entry] of Object.entries(cacheObj["forecast-data"])) {
+                const entryData = entry as { expiresAt: number; data: ForecastData };
+                if (now - entryData.expiresAt > twentyFourHours) {
+                    delete cacheObj["forecast-data"][key];
+                    removedCount++;
+                }
+            }
+            
+            if (removedCount > 0) {
+                localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+                console.debug(`[WeatherAPI] Cleaned up ${removedCount} old cache entries from metno-weather-cache`);
+            }
+        } catch (e) {
+            console.warn(`[WeatherAPI] Failed to cleanup old cache entries:`, e);
+        }
+    }
+
     // Save forecast data to localStorage
     saveCacheToStorage() {
         if (!this._forecastData || !this._expiresAt) return;
+        
+        // Clean up old entries before saving new ones
+        WeatherAPI.cleanupOldCacheEntries();
+        
         const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)), this.altitude !== undefined ? Number(this.altitude.toFixed(2)) : undefined);
         let cacheObj: {
             ["forecast-data"]?: Record<string, {
@@ -164,6 +199,17 @@ export class WeatherAPI {
             }
             const entry = cacheObj["forecast-data"]?.[key];
             if (entry && entry.expiresAt && entry.data) {
+                // Validate that cached data has all required array properties
+                const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'snow', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+                const missingArrays = requiredArrays.filter(prop => !Array.isArray(entry.data[prop as keyof ForecastData]));
+                
+                if (missingArrays.length > 0) {
+                    console.warn(`[WeatherAPI] Cached data is missing required arrays: ${missingArrays.join(', ')}, clearing cache`);
+                    this._expiresAt = null;
+                    this._forecastData = null;
+                    return;
+                }
+                
                 this._expiresAt = entry.expiresAt;
                 // Restore Date objects in time array
                 if (Array.isArray(entry.data.time)) {

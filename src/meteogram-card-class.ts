@@ -52,6 +52,10 @@ export class MeteogramCard extends LitElement {
   private _availableHours: number | string = "unknown";
   constructor() {
     super();
+    
+    // Clean up old cache entries on card initialization (run once per page load)
+    this.schedulePeriodicCacheCleanup();
+    
     this.title = "";
     this.latitude = undefined;
     this.longitude = undefined;
@@ -1254,7 +1258,14 @@ export class MeteogramCard extends LitElement {
       let result: ForecastData = null as any;
       try {
         // Use the new getForecastData method
+        console.debug(`[${CARD_NAME}] About to call weatherApi.getForecastData()`);
         const resultMaybe = await weatherApi.getForecastData();
+        console.debug(`[${CARD_NAME}] weatherApi.getForecastData() completed, result:`, {
+          hasResult: !!resultMaybe,
+          timeLength: resultMaybe?.time?.length || 0,
+          firstTime: resultMaybe?.time?.[0],
+          lastTime: resultMaybe?.time?.[resultMaybe.time.length - 1]
+        });
         if (!resultMaybe) {
           throw new Error("No forecast data available from WeatherAPI.");
         }
@@ -1306,8 +1317,17 @@ export class MeteogramCard extends LitElement {
 
         return result;
       } catch (error: unknown) {
+        console.error(`[${CARD_NAME}] ERROR in fetchWeatherData:`, {
+          error: error,
+          errorMessage: (error as Error)?.message,
+          errorStack: (error as Error)?.stack,
+          weatherApiLastError: weatherApi.lastError,
+          weatherApiStatusCode: weatherApi.lastStatusCode,
+          weatherApiExpiresAt: weatherApi.expiresAt
+        });
         this._statusApiSuccess = false;
         let diag = weatherApi.getDiagnosticText();
+        console.debug(`[${CARD_NAME}] WeatherAPI diagnostic:`, diag);
         this.setError(diag);
         this.logErrorContext("fetchWeatherData", error);
         throw new Error(
@@ -1615,8 +1635,21 @@ export class MeteogramCard extends LitElement {
         else if (this.meteogramHours === "54h") hours = 54;
         else if (this.meteogramHours === "max") hours = data.time.length;
 
-        const sliceData = <T>(arr: T[]) =>
-          arr.slice(0, Math.min(hours, arr.length) + 1);
+        const sliceData = <T>(arr: T[] | undefined): T[] => {
+          if (!arr || !Array.isArray(arr)) {
+            console.warn(`[${CARD_NAME}] sliceData: received undefined/null array, returning empty array`);
+            return [];
+          }
+          return arr.slice(0, Math.min(hours, arr.length) + 1);
+        };
+        // Debug: Check which properties might be undefined
+        const dataProperties = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'snow', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+        const undefinedProps = dataProperties.filter(prop => !(data as any)[prop] || !Array.isArray((data as any)[prop]));
+        if (undefinedProps.length > 0) {
+          console.warn(`[${CARD_NAME}] ForecastData has undefined/non-array properties:`, undefinedProps);
+          console.debug(`[${CARD_NAME}] Full data object:`, data);
+        }
+
         const slicedData: ForecastData = {
           time: sliceData(data.time),
           temperature: sliceData(data.temperature),
@@ -1675,6 +1708,12 @@ export class MeteogramCard extends LitElement {
         }
       })
       .catch((err: Error) => {
+        console.error(`[${CARD_NAME}] ERROR caught in _drawMeteogram:`, {
+          error: err,
+          message: err?.message,
+          stack: err?.stack,
+          name: err?.name
+        });
         // If error is due to unavailable entity, show waiting message
         if (
           err.message &&
@@ -1693,6 +1732,12 @@ export class MeteogramCard extends LitElement {
             this._drawMeteogram("retry-entity-unavailable");
           }, 500); // Retry every 0.5 seconds
         } else {
+          console.error(`[${CARD_NAME}] Triggering 60-second retry due to error:`, {
+            errorMessage: err?.message,
+            hasExistingMeteogramError: !!this.meteogramError,
+            existingError: this.meteogramError,
+            containsApiError: this.meteogramError?.includes("API Error")
+          });
           // If a diagnostic error is already present, append the retry message
           if (
             this.meteogramError &&
@@ -2752,5 +2797,72 @@ export class MeteogramCard extends LitElement {
       return this._availableHours;
     }
     return "unknown";
+  }
+
+  // Schedule periodic cache cleanup (run once per page load)
+  private schedulePeriodicCacheCleanup() {
+    // Only run cleanup once per browser session to avoid excessive operations
+    const sessionKey = 'meteogram-card-cleanup-done';
+    if (sessionStorage.getItem(sessionKey)) {
+      return; // Already cleaned up in this session
+    }
+
+    try {
+      // Clean up MET.no weather cache
+      const cacheStr = localStorage.getItem('metno-weather-cache');
+      if (cacheStr) {
+        const cacheObj = JSON.parse(cacheStr);
+        if (cacheObj["forecast-data"]) {
+          const now = Date.now();
+          const twentyFourHours = 24 * 60 * 60 * 1000;
+          let removedCount = 0;
+          
+          for (const [key, entry] of Object.entries(cacheObj["forecast-data"])) {
+            const entryData = entry as { expiresAt: number; data: any };
+            if (now - entryData.expiresAt > twentyFourHours) {
+              delete cacheObj["forecast-data"][key];
+              removedCount++;
+            }
+          }
+          
+          if (removedCount > 0) {
+            localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+            console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old MET.no cache entries`);
+          }
+        }
+      }
+
+      // Clean up entity cache
+      const entityCacheStr = localStorage.getItem('meteogram-card-entity-weather-cache');
+      if (entityCacheStr) {
+        const entityCache = JSON.parse(entityCacheStr);
+        const now = Date.now();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        let removedCount = 0;
+        
+        for (const [entityId, entry] of Object.entries(entityCache)) {
+          // Handle both old format (direct data) and new format (with timestamp)
+          if (entry && typeof entry === 'object' && 'timestamp' in entry) {
+            const entryData = entry as { timestamp: number; data: any };
+            if (now - entryData.timestamp > twentyFourHours) {
+              delete entityCache[entityId];
+              removedCount++;
+            }
+          }
+          // Keep old format entries for backward compatibility, but they'll be cleaned up on next save
+        }
+        
+        if (removedCount > 0) {
+          localStorage.setItem('meteogram-card-entity-weather-cache', JSON.stringify(entityCache));
+          console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old entity cache entries`);
+        }
+      }
+
+      // Mark cleanup as done for this browser session
+      sessionStorage.setItem(sessionKey, 'true');
+      
+    } catch (e) {
+      console.warn(`[${CARD_NAME}] Failed to perform startup cache cleanup:`, e);
+    }
   }
 }

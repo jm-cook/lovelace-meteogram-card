@@ -4,6 +4,7 @@ export class WeatherEntityAPI {
     hass: any;
     entityId: string;
     private _forecastData: ForecastData | null = null;
+    private _lastDataFetch: number | null = null; // Timestamp of last data fetch
     private _unsubForecast: (() => void) | null = null;
 
     constructor(hass: any, entityId: string, from: string) {
@@ -16,7 +17,8 @@ export class WeatherEntityAPI {
             // console.debug(`[WeatherEntityAPI] from ${from} Subscribing to forecast updates for ${this.entityId}`);
             this.subscribeForecast((forecastArr: any[]) => {
                 this._forecastData = this._parseForecastArray(forecastArr);
-                // console.debug(`[WeatherEntityAPI] from ${from} subscribeForecast: stored ForecastData for ${this.entityId}`, this._forecastData);
+                this._lastDataFetch = Date.now(); // Update fetch timestamp
+                console.debug(`[WeatherEntityAPI] from ${from} subscribeForecast: stored fresh ForecastData for ${this.entityId}`, this._forecastData?.time?.length);
                 // Force chart update by dispatching a custom event
                 const card = document.querySelector('meteogram-card') as any;
                 if (card && typeof card._scheduleDrawMeteogram === "function") {
@@ -28,7 +30,23 @@ export class WeatherEntityAPI {
         }
     }
 
-
+    // Clean up old entity cache entries (older than 24h)
+    private static cleanupOldEntityCacheEntries(cache: Record<string, { timestamp: number; data: ForecastData }>) {
+        const now = Date.now();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        let removedCount = 0;
+        
+        for (const [entityId, entry] of Object.entries(cache)) {
+            if (now - entry.timestamp > twentyFourHours) {
+                delete cache[entityId];
+                removedCount++;
+            }
+        }
+        
+        if (removedCount > 0) {
+            console.debug(`[WeatherEntityAPI] Cleaned up ${removedCount} old entity cache entries`);
+        }
+    }
 
     private _parseForecastArray(forecast: any[]): ForecastData {
         // Try to get units from the entity attributes if available
@@ -118,12 +136,39 @@ export class WeatherEntityAPI {
         // Store the parsed forecast in localStorage using a shared cache object
         try {
             const cacheKey = 'meteogram-card-entity-weather-cache';
-            let cache: Record<string, ForecastData> = {};
+            let cache: Record<string, {
+                timestamp: number;
+                data: ForecastData;
+            }> = {};
             const rawCache = localStorage.getItem(cacheKey);
             if (rawCache) {
-                cache = JSON.parse(rawCache);
+                try {
+                    const parsedCache = JSON.parse(rawCache);
+                    // Handle both old format (direct ForecastData) and new format (with timestamp)
+                    for (const [entityId, entry] of Object.entries(parsedCache)) {
+                        if (entry && typeof entry === 'object' && 'timestamp' in entry && 'data' in entry) {
+                            cache[entityId] = entry as { timestamp: number; data: ForecastData };
+                        } else {
+                            // Old format - convert to new format with current timestamp
+                            cache[entityId] = {
+                                timestamp: Date.now(),
+                                data: entry as ForecastData
+                            };
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`[WeatherEntityAPI] Failed to parse existing cache, starting fresh:`, e);
+                    cache = {};
+                }
             }
-            cache[this.entityId] = result;
+            
+            // Clean up entries older than 24h before saving
+            WeatherEntityAPI.cleanupOldEntityCacheEntries(cache);
+            
+            cache[this.entityId] = {
+                timestamp: Date.now(),
+                data: result
+            };
             localStorage.setItem(cacheKey, JSON.stringify(cache));
         } catch (e) {
             console.warn(`[WeatherEntityAPI] Failed to store forecast for ${this.entityId} in localStorage:`, e);
@@ -132,30 +177,46 @@ export class WeatherEntityAPI {
         return result;
     }
 
-    getForecast(): ForecastData | null {
-        console.debug(`[WeatherEntityAPI] getForecastData called for entityId=${this.entityId}`);
-        if (this._forecastData) {
-            // console.debug(`[WeatherEntityAPI] Returning stored ForecastData for ${this.entityId}`, this._forecastData);
-            return this._forecastData;
-        }
+    // Fetch fresh data directly from the entity (not from cache)
+    private _fetchFreshEntityData(): void {
+        console.debug(`[WeatherEntityAPI] _fetchFreshEntityData called for entityId=${this.entityId}`);
+        
         const entity = this.hass.states[this.entityId];
         if (!entity) {
             console.debug(`[WeatherEntityAPI] Entity not found: ${this.entityId}`);
-            return null;
+            return;
         }
         if (!entity.attributes) {
             console.debug(`[WeatherEntityAPI] Entity has no attributes: ${this.entityId}`);
-            return null;
+            return;
         }
-        // console.debug(`[WeatherEntityAPI] Entity contents:`, entity);
+        
         if (!Array.isArray(entity.attributes.forecast)) {
             console.debug(`[WeatherEntityAPI] Entity forecast attribute is not an array:`, entity.attributes.forecast);
-            return null;
+            return;
         }
 
+        // Parse and store fresh data
         this._forecastData = this._parseForecastArray(entity.attributes.forecast);
-        // console.debug(`[WeatherEntityAPI] getForecastData result:`, this._forecastData);
-        return this._forecastData;
+        this._lastDataFetch = Date.now(); // Update fetch timestamp
+        
+        console.debug(`[WeatherEntityAPI] Fresh data fetched for ${this.entityId}, forecast length: ${entity.attributes.forecast.length}`);
+    }
+
+    getForecast(): ForecastData | null {
+        // This method returns the current/instantaneous forecast data
+        // For hourly forecast data used by meteogram, use getForecastData() instead
+        if (this._forecastData) {
+            return this._forecastData;
+        }
+        
+        const entity = this.hass.states[this.entityId];
+        if (!entity?.attributes?.forecast) {
+            return null;
+        }
+        
+        // Return current forecast without freshness checking (different use case)
+        return this._parseForecastArray(entity.attributes.forecast);
     }
 
     /**
@@ -192,10 +253,32 @@ export class WeatherEntityAPI {
      * If _forecastData is null, try to fill it from localStorage.
      */
     getForecastData(): ForecastData | null {
+        // Check if we have data and if it's fresh (less than 1 hour old)
+        const oneHour = 60 * 60 * 1000;
+        const now = Date.now();
+        
+        if (this._forecastData && this._lastDataFetch && (now - this._lastDataFetch < oneHour)) {
+            // Data is fresh, return it
+            return this._forecastData;
+        }
+        
+        // Data is stale or doesn't exist, fetch fresh data
+        if (this._lastDataFetch) {
+            const ageMinutes = Math.round((now - this._lastDataFetch) / (60 * 1000));
+            console.debug(`[WeatherEntityAPI] Data is stale for ${this.entityId} (${ageMinutes} min old), fetching fresh data`);
+        } else {
+            console.debug(`[WeatherEntityAPI] No data for ${this.entityId}, fetching fresh data`);
+        }
+        
+        this._forecastData = null; // Clear stale data
+        this._fetchFreshEntityData();
+        
+        // If fresh fetch succeeded, return the data
         if (this._forecastData) {
             return this._forecastData;
         }
-        // Try to load from localStorage cache object
+        
+        // Fresh fetch failed, try to load from localStorage cache as fallback
         try {
             const cacheKey = 'meteogram-card-entity-weather-cache';
             const rawCache = localStorage.getItem(cacheKey);
@@ -203,13 +286,37 @@ export class WeatherEntityAPI {
                 const cache = JSON.parse(rawCache);
                 const stored = cache[this.entityId];
                 if (stored) {
+                    // Handle both old format (direct ForecastData) and new format (with timestamp)
+                    let forecastData: ForecastData;
+                    if (stored && typeof stored === 'object' && 'timestamp' in stored && 'data' in stored) {
+                        // New format - check if not too old (24h)
+                        const twentyFourHours = 24 * 60 * 60 * 1000;
+                        if (Date.now() - stored.timestamp > twentyFourHours) {
+                            console.debug(`[WeatherEntityAPI] Cached data for ${this.entityId} is too old (${Math.round((Date.now() - stored.timestamp) / (60 * 60 * 1000))}h), ignoring cache`);
+                            return null;
+                        }
+                        forecastData = stored.data;
+                    } else {
+                        // Old format - use directly but consider it potentially stale
+                        forecastData = stored as ForecastData;
+                    }
+                    
+                    // Validate that cached data has all required array properties
+                    const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'snow', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+                    const missingArrays = requiredArrays.filter(prop => !Array.isArray(forecastData[prop as keyof ForecastData]));
+                    
+                    if (missingArrays.length > 0) {
+                        console.warn(`[WeatherEntityAPI] Cached data for ${this.entityId} is missing required arrays: ${missingArrays.join(', ')}, ignoring cache`);
+                        return null;
+                    }
+                    
                     // Restore Date objects in time array
-                    if (Array.isArray(stored.time)) {
-                        stored.time = stored.time.map((t: string | Date) =>
+                    if (Array.isArray(forecastData.time)) {
+                        forecastData.time = forecastData.time.map((t: string | Date) =>
                             typeof t === "string" ? new Date(t) : t
                         );
                     }
-                    this._forecastData = stored;
+                    this._forecastData = forecastData;
                     // console.debug(`[WeatherEntityAPI] Loaded forecast for ${this.entityId} from localStorage cache`, this._forecastData);
                     return this._forecastData;
                 }
