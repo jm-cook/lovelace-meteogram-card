@@ -22,12 +22,16 @@ The meteogram card provides comprehensive weather data visualization with custom
   - Integrate with existing weather entity data
   - Responsive design for different card sizes
 
-### Phase 3: Illustrative Weather Imagery
-- [ ] **AI-Generated Header Images**
+### Phase 3: Weather Header Imagery
+- [ ] **Static Weather Condition Backgrounds**
+  - Implement gradient-based weather backgrounds for different conditions
+  - Create day/night variants for all weather states
+  - Add smooth transitions between weather conditions
+  - Consider upgrading to photographic weather imagery later
+- [ ] **Alternative: AI-Generated Header Images (Future)**
   - Generate contextual weather imagery based on current conditions
   - Emphasize cloud cover visualization in header
-  - Consider static weather condition illustrations as fallback
-  - Explore integration with weather condition mapping
+  - Static images as reliable fallback option
 
 ### Phase 4: Modern Precipitation Display
 - [ ] **Redesign Rain Bar Visualization**
