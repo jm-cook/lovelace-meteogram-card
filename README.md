@@ -17,7 +17,7 @@ A custom card showing a meteogram with wind barbs, powered by Met.no API or Home
 - Temperature curve with weather icons
 - Precipitation display (rain/snow) with probability indicators
 - Cloud coverage visualization
-- Professional-style wind barbs showing wind speed and direction
+- Professional-style wind barbs showing wind speed, direction, and gusts
 - Barometric pressure trend
 - Automatically uses Home Assistant's configured location or weather entity
 
@@ -85,7 +85,7 @@ Multiple entities can be cached and retrieved independently.
 - `meteogram-rain-max-label-color`
 - `meteogram-snow-bar-color`
 - ...and more (see [doc/STYLES.md](doc/STYLES.md) for the full list)
-  Displays wind speed and direction using professional-style wind barbs.
+  Displays wind speed, direction, and gusts using professional-style wind barbs with pennants.
 - **Barometric Pressure**  
   Shows the pressure trend over the next 48 hours with an optional right-side axis.
 
@@ -406,33 +406,38 @@ The following are the default CSS variables for the card. You can override these
 
 ### Wind Barbs
 
-The meteogram displays wind speed and direction using professional-style wind barbs, a standard meteorological symbol. Each wind barb is plotted at the corresponding forecast hour and visually encodes both the wind speed and the direction:
+The meteogram displays wind speed, direction, and gusts using professional-style wind barbs, a standard meteorological symbol. Each wind barb is plotted at the corresponding forecast hour and visually encodes the wind speed, direction, and gust information:
 
 - **Direction:**
   - The shaft of the wind barb points in the direction **from which** the wind is blowing.
   - **North is up** on the chart, so a barb pointing straight up means wind is coming from the north (blowing south).
   - For example, a barb pointing to the right (east) means wind is coming from the east (blowing west).
-- **Speed:**
-  - Wind speed is indicated by the number and type of barbs (feathers) and flags on the shaft:
+- **Sustained Wind Speed (Right Side):**
+  - Wind speed is indicated by the number and type of barbs (feathers) and pennants on the **right side** of the shaft:
     - **Short feather:** 5 knots
     - **Long feather:** 10 knots
-    - **Triangle (flag):** 50 knots (not used in this card; only short and long feathers are shown)
-  - The total wind speed is the sum of the values of all feathers on the barb.
-  - For example, a barb with two long feathers and one short feather represents 25 knots (10 + 10 + 5).
+    - **Pennant (triangle):** 50 knots
+  - The total wind speed is the sum of the values of all feathers and pennants on the barb.
+  - For example, a barb with one pennant, one long feather, and one short feather represents 65 knots (50 + 10 + 5).
   - If the wind is very light (less than 2 knots), a small circle is drawn instead of a barb ("calm").
+- **Wind Gusts (Left Side):**
+  - **Wind gusts are displayed on the left side** of the wind barb shaft in **orange color**.
+  - Gust feathers and pennants follow the same convention as sustained wind (5kt, 10kt, 50kt).
+  - Gust visualization shows the **absolute gust speed**, not the difference from sustained wind.
+  - Only displayed when gust data is available from the weather source.
 - **Placement:**
   - Wind barbs are shown in a dedicated band below the main chart area, aligned with the forecast hour.
   - The length of the shaft and the size of the feathers are scaled for readability.
-- **Gusts:**
-  - **Wind gusts are currently not shown** in the meteogram. Only the sustained wind speed and direction are visualized. If your data source provides gust information, it will not be displayed in the wind barb band at this time.
 
 **Reading the wind barbs:**
 - The orientation of the shaft shows the wind's origin direction (where it's coming from).
-- The number and type of feathers show the wind speed in knots.
+- **Right side feathers/pennants** show sustained wind speed in knots (blue/black color).
+- **Left side feathers/pennants** show wind gust speed in knots (orange color).
 - Calm winds (less than 2 knots) are shown as a small circle.
 
-**Example:**
-- A wind barb pointing up with one long and one short feather: wind from the north at 15 knots.
-- A wind barb pointing left with two long feathers: wind from the west at 20 knots.
+**Examples:**
+- A wind barb pointing up with one long and one short feather on the right: wind from the north at 15 knots sustained.
+- A wind barb pointing left with two long feathers on the right and one pennant on the left: wind from the west at 20 knots sustained, 50 knots gusts.
+- A wind barb with one pennant and one long feather on the right, plus one pennant and one short feather on the left (orange): 60 knots sustained, 55 knots gusts.
 
 This visualization allows you to quickly assess both the strength and direction of the wind at each forecast hour, just as in professional meteorological charts.

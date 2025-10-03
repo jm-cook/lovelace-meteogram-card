@@ -1303,6 +1303,7 @@ class WeatherAPI {
                 snow: [],
                 cloudCover: [],
                 windSpeed: [],
+                windGust: [],
                 windDirection: [],
                 symbolCode: [],
                 pressure: [],
@@ -1320,6 +1321,7 @@ class WeatherAPI {
                 result.temperature.push(instant.air_temperature);
                 result.cloudCover.push(instant.cloud_area_fraction);
                 result.windSpeed.push(instant.wind_speed);
+                result.windGust.push(instant.wind_speed_of_gust || instant.wind_speed || 0);
                 result.windDirection.push(instant.wind_from_direction);
                 result.pressure.push(instant.air_pressure_at_sea_level);
                 if (next1h) {
@@ -1433,6 +1435,7 @@ class WeatherEntityAPI {
             cloudCover: [],
             windSpeed: [],
             windDirection: [],
+            windGust: [],
             symbolCode: [],
             pressure: [],
             fetchTimestamp: new Date().toISOString(),
@@ -1458,12 +1461,30 @@ class WeatherEntityAPI {
             if ('cloud_coverage' in item && typeof item.cloud_coverage === 'number') {
                 result.cloudCover.push(item.cloud_coverage);
             }
-            // Only push windSpeed/windDirection if present
+            // Only push windSpeed/windDirection/windGust if present
             if ('wind_speed' in item && typeof item.wind_speed === 'number') {
                 result.windSpeed.push(item.wind_speed);
             }
             if ('wind_bearing' in item && typeof item.wind_bearing === 'number') {
                 result.windDirection.push(item.wind_bearing);
+            }
+            if ('wind_gust' in item && typeof item.wind_gust === 'number') {
+                result.windGust.push(item.wind_gust);
+            }
+            else if ('wind_speed_gust' in item && typeof item.wind_speed_gust === 'number') {
+                result.windGust.push(item.wind_speed_gust);
+            }
+            else if ('gust_speed' in item && typeof item.gust_speed === 'number') {
+                result.windGust.push(item.gust_speed);
+            }
+            else {
+                // Default to wind_speed if no gust data available
+                if ('wind_speed' in item && typeof item.wind_speed === 'number') {
+                    result.windGust.push(item.wind_speed);
+                }
+                else {
+                    result.windGust.push(0);
+                }
             }
             result.symbolCode.push((_c = item.condition) !== null && _c !== void 0 ? _c : "");
             // Map pressure attribute for renderer compatibility
@@ -1722,10 +1743,31 @@ function convertPressure(value, from, to) {
 function convertWindSpeed(value, from, to) {
     if (from === to)
         return value;
-    if (to === "km/h")
+    if (from === "m/s" && to === "km/h")
         return value * 3.6;
-    if (to === "mph")
+    if (from === "km/h" && to === "m/s")
+        return value / 3.6;
+    if (from === "m/s" && to === "mph")
         return value * 2.2369362920544;
+    if (from === "mph" && to === "m/s")
+        return value / 2.2369362920544;
+    if (from === "km/h" && to === "mph")
+        return value * 0.62137119223733;
+    if (from === "mph" && to === "km/h")
+        return value / 0.62137119223733;
+    // Knots conversions for wind barbs
+    if (from === "m/s" && to === "kt")
+        return value * 1.9438444924574;
+    if (from === "kt" && to === "m/s")
+        return value / 1.9438444924574;
+    if (from === "km/h" && to === "kt")
+        return value * 0.5399568034557;
+    if (from === "kt" && to === "km/h")
+        return value / 0.5399568034557;
+    if (from === "mph" && to === "kt")
+        return value * 0.8689762419006;
+    if (from === "kt" && to === "mph")
+        return value / 0.8689762419006;
     console.warn(`[meteogram-card] Wind speed conversion from ${from} to ${to} not implemented.`);
     return value;
 }
@@ -1906,7 +1948,7 @@ const meteogramCardStyles = i$3 `
 
     .wind-barb-feather {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
-        stroke-width: 1.4;
+        stroke-width: 2;
     }
     :host([dark]) .wind-barb-feather {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
@@ -1914,7 +1956,7 @@ const meteogramCardStyles = i$3 `
 
     .wind-barb-half {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
-        stroke-width: 0.8;
+        stroke-width: 2;
     }
     :host([dark]) .wind-barb-half {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
@@ -2527,7 +2569,7 @@ class MeteogramChart {
     /**
      * Draw wind band (barbs, grid, background, border)
      */
-    drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, windDirection) {
+    drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, windGust, windDirection, windSpeedUnit) {
         const d3 = window.d3;
         const windBandYOffset = margin.top + this.card._chartHeight;
         const windBand = svg.append('g')
@@ -2596,22 +2638,26 @@ class MeteogramChart {
             const centerX = (x(startIdx) + x(endIdx)) / 2;
             const dataIdx = Math.floor((startIdx + endIdx) / 2);
             const speed = windSpeed[dataIdx];
+            const gust = windGust[dataIdx];
             const dir = windDirection[dataIdx];
             if (typeof speed !== 'number' || typeof dir !== 'number' || isNaN(speed) || isNaN(dir))
                 continue;
+            // Convert wind speeds to knots for proper wind barb calculation
+            const speedInKnots = convertWindSpeed(speed, windSpeedUnit, "kt");
+            const gustInKnots = typeof gust === 'number' && !isNaN(gust) ? convertWindSpeed(gust, windSpeedUnit, "kt") : null;
             const minBarbLen = width < 400 ? 18 : 23;
             const maxBarbLen = width < 400 ? 30 : 38;
             const windLenScale = d3.scaleLinear()
                 .domain([0, Math.max(15, d3.max(windSpeed.filter(v => typeof v === 'number' && !isNaN(v))) || 20)])
                 .range([minBarbLen, maxBarbLen]);
             const barbLen = windLenScale(speed);
-            this.drawWindBarb(windBand, centerX, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
+            this.drawWindBarb(windBand, centerX, windBarbY, speedInKnots, gustInKnots, dir, barbLen, width < 400 ? 0.7 : 0.8);
         }
     }
     /**
      * Draw a wind barb at the given position
      */
-    drawWindBarb(g, x, y, speed, dirDeg, len, scale = 0.8) {
+    drawWindBarb(g, x, y, speed, gust, dirDeg, len, scale = 0.8) {
         const featherLong = 12;
         const featherShort = 6;
         const featherYOffset = 3;
@@ -2636,21 +2682,79 @@ class MeteogramChart {
             .attr("cy", y1)
             .attr("r", 4);
         let v = speed, wy = y0, step = 7;
+        // Calculate pennants (50 knots each), then full feathers (10 knots), then half feathers (5 knots)
+        let n50 = Math.floor(v / 50);
+        v -= n50 * 50;
         let n10 = Math.floor(v / 10);
         v -= n10 * 10;
         let n5 = Math.floor(v / 5);
         v -= n5 * 5;
+        // Draw pennants (triangles) for 50 knot increments
+        for (let i = 0; i < n50; i++, wy += step * 1.5) {
+            const pennantHeight = 10;
+            const pennantWidth = featherLong;
+            barbGroup.append("polygon")
+                .attr("class", "wind-barb-pennant")
+                .attr("points", `0,${wy} ${pennantWidth},${wy + featherYOffset} 0,${wy + pennantHeight}`)
+                .attr("fill", "currentColor")
+                .attr("stroke", "currentColor")
+                .attr("stroke-width", 1);
+        }
+        // Draw full feathers for 10 knot increments
         for (let i = 0; i < n10; i++, wy += step) {
             barbGroup.append("line")
                 .attr("class", "wind-barb-feather")
                 .attr("x1", 0).attr("y1", wy)
-                .attr("x2", featherLong).attr("y2", wy + featherYOffset);
+                .attr("x2", featherLong).attr("y2", wy + featherYOffset)
+                .attr("stroke-width", 2);
         }
+        // Draw half feathers for 5 knot increments
         for (let i = 0; i < n5; i++, wy += step) {
             barbGroup.append("line")
                 .attr("class", "wind-barb-half")
                 .attr("x1", 0).attr("y1", wy)
-                .attr("x2", featherShort).attr("y2", wy + featherYOffset / 1.5);
+                .attr("x2", featherShort).attr("y2", wy + featherYOffset / 1.5)
+                .attr("stroke-width", 2);
+        }
+        // Draw gust feathers on the opposite side (left side) in yellow/orange
+        if (typeof gust === 'number' && !isNaN(gust) && gust > 0) {
+            let gustWy = y0;
+            let gustV = gust; // Show absolute gust speed, not difference
+            const gustStep = 7;
+            // Calculate gust pennants, feathers, and half-feathers (showing absolute gust speed)
+            let gustN50 = Math.floor(gustV / 50);
+            gustV -= gustN50 * 50;
+            let gustN10 = Math.floor(gustV / 10);
+            gustV -= gustN10 * 10;
+            let gustN5 = Math.floor(gustV / 5);
+            // Draw gust pennants on the left side for 50 knot increments
+            for (let i = 0; i < gustN50; i++, gustWy += gustStep * 1.5) {
+                const pennantHeight = 10;
+                const pennantWidth = -featherLong; // Negative for left side
+                barbGroup.append("polygon")
+                    .attr("class", "wind-barb-gust-pennant")
+                    .attr("points", `0,${gustWy} ${pennantWidth},${gustWy + featherYOffset} 0,${gustWy + pennantHeight}`)
+                    .attr("fill", "#FF8C00")
+                    .attr("stroke", "#FF8C00")
+                    .attr("stroke-width", 1);
+            }
+            // Draw gust feathers on the left side (negative x values)
+            for (let i = 0; i < gustN10; i++, gustWy += gustStep) {
+                barbGroup.append("line")
+                    .attr("class", "wind-barb-gust-feather")
+                    .attr("x1", 0).attr("y1", gustWy)
+                    .attr("x2", -featherLong).attr("y2", gustWy + featherYOffset)
+                    .attr("stroke", "#FF8C00") // Orange color for gusts
+                    .attr("stroke-width", 2);
+            }
+            for (let i = 0; i < gustN5; i++, gustWy += gustStep) {
+                barbGroup.append("line")
+                    .attr("class", "wind-barb-gust-half")
+                    .attr("x1", 0).attr("y1", gustWy)
+                    .attr("x2", -featherShort).attr("y2", gustWy + featherYOffset / 1.5)
+                    .attr("stroke", "#FFA500") // Slightly lighter orange for half-feathers
+                    .attr("stroke-width", 2);
+            }
         }
     }
 }
@@ -3953,6 +4057,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 snow: sliceData(data.snow),
                 cloudCover: sliceData(data.cloudCover),
                 windSpeed: sliceData(data.windSpeed),
+                windGust: sliceData(data.windGust),
                 windDirection: sliceData(data.windDirection),
                 symbolCode: sliceData(data.symbolCode),
                 pressure: sliceData(data.pressure),
@@ -4060,8 +4165,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     }
     // Update renderMeteogram to add windBarbBand and hourLabelBand as arguments
     renderMeteogram(svg, data, width, height, windBandHeight = 0, hourLabelBand = 24, windAvailable = false) {
+        var _a;
         const d3 = window.d3;
-        const { time, temperature, rain, rainMin, rainMax, snow, cloudCover, windSpeed, windDirection, symbolCode, pressure, } = data;
+        const { time, temperature, rain, rainMin, rainMax, snow, cloudCover, windSpeed, windGust, windDirection, symbolCode, pressure, } = data;
         const N = time.length;
         this.getSystemTemperatureUnit();
         this.getSystemPressureUnit();
@@ -4077,6 +4183,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             temperatureConverted = temperature.map((t) => this.convertTemperature(t));
             pressure.map((p) => this.convertPressure(p));
             windSpeed.map((w) => this.convertWindSpeed(w));
+            windGust.map((w) => this.convertWindSpeed(w));
             rainConverted = rain.map((r) => this.convertPrecipitation(r !== null && r !== void 0 ? r : 0));
             rainMin.map((r) => this.convertPrecipitation(r !== null && r !== void 0 ? r : 0));
             rainMaxConverted = rainMax.map((r) => this.convertPrecipitation(r !== null && r !== void 0 ? r : 0));
@@ -4215,8 +4322,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             yPressure = d3
                 .scaleLinear()
                 .domain([
-                Math.floor((pressureRange[0] - pressurePadding) / 10) * 10,
-                Math.ceil((pressureRange[1] + pressurePadding) / 10) * 10,
+                Math.floor((pressureRange[0] - pressurePadding) / 100) * 100,
+                Math.ceil((pressureRange[1] + pressurePadding) / 100) * 100,
             ])
                 .range([this._chartHeight, 0]);
         }
@@ -4307,7 +4414,12 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Wind band grid lines (if wind band is enabled)
         if (windAvailable) {
-            this._chartRenderer.drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, windDirection);
+            // For wind barbs, use raw wind speeds in their original units (API uses m/s)
+            // and let the chart convert to knots for proper barb calculation
+            const rawWindUnit = ((_a = data.units) === null || _a === void 0 ? void 0 : _a.windSpeed) || "m/s";
+            this._chartRenderer.drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, // Use raw wind speeds for barb calculation
+            windGust, // Use raw gust speeds for barb calculation
+            windDirection, rawWindUnit);
         }
         // Draw temperature line with legend
         const tempLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-temp"));

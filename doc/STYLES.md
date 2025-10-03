@@ -119,9 +119,12 @@ The following are the default configuration properties for the Meteogram Card (a
 - `.legend-snow`  
   Snow legend color:  
   (fixed color: `#b3e6ff`)
-- `.wind-barb`, `.wind-barb-feather`, `.wind-barb-half`, `.wind-barb-calm`, `.wind-barb-dot`  
-  Wind barb color:  
+- `.wind-barb`, `.wind-barb-feather`, `.wind-barb-half`, `.wind-barb-pennant`, `.wind-barb-calm`, `.wind-barb-dot`  
+  Sustained wind barb color (right side):  
   `--meteogram-wind-barb-color` (light mode), `--meteogram-wind-barb-color-dark` (dark mode)
+- `.wind-barb-gust-feather`, `.wind-barb-gust-half`, `.wind-barb-gust-pennant`  
+  Wind gust barb color (left side, orange):  
+  Fixed colors `#FF8C00` and `#FFA500` (not currently themeable)
 - `.wind-band-bg`  
   Wind band background:  
   (transparent, not themeable)
@@ -171,10 +174,23 @@ If a `-dark` CSS variable is not set, the card will automatically fall back to t
   }
   ```
 
-- Wind barb color:
+- Wind barb color (sustained wind, right side):
   ```css
-  .wind-barb { stroke: var(--meteogram-wind-barb-color); }
-  :host([dark]) .wind-barb { stroke: var(--meteogram-wind-barb-color-dark); }
+  .wind-barb, .wind-barb-feather, .wind-barb-half, .wind-barb-pennant { 
+    stroke: var(--meteogram-wind-barb-color); 
+  }
+  :host([dark]) .wind-barb, 
+  :host([dark]) .wind-barb-feather, 
+  :host([dark]) .wind-barb-half, 
+  :host([dark]) .wind-barb-pennant { 
+    stroke: var(--meteogram-wind-barb-color-dark); 
+  }
+  ```
+
+- Wind gust color (left side, orange - not currently themeable):
+  ```css
+  .wind-barb-gust-feather, .wind-barb-gust-half { stroke: #FF8C00; }
+  .wind-barb-gust-pennant { fill: #FF8C00; stroke: #FF8C00; }
   ```
 
 - Grid color:
@@ -245,6 +261,8 @@ The card uses Home Assistant theme variables where possible:
   - `--meteogram-timescale-color`, `--meteogram-timescale-color-dark`
   - `--meteogram-snow-bar-color`, `--meteogram-snow-bar-color-dark`
   - `--primary-text-color` (legend and axis tick text color, light and dark)
+
+**Note:** Wind gust colors (orange) are currently hardcoded and not themeable via CSS variables. Future versions may add `--meteogram-wind-gust-color` variables for customization.
 
 ---
 

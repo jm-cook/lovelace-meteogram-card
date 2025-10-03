@@ -168,7 +168,7 @@ export const meteogramCardStyles = css`
 
     .wind-barb-feather {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
-        stroke-width: 1.4;
+        stroke-width: 2;
     }
     :host([dark]) .wind-barb-feather {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
@@ -176,7 +176,7 @@ export const meteogramCardStyles = css`
 
     .wind-barb-half {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
-        stroke-width: 0.8;
+        stroke-width: 2;
     }
     :host([dark]) .wind-barb-half {
         stroke: var(--meteogram-wind-barb-color, #1976d2);

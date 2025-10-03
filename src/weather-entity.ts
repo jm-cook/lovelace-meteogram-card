@@ -53,6 +53,7 @@ export class WeatherEntityAPI {
             cloudCover: [],
             windSpeed: [],
             windDirection: [],
+            windGust: [],
             symbolCode: [],
             pressure: [],
             fetchTimestamp: new Date().toISOString(),
@@ -82,12 +83,26 @@ export class WeatherEntityAPI {
                 result.cloudCover.push(item.cloud_coverage);
             }
 
-            // Only push windSpeed/windDirection if present
+            // Only push windSpeed/windDirection/windGust if present
             if ('wind_speed' in item && typeof item.wind_speed === 'number') {
                 result.windSpeed.push(item.wind_speed);
             }
             if ('wind_bearing' in item && typeof item.wind_bearing === 'number') {
                 result.windDirection.push(item.wind_bearing);
+            }
+            if ('wind_gust' in item && typeof item.wind_gust === 'number') {
+                result.windGust.push(item.wind_gust);
+            } else if ('wind_speed_gust' in item && typeof item.wind_speed_gust === 'number') {
+                result.windGust.push(item.wind_speed_gust);
+            } else if ('gust_speed' in item && typeof item.gust_speed === 'number') {
+                result.windGust.push(item.gust_speed);
+            } else {
+                // Default to wind_speed if no gust data available
+                if ('wind_speed' in item && typeof item.wind_speed === 'number') {
+                    result.windGust.push(item.wind_speed);
+                } else {
+                    result.windGust.push(0);
+                }
             }
 
             result.symbolCode.push(item.condition ?? "");

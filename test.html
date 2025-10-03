@@ -15,6 +15,7 @@
             padding: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             margin-bottom: 20px;
+            height: 600px;
         }
         .controls {
             margin-bottom: 20px;
@@ -23,9 +24,14 @@
             display: block;
             margin-bottom: 5px;
         }
-        input {
+        input[type="text"], input[type="number"] {
             margin-bottom: 10px;
             padding: 5px;
+            width: 200px;
+        }
+        input[type="checkbox"] {
+            margin-right: 8px;
+            margin-bottom: 10px;
         }
         button {
             padding: 8px 16px;
@@ -42,13 +48,20 @@
 
 <div class="controls">
     <label for="latitude">Latitude:</label>
-    <input type="text" id="latitude" value="51.5074">
+    <input type="text" id="latitude" value="58.4314">
 
     <label for="longitude">Longitude:</label>
-    <input type="text" id="longitude" value="-0.1278">
+    <input type="text" id="longitude" value="8.8255">
 
     <label for="title">Title:</label>
-    <input type="text" id="title" value="London Weather">
+    <input type="text" id="title" value="Arendal Weather">
+
+    <label for="height">Height (px):</label>
+    <input type="number" id="height" value="500">
+
+    <label>
+        <input type="checkbox" id="disableDebug"> Disable Debug Logging
+    </label>
 
     <button id="updateBtn">Update Meteogram</button>
 </div>
@@ -73,11 +86,15 @@
             const lat = parseFloat(document.getElementById('latitude').value);
             const lon = parseFloat(document.getElementById('longitude').value);
             const title = document.getElementById('title').value;
+            const height = parseInt(document.getElementById('height').value);
+            const disableDebug = document.getElementById('disableDebug').checked;
 
             meteogram.setConfig({
                 latitude: lat,
                 longitude: lon,
-                title: title
+                title: title,
+                height: height,
+                disable_debug: disableDebug
             });
         }
 

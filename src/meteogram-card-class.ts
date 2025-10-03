@@ -1621,6 +1621,7 @@ export class MeteogramCard extends LitElement {
           snow: sliceData(data.snow),
           cloudCover: sliceData(data.cloudCover),
           windSpeed: sliceData(data.windSpeed),
+          windGust: sliceData(data.windGust),
           windDirection: sliceData(data.windDirection),
           symbolCode: sliceData(data.symbolCode),
           pressure: sliceData(data.pressure),
@@ -1773,6 +1774,7 @@ export class MeteogramCard extends LitElement {
       snow,
       cloudCover,
       windSpeed,
+      windGust,
       windDirection,
       symbolCode,
       pressure,
@@ -1791,11 +1793,13 @@ export class MeteogramCard extends LitElement {
     let rainMinConverted: (number | null)[];
     let rainMaxConverted: (number | null)[];
     let snowConverted: (number | null)[];
+    let windGustConverted: (number | null)[];
     windDirection.some((d) => d !== null);
     if (!this.entityId || this.entityId === "none") {
       temperatureConverted = temperature.map((t) => this.convertTemperature(t));
       pressureConverted = pressure.map((p) => this.convertPressure(p));
       windSpeedConverted = windSpeed.map((w) => this.convertWindSpeed(w));
+      windGustConverted = windGust.map((w) => this.convertWindSpeed(w));
       rainConverted = rain.map((r) => this.convertPrecipitation(r ?? 0));
       rainMinConverted = rainMin.map((r) => this.convertPrecipitation(r ?? 0));
       rainMaxConverted = rainMax.map((r) => this.convertPrecipitation(r ?? 0));
@@ -1804,6 +1808,7 @@ export class MeteogramCard extends LitElement {
       temperatureConverted = temperature;
       pressureConverted = pressure;
       windSpeedConverted = windSpeed;
+      windGustConverted = windGust;
       rainConverted = rain;
       rainMinConverted = rainMin;
       rainMaxConverted = rainMax;
@@ -2137,6 +2142,9 @@ export class MeteogramCard extends LitElement {
 
     // Wind band grid lines (if wind band is enabled)
     if (windAvailable) {
+      // For wind barbs, use raw wind speeds in their original units (API uses m/s)
+      // and let the chart convert to knots for proper barb calculation
+      const rawWindUnit = data.units?.windSpeed || "m/s";
       this._chartRenderer.drawWindBand(
         svg,
         x,
@@ -2145,8 +2153,10 @@ export class MeteogramCard extends LitElement {
         width,
         N,
         time,
-        windSpeed,
-        windDirection
+        windSpeed, // Use raw wind speeds for barb calculation
+        windGust,  // Use raw gust speeds for barb calculation
+        windDirection,
+        rawWindUnit
       );
     }
 
