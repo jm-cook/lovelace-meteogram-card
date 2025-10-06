@@ -6,15 +6,27 @@ export class WeatherEntityAPI {
     private _forecastData: ForecastData | null = null;
     private _lastDataFetch: number | null = null; // Timestamp of last data fetch
     private _unsubForecast: (() => void) | null = null;
+    private _lastPauseTime: number | null = null; // Timestamp of last pause
+    private _lastResumeTime: number | null = null; // Timestamp of last resume
 
     constructor(hass: any, entityId: string, from: string) {
         // Instrumentation: log caller stack and arguments
         console.debug(`[WeatherEntityAPI] from ${from} Constructor called for entityId: ${entityId}`);
         this.hass = hass;
         this.entityId = entityId;
-        // Subscribe to forecast updates if hass and entityId are available
+        
+        // Verify entity exists before setting up subscription
+        if (!this.hass?.states?.[this.entityId]) {
+            console.warn(`[WeatherEntityAPI] ❌ Weather entity ${this.entityId} not found in hass.states`);
+            const availableWeatherEntities = Object.keys(this.hass?.states || {}).filter(id => id.startsWith('weather.'));
+            console.debug(`[WeatherEntityAPI] Available weather entities:`, availableWeatherEntities);
+            return;
+        }
+        
+        // In modern Home Assistant, forecast data ONLY comes from subscriptions
+        // The entity.attributes.forecast property was removed in recent HA versions
         if (this.hass && this.entityId) {
-            // console.debug(`[WeatherEntityAPI] from ${from} Subscribing to forecast updates for ${this.entityId}`);
+            console.debug(`[WeatherEntityAPI] Setting up forecast subscription for ${this.entityId} (modern HA method)`);
             this.subscribeForecast((forecastArr: any[]) => {
                 console.debug(`[WeatherEntityAPI] 🔔 Subscription update received for ${this.entityId}:`, {
                     forecastLength: forecastArr?.length || 0,
@@ -38,28 +50,53 @@ export class WeatherEntityAPI {
                 }
             }).then(unsub => {
                 this._unsubForecast = unsub;
-                console.debug(`[WeatherEntityAPI] ✅ Subscription established successfully for ${this.entityId}`);
+                console.debug(`[WeatherEntityAPI] ✅ Forecast subscription established successfully for ${this.entityId}`);
             }).catch(error => {
-                console.error(`[WeatherEntityAPI] ❌ Subscription failed for ${this.entityId}:`, error);
+                console.error(`[WeatherEntityAPI] ❌ Forecast subscription failed for ${this.entityId}:`, error);
+                console.debug(`[WeatherEntityAPI] This may indicate an unsupported entity or HA version issue`);
             });
         }
     }
 
-    // Clean up old entity cache entries (older than 24h)
+    // Clean up old entity cache entries (older than 24h) and validate data structures
     private static cleanupOldEntityCacheEntries(cache: Record<string, { timestamp: number; data: ForecastData }>) {
         const now = Date.now();
         const twentyFourHours = 24 * 60 * 60 * 1000;
         let removedCount = 0;
+        let invalidCount = 0;
+        const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
         
         for (const [entityId, entry] of Object.entries(cache)) {
+            let shouldRemove = false;
+            
+            // Remove entries older than 24h
             if (now - entry.timestamp > twentyFourHours) {
-                delete cache[entityId];
+                shouldRemove = true;
                 removedCount++;
+            }
+            // Remove entries with invalid data structure
+            else if (!entry.data || typeof entry.data !== 'object') {
+                shouldRemove = true;
+                invalidCount++;
+                console.debug(`[WeatherEntityAPI] Removing cache entry for ${entityId}: invalid data structure`);
+            }
+            // Remove entries missing required arrays
+            else {
+                const missingArrays = requiredArrays.filter(prop => !Array.isArray(entry.data[prop as keyof ForecastData]));
+                if (missingArrays.length > 0) {
+                    shouldRemove = true;
+                    invalidCount++;
+                    console.debug(`[WeatherEntityAPI] Removing cache entry for ${entityId}: missing arrays ${missingArrays.join(', ')}`);
+                }
+            }
+            
+            if (shouldRemove) {
+                delete cache[entityId];
             }
         }
         
-        if (removedCount > 0) {
-            console.debug(`[WeatherEntityAPI] Cleaned up ${removedCount} old entity cache entries`);
+        if (removedCount > 0 || invalidCount > 0) {
+            console.debug(`[WeatherEntityAPI] Cleaned up ${removedCount} old and ${invalidCount} invalid entity cache entries`);
         }
     }
 
@@ -75,18 +112,17 @@ export class WeatherEntityAPI {
             entityState: entity?.state,
             entityLastChanged: entity?.last_changed,
             entityLastUpdated: entity?.last_updated,
-            hasForecastAttribute: !!entity?.attributes?.forecast,
             hourlyForecastData: {
-                // Check processed data first, then fall back to entity attributes
+                // In modern HA, forecast data comes only from subscriptions, not entity attributes
                 processedLength: this._forecastData?.time?.length || 0,
-                entityRawLength: Array.isArray(entity?.attributes?.forecast) ? entity.attributes.forecast.length : 0,
                 status: this._forecastData?.time?.length 
                     ? `${this._forecastData.time.length} processed entries`
-                    : Array.isArray(entity?.attributes?.forecast) 
-                        ? `${entity.attributes.forecast.length} raw entries (processing...)`
-                        : entity?.attributes?.forecast ? 'invalid format' : 'no forecast attribute'
+                    : 'waiting for subscription data'
             },
             hasSubscription: !!this._unsubForecast,
+            subscriptionStatus: this._unsubForecast ? 'active' : 'paused/inactive',
+            lastPauseTime: this._lastPauseTime ? new Date(this._lastPauseTime).toLocaleString() : 'never',
+            lastResumeTime: this._lastResumeTime ? new Date(this._lastResumeTime).toLocaleString() : 'never',
             hasConnection: !!this.hass?.connection,
             inMemoryData: {
                 hasData: !!this._forecastData,
@@ -120,7 +156,6 @@ export class WeatherEntityAPI {
             rain: [],
             rainMin: [],
             rainMax: [],
-            snow: [],
             cloudCover: [],
             windSpeed: [],
             windDirection: [],
@@ -136,31 +171,16 @@ export class WeatherEntityAPI {
             result.temperature.push(item.temperature ?? null);
             result.rain.push(item.precipitation ?? 0);
 
-            // Only push rainMin/rainMax if precipitation_min/max are present
-            if ('precipitation_min' in item) {
-                result.rainMin.push(item.precipitation_min);
-            }
-            if ('precipitation_max' in item) {
-                result.rainMax.push(item.precipitation_max);
-            }
+            // Only use actual min/max values if they exist, otherwise set to null
+            result.rainMin.push('precipitation_min' in item && typeof item.precipitation_min === 'number' ? item.precipitation_min : null);
+            result.rainMax.push('precipitation_max' in item && typeof item.precipitation_max === 'number' ? item.precipitation_max : null);
 
-            // Only push snow if present
-            if ('snow' in item && typeof item.snow === 'number') {
-                result.snow.push(item.snow);
-            }
-
-            // Only push cloudCover if present
-            if ('cloud_coverage' in item && typeof item.cloud_coverage === 'number') {
-                result.cloudCover.push(item.cloud_coverage);
-            }
-
-            // Only push windSpeed/windDirection/windGust if present
-            if ('wind_speed' in item && typeof item.wind_speed === 'number') {
-                result.windSpeed.push(item.wind_speed);
-            }
-            if ('wind_bearing' in item && typeof item.wind_bearing === 'number') {
-                result.windDirection.push(item.wind_bearing);
-            }
+            // Always push values to maintain array consistency (use 0 if not present)
+            result.cloudCover.push('cloud_coverage' in item && typeof item.cloud_coverage === 'number' ? item.cloud_coverage : 0);
+            result.windSpeed.push('wind_speed' in item && typeof item.wind_speed === 'number' ? item.wind_speed : 0);
+            result.windDirection.push('wind_bearing' in item && typeof item.wind_bearing === 'number' ? item.wind_bearing : 0);
+            
+            // Handle wind gust with proper null handling
             if ('wind_gust' in item && typeof item.wind_gust === 'number') {
                 result.windGust.push(item.wind_gust);
             } else if ('wind_gust_speed' in item && typeof item.wind_gust_speed === 'number') {
@@ -183,6 +203,8 @@ export class WeatherEntityAPI {
                 result.pressure.push(item.pressure_mbar);
             } else if ('pressure_hpa' in item && typeof item.pressure_hpa === 'number') {
                 result.pressure.push(item.pressure_hpa);
+            } else {
+                result.pressure.push(0); // Maintain array consistency
             }
         });
 
@@ -230,79 +252,16 @@ export class WeatherEntityAPI {
         return result;
     }
 
-    // Fetch fresh data directly from the entity (not from cache)
-    private _fetchFreshEntityData(): void {
-        console.debug(`[WeatherEntityAPI] _fetchFreshEntityData called for entityId=${this.entityId}`);
-        
-        const entity = this.hass.states[this.entityId];
-        if (!entity) {
-            console.debug(`[WeatherEntityAPI] ❌ Entity not found in hass.states: ${this.entityId}`);
-            console.debug(`[WeatherEntityAPI] Available entities:`, Object.keys(this.hass.states || {}).filter(id => id.includes('weather')));
-            return;
-        }
-        
-        // Debug: Log entity state info
-        console.debug(`[WeatherEntityAPI] Entity found for ${this.entityId}:`, {
-            state: entity.state,
-            lastChanged: entity.last_changed,
-            lastUpdated: entity.last_updated,
-            hasAttributes: !!entity.attributes,
-            hasForecast: !!entity.attributes?.forecast,
-            forecastLength: Array.isArray(entity.attributes?.forecast) ? entity.attributes.forecast.length : 'not array'
-        });
-        
-        if (!entity.attributes) {
-            console.debug(`[WeatherEntityAPI] ❌ Entity has no attributes: ${this.entityId}`);
-            return;
-        }
-        
-        if (!Array.isArray(entity.attributes.forecast)) {
-            console.debug(`[WeatherEntityAPI] ❌ Entity forecast attribute is not an array:`, {
-                forecastType: typeof entity.attributes.forecast,
-                forecastValue: entity.attributes.forecast
-            });
-            return;
-        }
-
-        // Check if forecast data looks fresh by examining timestamps
-        const forecast = entity.attributes.forecast;
-        const firstForecastTime = forecast[0]?.datetime || forecast[0]?.time;
-        const lastForecastTime = forecast[forecast.length - 1]?.datetime || forecast[forecast.length - 1]?.time;
-        
-        console.debug(`[WeatherEntityAPI] Entity forecast data for ${this.entityId}:`, {
-            length: forecast.length,
-            firstTime: firstForecastTime,
-            lastTime: lastForecastTime,
-            entityLastUpdated: entity.last_updated,
-            sampleForecastItem: forecast[0]
-        });
-
-        // Parse and store fresh data
-        this._forecastData = this._parseForecastArray(entity.attributes.forecast);
-        this._lastDataFetch = Date.now(); // Update fetch timestamp
-        
-        console.debug(`[WeatherEntityAPI] ✅ Fresh data fetched for ${this.entityId}:`, {
-            forecastLength: entity.attributes.forecast.length,
-            parsedTimeLength: this._forecastData?.time?.length || 0,
-            firstParsedTime: this._forecastData?.time?.[0]?.toISOString() || 'none',
-            lastParsedTime: this._forecastData?.time?.[this._forecastData.time.length - 1]?.toISOString() || 'none'
-        });
-    }
+    // Note: In modern Home Assistant, forecast data comes from subscriptions only
+    // The entity.attributes.forecast property doesn't exist in recent HA versions
 
     getForecast(): ForecastData | null {
         // This method returns the current/instantaneous forecast data
         // For hourly forecast data used by meteogram, use getForecastData() instead
-        if (this._forecastData) {
-            return this._forecastData;
-        }
         
-        const entity = this.hass.states[this.entityId];
-        if (!entity?.attributes?.forecast) {
-            return null;
-        }
-        
-        // Return current forecast without freshness checking (different use case)
-        return this._parseForecastArray(entity.attributes.forecast);
+        // In modern HA, forecast data only comes from subscriptions
+        // Return whatever we have in memory from subscription updates
+        return this._forecastData;
     }
 
     /**
@@ -374,23 +333,23 @@ export class WeatherEntityAPI {
             return this._forecastData;
         }
         
-        // Data is stale or doesn't exist, fetch fresh data
+        // Data is stale or doesn't exist - in modern HA, we rely on subscriptions for fresh data
+        // Clear stale data and fall back to cache while waiting for subscription updates
         if (this._lastDataFetch) {
             const ageMinutes = Math.round((now - this._lastDataFetch) / (60 * 1000));
-            console.debug(`[WeatherEntityAPI] Data is stale for ${this.entityId} (${ageMinutes} min old), fetching fresh data`);
+            console.debug(`[WeatherEntityAPI] Data is stale for ${this.entityId} (${ageMinutes} min old), clearing and waiting for subscription update`);
         } else {
-            console.debug(`[WeatherEntityAPI] No data for ${this.entityId}, fetching fresh data`);
+            console.debug(`[WeatherEntityAPI] No data for ${this.entityId}, waiting for subscription update`);
         }
         
         this._forecastData = null; // Clear stale data
-        this._fetchFreshEntityData();
         
-        // If fresh fetch succeeded, return the data
-        if (this._forecastData) {
-            return this._forecastData;
-        }
+        // Note: In modern HA, we can't fetch forecast directly from entity attributes
+        // Fresh data will come from the subscription when HA sends updates
+        // For now, we fall back to localStorage cache if available
         
         // Fresh fetch failed, try to load from localStorage cache as fallback
+        let shouldCleanupCache = false;
         try {
             const cacheKey = 'meteogram-card-entity-weather-cache';
             const rawCache = localStorage.getItem(cacheKey);
@@ -399,44 +358,201 @@ export class WeatherEntityAPI {
                 const stored = cache[this.entityId];
                 if (stored) {
                     // Handle both old format (direct ForecastData) and new format (with timestamp)
-                    let forecastData: ForecastData;
+                    let forecastData: ForecastData | undefined;
                     if (stored && typeof stored === 'object' && 'timestamp' in stored && 'data' in stored) {
                         // New format - check if not too old (24h)
                         const twentyFourHours = 24 * 60 * 60 * 1000;
                         if (Date.now() - stored.timestamp > twentyFourHours) {
-                            console.debug(`[WeatherEntityAPI] Cached data for ${this.entityId} is too old (${Math.round((Date.now() - stored.timestamp) / (60 * 60 * 1000))}h), ignoring cache`);
-                            return null;
+                            console.debug(`[WeatherEntityAPI] Cached data for ${this.entityId} is too old (${Math.round((Date.now() - stored.timestamp) / (60 * 60 * 1000))}h), removing from cache`);
+                            shouldCleanupCache = true;
+                            delete cache[this.entityId];
+                        } else {
+                            forecastData = stored.data;
                         }
-                        forecastData = stored.data;
                     } else {
-                        // Old format - use directly but consider it potentially stale
-                        forecastData = stored as ForecastData;
+                        // Old format - convert to new format or remove if corrupted
+                        if (stored && typeof stored === 'object') {
+                            // Old format - use directly but consider it potentially stale
+                            forecastData = stored as ForecastData;
+                            console.debug(`[WeatherEntityAPI] Converting old format cache entry for ${this.entityId} to new format`);
+                            shouldCleanupCache = true;
+                            // Convert to new format
+                            cache[this.entityId] = {
+                                timestamp: Date.now() - (12 * 60 * 60 * 1000), // Mark as 12h old to trigger refresh soon
+                                data: forecastData
+                            };
+                        } else {
+                            console.warn(`[WeatherEntityAPI] Corrupted cache entry for ${this.entityId}, removing from cache`);
+                            shouldCleanupCache = true;
+                            delete cache[this.entityId];
+                        }
                     }
                     
-                    // Validate that cached data has all required array properties
-                    const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'snow', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
-                    const missingArrays = requiredArrays.filter(prop => !Array.isArray(forecastData[prop as keyof ForecastData]));
-                    
-                    if (missingArrays.length > 0) {
-                        console.warn(`[WeatherEntityAPI] Cached data for ${this.entityId} is missing required arrays: ${missingArrays.join(', ')}, ignoring cache`);
-                        return null;
+                    // Validate that cached data has all required array properties if we have forecastData
+                    if (forecastData) {
+                        const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+                        const missingArrays = requiredArrays.filter(prop => !Array.isArray(forecastData[prop as keyof ForecastData]));
+                        
+                        if (missingArrays.length > 0) {
+                            console.warn(`[WeatherEntityAPI] Cached data for ${this.entityId} is missing required arrays: ${missingArrays.join(', ')}, removing from cache`);
+                            shouldCleanupCache = true;
+                            delete cache[this.entityId];
+                        } else {
+                            // Restore Date objects in time array
+                            if (Array.isArray(forecastData.time)) {
+                                forecastData.time = forecastData.time.map((t: string | Date) =>
+                                    typeof t === "string" ? new Date(t) : t
+                                );
+                            }
+                            this._forecastData = forecastData;
+                            
+                            // Save cache back to localStorage if we made changes
+                            if (shouldCleanupCache) {
+                                localStorage.setItem(cacheKey, JSON.stringify(cache));
+                                console.debug(`[WeatherEntityAPI] Updated cache structure for ${this.entityId}`);
+                            }
+                            
+                            // console.debug(`[WeatherEntityAPI] Loaded forecast for ${this.entityId} from localStorage cache`, this._forecastData);
+                            return this._forecastData;
+                        }
                     }
                     
-                    // Restore Date objects in time array
-                    if (Array.isArray(forecastData.time)) {
-                        forecastData.time = forecastData.time.map((t: string | Date) =>
-                            typeof t === "string" ? new Date(t) : t
-                        );
+                    // Save cache back to localStorage if we made changes (cleanup only)
+                    if (shouldCleanupCache) {
+                        localStorage.setItem(cacheKey, JSON.stringify(cache));
+                        console.debug(`[WeatherEntityAPI] Cleaned up cache for ${this.entityId}`);
                     }
-                    this._forecastData = forecastData;
-                    // console.debug(`[WeatherEntityAPI] Loaded forecast for ${this.entityId} from localStorage cache`, this._forecastData);
-                    return this._forecastData;
                 }
             }
         } catch (e) {
             console.warn(`[WeatherEntityAPI] Failed to load forecast for ${this.entityId} from localStorage cache:`, e);
+            // Clear corrupted cache entirely
+            try {
+                const cacheKey = 'meteogram-card-entity-weather-cache';
+                localStorage.removeItem(cacheKey);
+                console.warn(`[WeatherEntityAPI] Cleared corrupted cache due to parse error`);
+            } catch (cleanupError) {
+                console.error(`[WeatherEntityAPI] Failed to clear corrupted cache:`, cleanupError);
+            }
         }
         return null;
+    }
+
+    /**
+     * Pause the subscription (when tab becomes hidden)
+     */
+    pause(from: string) {
+        if (this._unsubForecast) {
+            try {
+                console.debug(`[WeatherEntityAPI] from ${from} Pausing subscription for ${this.entityId}`);
+                this._unsubForecast();
+                this._unsubForecast = null;
+                this._lastPauseTime = Date.now();
+            } catch (err) {
+                console.warn(`[WeatherEntityAPI] from ${from} Error pausing subscription for ${this.entityId}:`, err);
+            }
+        }
+    }
+
+    /**
+     * Resume the subscription (when tab becomes visible) and check for fresh data
+     */
+    async resume(from: string): Promise<void> {
+        console.debug(`[WeatherEntityAPI] from ${from} Resuming subscription for ${this.entityId}`);
+        
+        // First, check if we can get fresher data from the current hass state
+        await this._checkAndUpdateFromHassState();
+        
+        // Re-establish subscription for future updates
+        if (this.hass && this.entityId && !this._unsubForecast) {
+            try {
+                const unsubPromise = this.subscribeForecast((forecastArr: any[]) => {
+                    console.debug(`[WeatherEntityAPI] 🔔 Subscription update received after resume for ${this.entityId}:`, {
+                        forecastLength: forecastArr?.length || 0,
+                        updateTime: new Date().toISOString()
+                    });
+                    
+                    this._forecastData = this._parseForecastArray(forecastArr);
+                    this._lastDataFetch = Date.now();
+                    
+                    // Force chart update
+                    const card = document.querySelector('meteogram-card') as any;
+                    if (card && typeof card._scheduleDrawMeteogram === "function") {
+                        card._scheduleDrawMeteogram("WeatherEntityAPI-resume-update", true);
+                    }
+                });
+                
+                this._unsubForecast = await unsubPromise;
+                this._lastResumeTime = Date.now();
+                console.debug(`[WeatherEntityAPI] ✅ Subscription resumed successfully for ${this.entityId}`);
+            } catch (error) {
+                console.error(`[WeatherEntityAPI] ❌ Failed to resume subscription for ${this.entityId}:`, error);
+            }
+        }
+    }
+
+    /**
+     * Check if hass state has fresher data than our cached data
+     */
+    private async _checkAndUpdateFromHassState(): Promise<void> {
+        if (!this.hass?.states?.[this.entityId]) {
+            console.debug(`[WeatherEntityAPI] Entity ${this.entityId} not found in hass.states during resume check`);
+            return;
+        }
+
+        const entity = this.hass.states[this.entityId];
+        const entityLastUpdated = entity.last_updated ? new Date(entity.last_updated).getTime() : 0;
+        const ourLastFetch = this._lastDataFetch || 0;
+        
+        console.debug(`[WeatherEntityAPI] Freshness check for ${this.entityId}:`, {
+            entityLastUpdated: new Date(entityLastUpdated).toISOString(),
+            ourLastFetch: new Date(ourLastFetch).toISOString(),
+            entityIsNewer: entityLastUpdated > ourLastFetch,
+            ageDifferenceMinutes: Math.round((entityLastUpdated - ourLastFetch) / (60 * 1000))
+        });
+
+        // If entity was updated after our last fetch, try to get fresh forecast data
+        if (entityLastUpdated > ourLastFetch) {
+            console.debug(`[WeatherEntityAPI] Entity state is newer, requesting fresh forecast for ${this.entityId}`);
+            
+            try {
+                // Use the get_forecasts service to get current forecast data
+                const result = await this.hass.callService('weather', 'get_forecasts', {
+                    entity_id: this.entityId,
+                    type: 'hourly'
+                });
+                
+                if (result?.[this.entityId]?.forecast && Array.isArray(result[this.entityId].forecast)) {
+                    console.debug(`[WeatherEntityAPI] ✅ Fresh forecast data retrieved from service for ${this.entityId}:`, {
+                        forecastLength: result[this.entityId].forecast.length,
+                        serviceCallTime: new Date().toISOString()
+                    });
+                    
+                    this._forecastData = this._parseForecastArray(result[this.entityId].forecast);
+                    this._lastDataFetch = Date.now();
+                    
+                    // Force chart update with fresh data
+                    const card = document.querySelector('meteogram-card') as any;
+                    if (card && typeof card._scheduleDrawMeteogram === "function") {
+                        card._scheduleDrawMeteogram("WeatherEntityAPI-fresh-service-data", true);
+                    }
+                } else {
+                    console.debug(`[WeatherEntityAPI] Service call succeeded but no forecast data returned for ${this.entityId}`);
+                }
+            } catch (error) {
+                console.warn(`[WeatherEntityAPI] Failed to get fresh forecast via service for ${this.entityId}:`, error);
+                // Fall back to existing cached data
+            }
+        } else {
+            console.debug(`[WeatherEntityAPI] Our cached data is still current for ${this.entityId}`);
+        }
+    }
+
+    /**
+     * Check if subscription is currently active
+     */
+    isSubscriptionActive(): boolean {
+        return !!this._unsubForecast;
     }
 
     /**
@@ -447,7 +563,7 @@ export class WeatherEntityAPI {
             try {
                 this._unsubForecast();
                 this._unsubForecast = null;
-                // console.debug(`[WeatherEntityAPI] from ${from} Unsubscribed from forecast updates for ${this.entityId}`);
+                console.debug(`[WeatherEntityAPI] from ${from} Destroyed subscription for ${this.entityId}`);
             } catch (err) {
                 console.warn(`[WeatherEntityAPI] from ${from} Error during unsubscribe for ${this.entityId}:`, err);
             }

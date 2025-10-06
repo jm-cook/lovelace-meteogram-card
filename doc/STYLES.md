@@ -29,8 +29,6 @@ This document describes the CSS styles used in the Meteogram Card, including how
       --meteogram-cloud-color-dark: #eceff1;
       --meteogram-wind-barb-color: #1976d2;
       --meteogram-wind-barb-color-dark: #1976d2;
-      --meteogram-snow-bar-color: #b3e6ff;
-      --meteogram-snow-bar-color-dark: #e0f7fa;
       --meteogram-label-font-size: 13px;
       --meteogram-legend-font-size: 14px;
       --meteogram-tick-font-size: 13px;
@@ -95,9 +93,6 @@ The following are the default configuration properties for the Meteogram Card (a
 - `.cloud-area`  
   Cloud cover fill color:  
   `--meteogram-cloud-color` (light), `--meteogram-cloud-color-dark` (dark)
-- `.snow-bar`  
-  Snow bar color:  
-  `--meteogram-snow-bar-color` (light), `--meteogram-snow-bar-color-dark` (dark)
 - `.legend`  
   Legend text color:  
   `--primary-text-color` (light and dark mode)
@@ -116,9 +111,6 @@ The following are the default configuration properties for the Meteogram Card (a
 - `.legend-rain-max`  
   Max rain legend color:  
   `--meteogram-rain-max-bar-color` (light), `--meteogram-rain-max-bar-color-dark` (dark)
-- `.legend-snow`  
-  Snow legend color:  
-  (fixed color: `#b3e6ff`)
 - `.wind-barb`, `.wind-barb-feather`, `.wind-barb-half`, `.wind-barb-pennant`, `.wind-barb-calm`, `.wind-barb-dot`  
   Sustained wind barb color (right side):  
   `--meteogram-wind-barb-color` (light mode), `--meteogram-wind-barb-color-dark` (dark mode)
@@ -222,18 +214,6 @@ If a `-dark` CSS variable is not set, the card will automatically fall back to t
   :host([dark]) .bottom-hour-label { fill: var(--meteogram-timescale-color-dark); }
   ```
 
-- Snow bar color:
-  ```css
-  .snow-bar {
-      fill: var(--meteogram-snow-bar-color);
-      opacity: 0.8;
-  }
-  :host([dark]) .snow-bar {
-      fill: var(--meteogram-snow-bar-color-dark);
-      opacity: 0.9;
-  }
-  ```
-
 ---
 
 ## Theme Variables
@@ -259,7 +239,6 @@ The card uses Home Assistant theme variables where possible:
   - `--meteogram-rain-max-label-color`, `--meteogram-rain-max-label-color-dark`
   - `--meteogram-axis-label-color`, `--meteogram-axis-label-color-dark`
   - `--meteogram-timescale-color`, `--meteogram-timescale-color-dark`
-  - `--meteogram-snow-bar-color`, `--meteogram-snow-bar-color-dark`
   - `--primary-text-color` (legend and axis tick text color, light and dark)
 
 **Note:** Wind gust colors (orange) are currently hardcoded and not themeable via CSS variables. Future versions may add `--meteogram-wind-gust-color` variables for customization.
@@ -330,7 +309,6 @@ styles:
   | meteogram-wind-barb-color      | Wind barb color
   | meteogram-rain-label-color     | Rain label color
   | meteogram-rain-max-label-color | Rain max label color
-  | meteogram-snow-bar-color       | Snow bar color
 
   **You can override any of these variables in your theme or card YAML.**
 
@@ -417,7 +395,6 @@ styles:
     meteogram-rain-max-bar-color: "#90caf9"
     meteogram-rain-label-color: "#d32f2f"
     meteogram-rain-max-label-color: "#1976d2"
-    meteogram-snow-bar-color: "#b3e6ff"
   ```
 
   ## Example: Customizing for Dark Mode
@@ -449,7 +426,6 @@ These are the built-in defaults for the card. For each variable, both the light 
 | meteogram-rain-max-label-color| #2693e6           | #2693e6           |
 | meteogram-cloud-color         | #b0bec5           | #eceff1           |
 | meteogram-wind-barb-color     | #1976d2           | #1976d2           |
-| meteogram-snow-bar-color      | #b3e6ff           | #e0f7fa           |
 | meteogram-label-font-size     | 13px              | 13px              |
 | meteogram-legend-font-size    | 14px              | 14px              |
 | meteogram-tick-font-size      | 13px              | 13px              |

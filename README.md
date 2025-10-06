@@ -15,7 +15,7 @@ A custom card showing a meteogram with wind barbs, powered by Met.no API or Home
 
 - Full weather forecast visualization
 - Temperature curve with weather icons
-- Precipitation display (rain/snow) with probability indicators
+- Precipitation display with uncertainty indicators
 - Cloud coverage visualization
 - Professional-style wind barbs showing wind speed, direction, and gusts
 - Barometric pressure trend
@@ -83,7 +83,6 @@ Multiple entities can be cached and retrieved independently.
 - `meteogram-wind-barb-color`
 - `meteogram-rain-label-color`
 - `meteogram-rain-max-label-color`
-- `meteogram-snow-bar-color`
 - ...and more (see [doc/STYLES.md](doc/STYLES.md) for the full list)
   Displays wind speed, direction, and gusts using professional-style wind barbs with pennants.
 - **Barometric Pressure**  
@@ -128,7 +127,7 @@ Below are the main configuration options for the Meteogram Card:
 | entity_id           | string   | none            | Weather entity to use as data source                                                              |
 | show_cloud_cover    | boolean  | true            | Show/hide cloud cover visualization                                                               |
 | show_pressure       | boolean  | true            | Show/hide pressure curve                                                                          |
-| show_precipitation  | boolean  | true            | Show/hide precipitation visualization (rain and snow)                             |
+| show_precipitation  | boolean  | true            | Show/hide precipitation visualization                                             |
 | show_weather_icons  | boolean  | true            | Show/hide weather icons                                                                           |
 | show_wind           | boolean  | true            | Show/hide wind barbs section                                                                      |
 | dense_weather_icons | boolean  | true            | Show weather icons every hour (true) or every 2 hours (false)                                     |
@@ -320,7 +319,6 @@ You can override the following CSS variables via the `styles` option or your the
 - `meteogram-wind-barb-color`
 - `meteogram-rain-label-color`
 - `meteogram-rain-max-label-color`
-- `meteogram-snow-bar-color`
 - ...and more (see [doc/STYLES.md](doc/STYLES.md) for the full list)
 
 For more details and examples, see [doc/STYLES.md][styledoc-url].
@@ -330,7 +328,7 @@ For more details and examples, see [doc/STYLES.md][styledoc-url].
 This card fetches weather data from the Met.no API or from a Home Assistant weather entity.  
 If no coordinates or entity are specified, it will use your Home Assistant's configured location.
 
-The card uses the "complete" API endpoint to retrieve precipitation probability data, which allows visualization of rain/snow uncertainty.
+The card uses the "complete" API endpoint to retrieve precipitation probability data, which allows visualization of precipitation uncertainty.
 
 ## Development
 
@@ -393,7 +391,6 @@ The following are the default CSS variables for the card. You can override these
   --meteogram-rain-max-label-color: #2693e6;
   --meteogram-cloud-color: #b0bec5;
   --meteogram-wind-barb-color: #1976d2;
-  --meteogram-snow-bar-color: #b3e6ff;
   --meteogram-label-font-size: 13px;
   --meteogram-legend-font-size: 14px;
   --meteogram-tick-font-size: 13px;

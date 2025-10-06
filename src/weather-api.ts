@@ -6,9 +6,8 @@ export interface ForecastData {
     time: Date[];
     temperature: (number | null)[];
     rain: number[];
-    rainMin: number[];
-    rainMax: number[];
-    snow: number[];
+    rainMin: (number | null)[];
+    rainMax: (number | null)[];
     cloudCover: number[];
     windSpeed: number[];
     windGust: (number | null)[];
@@ -139,7 +138,7 @@ export class WeatherAPI {
         return btoa(keyStr);
     }
 
-    // Clean up old cache entries (older than 24h)
+    // Clean up old cache entries (older than 24h) and validate data structures
     private static cleanupOldCacheEntries() {
         try {
             const cacheStr = localStorage.getItem('metno-weather-cache');
@@ -150,23 +149,52 @@ export class WeatherAPI {
             
             const now = Date.now();
             const twentyFourHours = 24 * 60 * 60 * 1000;
+            const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
             let removedCount = 0;
+            let invalidCount = 0;
             
-            // Remove entries older than 24h
+            // Remove old entries and validate data structures
             for (const [key, entry] of Object.entries(cacheObj["forecast-data"])) {
                 const entryData = entry as { expiresAt: number; data: ForecastData };
+                let shouldRemove = false;
+                
+                // Remove entries older than 24h past expiry
                 if (now - entryData.expiresAt > twentyFourHours) {
-                    delete cacheObj["forecast-data"][key];
+                    shouldRemove = true;
                     removedCount++;
+                }
+                // Validate data structure
+                else if (!entryData.data || typeof entryData.data !== 'object') {
+                    shouldRemove = true;
+                    invalidCount++;
+                }
+                // Check for missing required arrays
+                else {
+                    const missingArrays = requiredArrays.filter(prop => !Array.isArray(entryData.data[prop as keyof ForecastData]));
+                    if (missingArrays.length > 0) {
+                        shouldRemove = true;
+                        invalidCount++;
+                    }
+                }
+                
+                if (shouldRemove) {
+                    delete cacheObj["forecast-data"][key];
                 }
             }
             
-            if (removedCount > 0) {
+            if (removedCount > 0 || invalidCount > 0) {
                 localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
-                console.debug(`[WeatherAPI] Cleaned up ${removedCount} old cache entries from metno-weather-cache`);
+                console.debug(`[WeatherAPI] Cleaned up ${removedCount} old and ${invalidCount} invalid cache entries from metno-weather-cache`);
             }
         } catch (e) {
-            console.warn(`[WeatherAPI] Failed to cleanup old cache entries:`, e);
+            console.warn(`[WeatherAPI] Failed to cleanup cache entries, clearing entire cache:`, e);
+            // Clear corrupted cache entirely
+            try {
+                localStorage.removeItem('metno-weather-cache');
+                console.debug(`[WeatherAPI] Cleared corrupted metno-weather-cache`);
+            } catch (clearError) {
+                console.error(`[WeatherAPI] Failed to clear corrupted cache:`, clearError);
+            }
         }
     }
 
@@ -203,44 +231,87 @@ export class WeatherAPI {
     // Load forecast data from localStorage
     loadCacheFromStorage() {
         const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)), this.altitude !== undefined ? Number(this.altitude.toFixed(2)) : undefined);
-        const cacheStr = localStorage.getItem('metno-weather-cache');
-        if (cacheStr) {
-            let cacheObj: {
-                ["forecast-data"]?: Record<string, {
-                    expiresAt: number,
-                    data: ForecastData
-                }>
-            } = {};
-            try {
-                cacheObj = JSON.parse(cacheStr);
-            } catch {
-                cacheObj = {};
-            }
-            const entry = cacheObj["forecast-data"]?.[key];
-            if (entry && entry.expiresAt && entry.data) {
-                // Validate that cached data has all required array properties
-                const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'snow', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
-                const missingArrays = requiredArrays.filter(prop => !Array.isArray(entry.data[prop as keyof ForecastData]));
-                
-                if (missingArrays.length > 0) {
-                    console.warn(`[WeatherAPI] Cached data is missing required arrays: ${missingArrays.join(', ')}, clearing cache`);
+        let shouldCleanupCache = false;
+        
+        try {
+            const cacheStr = localStorage.getItem('metno-weather-cache');
+            if (cacheStr) {
+                let cacheObj: {
+                    ["forecast-data"]?: Record<string, {
+                        expiresAt: number,
+                        data: ForecastData
+                    }>
+                } = {};
+                try {
+                    cacheObj = JSON.parse(cacheStr);
+                } catch {
+                    console.warn(`[WeatherAPI] Corrupted cache JSON, clearing metno-weather-cache`);
+                    localStorage.removeItem('metno-weather-cache');
                     this._expiresAt = null;
                     this._forecastData = null;
                     return;
                 }
                 
-                this._expiresAt = entry.expiresAt;
-                // Restore Date objects in time array
-                if (Array.isArray(entry.data.time)) {
-                    entry.data.time = entry.data.time.map((t: string | Date) =>
-                        typeof t === "string" ? new Date(t) : t
-                    );
+                const entry = cacheObj["forecast-data"]?.[key];
+                if (entry && entry.expiresAt && entry.data) {
+                    // Check if cache entry is expired (older than 24h past expiresAt)
+                    const twentyFourHours = 24 * 60 * 60 * 1000;
+                    const now = Date.now();
+                    if (now - entry.expiresAt > twentyFourHours) {
+                        console.debug(`[WeatherAPI] Cached data for ${key} is too old (${Math.round((now - entry.expiresAt) / (60 * 60 * 1000))}h past expiry), removing from cache`);
+                        if (!cacheObj["forecast-data"]) cacheObj["forecast-data"] = {};
+                        delete cacheObj["forecast-data"][key];
+                        shouldCleanupCache = true;
+                        this._expiresAt = null;
+                        this._forecastData = null;
+                    } else {
+                        // Validate that cached data has all required array properties
+                        const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+                        const missingArrays = requiredArrays.filter(prop => !Array.isArray(entry.data[prop as keyof ForecastData]));
+                        
+                        if (missingArrays.length > 0) {
+                            console.warn(`[WeatherAPI] Cached data for ${key} is missing required arrays: ${missingArrays.join(', ')}, removing from cache`);
+                            if (!cacheObj["forecast-data"]) cacheObj["forecast-data"] = {};
+                            delete cacheObj["forecast-data"][key];
+                            shouldCleanupCache = true;
+                            this._expiresAt = null;
+                            this._forecastData = null;
+                        } else {
+                            this._expiresAt = entry.expiresAt;
+                            // Restore Date objects in time array
+                            if (Array.isArray(entry.data.time)) {
+                                entry.data.time = entry.data.time.map((t: string | Date) =>
+                                    typeof t === "string" ? new Date(t) : t
+                                );
+                            }
+                            this._forecastData = entry.data;
+                        }
+                    }
+                    
+                    // Save cleaned cache back to localStorage if changes were made
+                    if (shouldCleanupCache) {
+                        localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+                        console.debug(`[WeatherAPI] Updated cache structure for ${key}`);
+                    }
+                } else {
+                    this._expiresAt = null;
+                    this._forecastData = null;
                 }
-                this._forecastData = entry.data;
             } else {
                 this._expiresAt = null;
                 this._forecastData = null;
             }
+        } catch (e) {
+            console.warn(`[WeatherAPI] Failed to load cache:`, e);
+            // Clear corrupted cache entirely
+            try {
+                localStorage.removeItem('metno-weather-cache');
+                console.warn(`[WeatherAPI] Cleared corrupted metno-weather-cache due to error`);
+            } catch (cleanupError) {
+                console.error(`[WeatherAPI] Failed to clear corrupted cache:`, cleanupError);
+            }
+            this._expiresAt = null;
+            this._forecastData = null;
         }
     }
 
@@ -350,7 +421,6 @@ export class WeatherAPI {
                 rain: [],
                 rainMin: [],
                 rainMax: [],
-                snow: [],
                 cloudCover: [],
                 windSpeed: [],
                 windGust: [],
@@ -377,18 +447,16 @@ export class WeatherAPI {
                 result.pressure.push(instant.air_pressure_at_sea_level);
 
                 if (next1h) {
+                    // Only use actual min/max values if they exist, otherwise set to null
                     const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
-                        next1h.precipitation_amount_max :
-                        (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                        next1h.precipitation_amount_max : null;
 
                     const rainAmountMin = next1h.precipitation_amount_min !== undefined ?
-                        next1h.precipitation_amount_min :
-                        (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                        next1h.precipitation_amount_min : null;
 
                     result.rainMin.push(rainAmountMin);
                     result.rainMax.push(rainAmountMax);
                     result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-                    result.snow.push(0);
 
                     if (item.data.next_1_hours?.summary?.symbol_code) {
                         result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
@@ -401,9 +469,9 @@ export class WeatherAPI {
                     const rain6h = next6h.precipitation_amount !== undefined ? next6h.precipitation_amount : 0;
                     const rainPerHour = rain6h / 6;
                     result.rain.push(rainPerHour);
-                    result.rainMin.push(rainPerHour);
-                    result.rainMax.push(rainPerHour);
-                    result.snow.push(0);
+                    // 6h data doesn't have min/max ranges, so set to null
+                    result.rainMin.push(null);
+                    result.rainMax.push(null);
 
                     if (next6hSummary?.symbol_code) {
                         result.symbolCode.push(next6hSummary.symbol_code);
@@ -413,9 +481,8 @@ export class WeatherAPI {
                 } else {
                     // No precipitation data available
                     result.rain.push(0);
-                    result.rainMin.push(0);
-                    result.rainMax.push(0);
-                    result.snow.push(0);
+                    result.rainMin.push(null);
+                    result.rainMax.push(null);
                     result.symbolCode.push('');
                 }
             });

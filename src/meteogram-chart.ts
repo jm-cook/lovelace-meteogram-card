@@ -242,32 +242,32 @@ export class MeteogramChart {
         chart: any,
         rain: (number|null)[],
         rainMax: (number|null)[],
-        snow: (number|null)[],
         N: number,
         x: any,
         yPrecip: any,
         dx: number,
-        snowAvailable: boolean,
         legendX?: number,
         legendY?: number
     ) {
         const barWidth = dx * 0.8;
-        // Draw the max rain range bars first (if present)
+        // Draw the max rain range bars first (only for non-null values)
+        const rainMaxData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+        
         chart.selectAll(".rain-max-bar")
-            .data(rainMax.slice(0, N - 1))
+            .data(rainMaxData)
             .enter()
             .append("rect")
             .attr("class", "rain-max-bar")
-            .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-            .attr("y", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
+            .attr("x", (d: any) => x(d.index) + dx / 2 - barWidth / 2)
+            .attr("y", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
                 return yPrecip(0) - scaledH;
             })
             .attr("width", barWidth)
-            .attr("height", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                return h < 2 && d > 0 ? 2 : h * 0.7;
+            .attr("height", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                return h < 2 && d.value > 0 ? 2 : h * 0.7;
             })
             .attr("fill", "currentColor");
 
@@ -307,47 +307,29 @@ export class MeteogramChart {
             })
             .attr("opacity", (d: number) => d > 0 ? 1 : 0);
 
-        // Add max rain labels (show if max > rain)
+        // Add max rain labels (show if max > rain and max is not null)
+        const rainMaxLabelData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null);
+        
         chart.selectAll(".rain-max-label")
-            .data(rainMax.slice(0, N - 1))
+            .data(rainMaxLabelData)
             .enter()
             .append("text")
             .attr("class", "rain-max-label")
-            .attr("x", (_: number, i: number) => x(i) + dx / 2)
-            .attr("y", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+            .attr("x", (d: any) => x(d.index) + dx / 2)
+            .attr("y", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
                 return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
             })
-            .text((d: number, i: number) => {
-                const rainValue = rain?.[i] ?? 0;
-                if (d <= rainValue) return "";
-                return d < 1 ? d.toFixed(1) : d.toFixed(0);
+            .text((d: any) => {
+                const rainValue = rain?.[d.index] ?? 0;
+                if (d.value <= rainValue) return "";
+                return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
             })
-            .attr("opacity", (d: number, i: number) => {
-                const rainValue = rain?.[i] ?? 0;
-                return (d > rainValue) ? 1 : 0;
+            .attr("opacity", (d: any) => {
+                const rainValue = rain?.[d.index] ?? 0;
+                return (d.value > rainValue) ? 1 : 0;
             });
-
-        // Draw snow bars with a different style if present
-        if (snowAvailable) {
-            chart.selectAll(".snow-bar")
-                .data(snow.slice(0, N - 1))
-                .enter().append("rect")
-                .attr("class", "snow-bar")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                .attr("y", (d: number) => {
-                    const h = this.card._chartHeight - yPrecip(d);
-                    const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
-                    return yPrecip(0) - scaledH; // 18px above the top of the max bar
-                })
-                .attr("width", barWidth)
-                .attr("height", (d: number) => {
-                    const h = this.card._chartHeight - yPrecip(d);
-                    return h < 2 && d > 0 ? 2 : h * 0.7;
-                })
-                .attr("fill", "currentColor");
-        }
 
         // Add precipitation legend if coordinates are provided
         if (legendX !== undefined && legendY !== undefined) {

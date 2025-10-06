@@ -144,13 +144,6 @@ export const meteogramCardStyles = css`
         fill: var(--meteogram-rain-bar-color, deepskyblue);
     }
 
-    .legend-snow {
-        fill: var(--meteogram-snow-bar-color, #b3e6ff);
-    }
-    :host([dark]) .legend-snow {
-        fill: var(--meteogram-snow-bar-color, #e0f7fa);
-    }
-
     .legend-cloud {
         fill: var(--meteogram-cloud-color, #b0bec5);
     }

@@ -673,8 +673,14 @@ export class MeteogramCard extends LitElement {
 
   // Handle document visibility changes (browser tab switching)
   private _onVisibilityChange = () => {
-    if (!document.hidden && this.isConnected) {
-      this._handleVisibilityChange();
+    if (document.hidden) {
+      // Tab became hidden - pause subscription to save resources
+      this._pauseWeatherSubscription("tab hidden");
+    } else if (this.isConnected) {
+      // Tab became visible - resume subscription and check for fresh data
+      this._resumeWeatherSubscription("tab visible").then(() => {
+        this._handleVisibilityChange();
+      });
     }
   };
 
@@ -696,7 +702,15 @@ export class MeteogramCard extends LitElement {
 
   // Central handler for visibility changes
   private _handleVisibilityChange() {
-    if (this._isElementVisible()) {
+    const isVisible = this._isElementVisible();
+    
+    if (isVisible) {
+      // Element became visible - ensure subscription is active
+      if (this._weatherEntityApiInstance && !this._weatherEntityApiInstance.isSubscriptionActive()) {
+        console.debug(`[${CARD_NAME}] Element became visible, resuming subscription`);
+        this._resumeWeatherSubscription("element visible");
+      }
+      
       const chartDiv = this.shadowRoot?.querySelector("#chart");
       const svgExists = chartDiv?.querySelector("svg");
       const chartIsVisible =
@@ -723,6 +737,9 @@ export class MeteogramCard extends LitElement {
           this._scheduleDrawMeteogram("_handleVisibilityChange")
         );
       }
+    } else {
+      // Element became invisible - pause subscription to save resources
+      this._pauseWeatherSubscription("element hidden");
     }
   }
 
@@ -824,6 +841,27 @@ export class MeteogramCard extends LitElement {
       console.debug(
         `[${CARD_NAME}] _onResizeEnd: no significant size change since last render, skipping redraw.`
       );
+    }
+  }
+
+  // Pause weather entity subscription when tab becomes hidden
+  private _pauseWeatherSubscription(from: string): void {
+    if (this._weatherEntityApiInstance && this._weatherEntityApiInstance.isSubscriptionActive()) {
+      console.debug(`[${CARD_NAME}] Pausing weather subscription from: ${from}`);
+      this._weatherEntityApiInstance.pause(from);
+    }
+  }
+
+  // Resume weather entity subscription when tab becomes visible
+  private async _resumeWeatherSubscription(from: string): Promise<void> {
+    if (this._weatherEntityApiInstance && !this._weatherEntityApiInstance.isSubscriptionActive()) {
+      console.debug(`[${CARD_NAME}] Resuming weather subscription from: ${from}`);
+      try {
+        await this._weatherEntityApiInstance.resume(from);
+        console.debug(`[${CARD_NAME}] Weather subscription resumed successfully from: ${from}`);
+      } catch (error) {
+        console.error(`[${CARD_NAME}] Failed to resume weather subscription from: ${from}:`, error);
+      }
     }
   }
 
@@ -1306,7 +1344,6 @@ export class MeteogramCard extends LitElement {
           "rain",
           "rainMin",
           "rainMax",
-          "snow",
           "cloudCover",
           "windSpeed",
           "windDirection",
@@ -1388,7 +1425,6 @@ export class MeteogramCard extends LitElement {
       "rain",
       "rainMin",
       "rainMax",
-      "snow",
       "cloudCover",
       "windSpeed",
       "windDirection",
@@ -1655,7 +1691,7 @@ export class MeteogramCard extends LitElement {
           return arr.slice(0, Math.min(hours, arr.length) + 1);
         };
         // Debug: Check which properties might be undefined
-        const dataProperties = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'snow', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+        const dataProperties = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
         const undefinedProps = dataProperties.filter(prop => !(data as any)[prop] || !Array.isArray((data as any)[prop]));
         if (undefinedProps.length > 0) {
           console.warn(`[${CARD_NAME}] ForecastData has undefined/non-array properties:`, undefinedProps);
@@ -1668,7 +1704,6 @@ export class MeteogramCard extends LitElement {
           rain: sliceData(data.rain),
           rainMin: sliceData(data.rainMin),
           rainMax: sliceData(data.rainMax),
-          snow: sliceData(data.snow),
           cloudCover: sliceData(data.cloudCover),
           windSpeed: sliceData(data.windSpeed),
           windGust: sliceData(data.windGust),
@@ -1834,7 +1869,6 @@ export class MeteogramCard extends LitElement {
       rain,
       rainMin,
       rainMax,
-      snow,
       cloudCover,
       windSpeed,
       windGust,
@@ -1855,7 +1889,6 @@ export class MeteogramCard extends LitElement {
     let rainConverted: (number | null)[];
     let rainMinConverted: (number | null)[];
     let rainMaxConverted: (number | null)[];
-    let snowConverted: (number | null)[];
     let windGustConverted: (number | null)[];
     windDirection.some((d) => d !== null);
     if (!this.entityId || this.entityId === "none") {
@@ -1864,9 +1897,8 @@ export class MeteogramCard extends LitElement {
       windSpeedConverted = windSpeed.map((w) => this.convertWindSpeed(w));
       windGustConverted = windGust.map((w) => this.convertWindSpeed(w));
       rainConverted = rain.map((r) => this.convertPrecipitation(r ?? 0));
-      rainMinConverted = rainMin.map((r) => this.convertPrecipitation(r ?? 0));
-      rainMaxConverted = rainMax.map((r) => this.convertPrecipitation(r ?? 0));
-      snowConverted = snow.map((s) => this.convertPrecipitation(s ?? 0));
+      rainMinConverted = rainMin.map((r) => r !== null ? this.convertPrecipitation(r) : null);
+      rainMaxConverted = rainMax.map((r) => r !== null ? this.convertPrecipitation(r) : null);
     } else {
       temperatureConverted = temperature;
       pressureConverted = pressure;
@@ -1875,22 +1907,16 @@ export class MeteogramCard extends LitElement {
       rainConverted = rain;
       rainMinConverted = rainMin;
       rainMaxConverted = rainMax;
-      snowConverted = snow;
     }
     // Safely handle null values in arrays for calculations
     const nonNullRain = rainConverted.map((r) => r ?? 0);
     const nonNullRainMax = rainMaxConverted.map((r) => r ?? 0);
-    const nonNullSnow = snowConverted.map((s) => s ?? 0);
 
     const pressureAvailable =
       this.showPressure && pressure && pressure.length > 0;
     // windAvailable is now passed as an argument from _renderChart
     const cloudAvailable =
       this.showCloudCover && cloudCover && cloudCover.length > 0;
-    const snowAvailable =
-      snow &&
-      snow.length > 0 &&
-      snow.some((s) => typeof s === "number" && !isNaN(s) && s > 0);
     // Define enabledLegends array based on which chart elements are enabled
     type LegendInfo = { class: string; label: string };
     const enabledLegends: LegendInfo[] = [];
@@ -2019,7 +2045,7 @@ export class MeteogramCard extends LitElement {
     // Precipitation Y scale
     const yPrecip = d3
       .scaleLinear()
-      .domain([0, Math.max(2, d3.max([...rainMax, ...rain, ...snow]) + 1)])
+      .domain([0, Math.max(2, d3.max([...rainMax, ...rain]) + 1)])
       .range([this._chartHeight, 0]); // <-- FIXED: range goes from this._chartHeight (bottom) to 0 (top)
 
     // Pressure Y scale - we'll use the right side of the chart
@@ -2159,12 +2185,10 @@ export class MeteogramCard extends LitElement {
           chart,
           rainConverted,
           rainMaxConverted,
-          snowConverted,
           N,
           x,
           yPrecip,
           dx,
-          snowAvailable,
           legendPos.x,
           legendPos.y
         );
@@ -2173,12 +2197,10 @@ export class MeteogramCard extends LitElement {
           chart,
           rainConverted,
           rainMaxConverted,
-          snowConverted,
           N,
           x,
           yPrecip,
-          dx,
-          snowAvailable
+          dx
         );
       }
     }
@@ -2935,50 +2957,116 @@ export class MeteogramCard extends LitElement {
       // Clean up MET.no weather cache
       const cacheStr = localStorage.getItem('metno-weather-cache');
       if (cacheStr) {
-        const cacheObj = JSON.parse(cacheStr);
-        if (cacheObj["forecast-data"]) {
-          const now = Date.now();
-          const twentyFourHours = 24 * 60 * 60 * 1000;
-          let removedCount = 0;
-          
-          for (const [key, entry] of Object.entries(cacheObj["forecast-data"])) {
-            const entryData = entry as { expiresAt: number; data: any };
-            if (now - entryData.expiresAt > twentyFourHours) {
-              delete cacheObj["forecast-data"][key];
-              removedCount++;
+        try {
+          const cacheObj = JSON.parse(cacheStr);
+          if (cacheObj["forecast-data"]) {
+            const now = Date.now();
+            const twentyFourHours = 24 * 60 * 60 * 1000;
+            const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+            let removedCount = 0;
+            let invalidCount = 0;
+            
+            for (const [key, entry] of Object.entries(cacheObj["forecast-data"])) {
+              const entryData = entry as { expiresAt: number; data: any };
+              let shouldRemove = false;
+              
+              // Remove entries older than 24h past expiry
+              if (now - entryData.expiresAt > twentyFourHours) {
+                shouldRemove = true;
+                removedCount++;
+              }
+              // Validate data structure
+              else if (!entryData.data || typeof entryData.data !== 'object') {
+                shouldRemove = true;
+                invalidCount++;
+              }
+              // Check for missing required arrays
+              else {
+                const missingArrays = requiredArrays.filter(prop => !Array.isArray(entryData.data[prop]));
+                if (missingArrays.length > 0) {
+                  shouldRemove = true;
+                  invalidCount++;
+                }
+              }
+              
+              if (shouldRemove) {
+                delete cacheObj["forecast-data"][key];
+              }
+            }
+            
+            if (removedCount > 0 || invalidCount > 0) {
+              localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+              console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old and ${invalidCount} invalid MET.no cache entries`);
             }
           }
-          
-          if (removedCount > 0) {
-            localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
-            console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old MET.no cache entries`);
-          }
+        } catch (e) {
+          console.warn(`[${CARD_NAME}] Corrupted MET.no cache during startup cleanup, clearing:`, e);
+          localStorage.removeItem('metno-weather-cache');
         }
       }
 
       // Clean up entity cache
       const entityCacheStr = localStorage.getItem('meteogram-card-entity-weather-cache');
       if (entityCacheStr) {
-        const entityCache = JSON.parse(entityCacheStr);
-        const now = Date.now();
-        const twentyFourHours = 24 * 60 * 60 * 1000;
-        let removedCount = 0;
-        
-        for (const [entityId, entry] of Object.entries(entityCache)) {
-          // Handle both old format (direct data) and new format (with timestamp)
-          if (entry && typeof entry === 'object' && 'timestamp' in entry) {
-            const entryData = entry as { timestamp: number; data: any };
-            if (now - entryData.timestamp > twentyFourHours) {
+        try {
+          const entityCache = JSON.parse(entityCacheStr);
+          const now = Date.now();
+          const twentyFourHours = 24 * 60 * 60 * 1000;
+          const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+          let removedCount = 0;
+          let invalidCount = 0;
+          
+          for (const [entityId, entry] of Object.entries(entityCache)) {
+            let shouldRemove = false;
+            
+            // Handle both old format (direct data) and new format (with timestamp)
+            if (entry && typeof entry === 'object' && 'timestamp' in entry) {
+              const entryData = entry as { timestamp: number; data: any };
+              
+              // Remove entries older than 24h
+              if (now - entryData.timestamp > twentyFourHours) {
+                shouldRemove = true;
+                removedCount++;
+              }
+              // Validate data structure
+              else if (!entryData.data || typeof entryData.data !== 'object') {
+                shouldRemove = true;
+                invalidCount++;
+              }
+              // Check for missing required arrays
+              else {
+                const missingArrays = requiredArrays.filter(prop => !Array.isArray(entryData.data[prop]));
+                if (missingArrays.length > 0) {
+                  shouldRemove = true;
+                  invalidCount++;
+                }
+              }
+            } else if (entry && typeof entry === 'object') {
+              // Old format - validate structure
+              const missingArrays = requiredArrays.filter(prop => !Array.isArray((entry as any)[prop]));
+              if (missingArrays.length > 0) {
+                shouldRemove = true;
+                invalidCount++;
+              }
+              // Keep valid old format entries for backward compatibility - they'll be converted on next save
+            } else {
+              // Corrupted entry - remove it
+              shouldRemove = true;
+              invalidCount++;
+            }
+            
+            if (shouldRemove) {
               delete entityCache[entityId];
-              removedCount++;
             }
           }
-          // Keep old format entries for backward compatibility, but they'll be cleaned up on next save
-        }
-        
-        if (removedCount > 0) {
-          localStorage.setItem('meteogram-card-entity-weather-cache', JSON.stringify(entityCache));
-          console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old entity cache entries`);
+          
+          if (removedCount > 0 || invalidCount > 0) {
+            localStorage.setItem('meteogram-card-entity-weather-cache', JSON.stringify(entityCache));
+            console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old and ${invalidCount} invalid entity cache entries`);
+          }
+        } catch (e) {
+          console.warn(`[${CARD_NAME}] Corrupted entity cache during startup cleanup, clearing:`, e);
+          localStorage.removeItem('meteogram-card-entity-weather-cache');
         }
       }
 
