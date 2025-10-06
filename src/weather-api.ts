@@ -111,6 +111,25 @@ export class WeatherAPI {
         return diag;
     }
 
+    getDiagnosticInfo(): any {
+        return {
+            apiType: 'MET.no Weather API',
+            hasData: !!this._forecastData,
+            dataTimeLength: this._forecastData?.time?.length || 0,
+            lastFetchTime: this._lastFetchTime ? new Date(this._lastFetchTime).toISOString() : 'never',
+            lastFetchFormatted: this._lastFetchTime ? new Date(this._lastFetchTime).toLocaleString() : 'not yet fetched',
+            dataAgeMinutes: this._lastFetchTime ? Math.round((Date.now() - this._lastFetchTime) / (60 * 1000)) : 'n/a',
+            expiresAt: this._expiresAt,
+            expiresAtFormatted: this._expiresAt ? new Date(this._expiresAt).toLocaleString() : 'not set',
+            isExpired: this._expiresAt ? Date.now() > this._expiresAt : false,
+            location: {
+                lat: this.lat,
+                lon: this.lon,
+                altitude: this.altitude
+            }
+        };
+    }
+
     // Helper to encode cache key as base64 of str(lat)+str(lon)+str(altitude)
     private static encodeCacheKey(lat: number, lon: number, altitude?: number): string {
         let keyStr = String(lat) + "," + String(lon);

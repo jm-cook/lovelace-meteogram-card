@@ -1167,6 +1167,18 @@ export class MeteogramCard extends LitElement {
     ) {
       // Always fetch fresh data from the entity, not from any cache
       const entityData = this._weatherEntityApiInstance.getForecastData();
+      
+      // Update status fields for entity data (similar to API data)
+      const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+      if (diag.inMemoryData.lastFetchFormatted !== 'not yet fetched') {
+        // Use pre-formatted version to avoid double formatting
+        this._statusLastFetch = diag.inMemoryData.lastFetchFormatted;
+      }
+      if (diag.inMemoryData.expiresAt) {
+        this._statusExpiresAt = new Date(diag.inMemoryData.expiresAt).toISOString();
+        this.apiExpiresAt = diag.inMemoryData.expiresAt; // Update main apiExpiresAt field
+      }
+      
       // Retrieve attribution from entity if available
       let entityAttribution: string | null = null;
       if (
@@ -2449,6 +2461,54 @@ export class MeteogramCard extends LitElement {
                     <br>Some supported features cannot be plotted because the required data is not provided.</div>`
                         : ""
                     }
+                    ${
+                      (() => {
+                        let debugInfo = '';
+                        
+                        // Show Entity API debug info when using entity
+                        if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
+                          const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+                          const expiryColor = diag.inMemoryData.isExpired ? '#f44336' : '#4caf50';
+                          debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
+                            <b>📱 Entity API:</b> ${diag.entityExists ? '✅' : '❌'} ${diag.entityState || 'unknown'} | <b>Last Updated:</b> ${diag.entityLastUpdated ? new Date(diag.entityLastUpdated).toLocaleString() : 'unknown'}<br>
+                            <b>Subscription:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Connection:</b> ${diag.hasConnection ? '✅' : '❌'}<br>
+                            <b>Last Data Fetch:</b> ${diag.inMemoryData.lastFetchFormatted} | <b>Age:</b> ${diag.inMemoryData.dataAgeMinutes} min<br>
+                            <b>Data Expires:</b> <span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted} ${diag.inMemoryData.isExpired ? '(EXPIRED)' : ''}</span><br>
+                            <b>Hourly Data:</b> ${diag.hourlyForecastData.status}
+                          </div>`;
+                        }
+                        // Show Weather API debug info when NOT using entity (coordinates mode)  
+                        else {
+                          console.debug('[MeteogramCard] Checking Weather API diagnostic conditions:', {
+                            hasEntityId: !!(this.entityId && this.entityId !== "none"),
+                            hasEntityInstance: !!this._weatherEntityApiInstance,
+                            hasWeatherApiInstance: !!this._weatherApiInstance,
+                            entityId: this.entityId
+                          });
+                          
+                          if (this._weatherApiInstance) {
+                            console.debug('[MeteogramCard] Showing Weather API diagnostic info');
+                            try {
+                              const apiDiag = this._weatherApiInstance.getDiagnosticInfo();
+                              const apiExpiryColor = apiDiag.isExpired ? '#f44336' : '#4caf50';
+                              debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
+                                <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
+                                <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
+                                <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
+                                <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
+                              </div>`;
+                            } catch (error) {
+                              console.error('[MeteogramCard] Error getting Weather API diagnostic info:', error);
+                              debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>Weather API diagnostic error: ${error}</div>`;
+                            }
+                          } else {
+                            debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>No diagnostic info available</div>`;
+                          }
+                        }
+                        
+                        return debugInfo;
+                      })()
+                    }
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard.meteogramCardVersion}</div>
                 </div>
@@ -2468,6 +2528,33 @@ export class MeteogramCard extends LitElement {
                           )}</div>`
                         : ""
                     }
+                    ${(() => {
+                      // Weather API diagnostic info for coordinates mode
+                      console.debug('[MeteogramCard] Coordinates mode - checking Weather API diagnostic conditions:', {
+                        hasWeatherApiInstance: !!this._weatherApiInstance,
+                        entityId: this.entityId
+                      });
+                      
+                      if (this._weatherApiInstance) {
+                        console.debug('[MeteogramCard] Showing Weather API diagnostic info for coordinates mode');
+                        try {
+                          const apiDiag = this._weatherApiInstance.getDiagnosticInfo();
+                          const apiExpiryColor = apiDiag.isExpired ? '#f44336' : '#4caf50';
+                          return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
+                            <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
+                            <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
+                            <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
+                            <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
+                          </div>`;
+                        } catch (error) {
+                          console.error('[MeteogramCard] Error getting Weather API diagnostic info:', error);
+                          return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>Weather API diagnostic error: ${error}</div>`;
+                        }
+                      } else {
+                        console.debug('[MeteogramCard] No Weather API instance available');
+                        return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>No Weather API diagnostic info available</div>`;
+                      }
+                    })()}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard.meteogramCardVersion}</div>
                 </div>
@@ -2542,9 +2629,25 @@ export class MeteogramCard extends LitElement {
                                 "Expires At"
                               )}
                               :
-                              ${this.apiExpiresAt
-                                ? new Date(this.apiExpiresAt).toISOString()
-                                : "unknown"}</span
+                              ${(() => {
+                                // Use entity diagnostic data if available, otherwise fall back to API data
+                                if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
+                                  const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+                                  const expiryColor = diag.inMemoryData.isExpired ? '#f44336' : '#4caf50';
+                                  if (diag.inMemoryData.expiresAtFormatted !== 'not set') {
+                                    return html`<span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted}${diag.inMemoryData.isExpired ? ' (EXPIRED)' : ''}</span>`;
+                                  } else {
+                                    return 'not set';
+                                  }
+                                } else if (this.apiExpiresAt) {
+                                  const isExpired = Date.now() > this.apiExpiresAt;
+                                  const color = isExpired ? '#f44336' : '#4caf50';
+                                  const status = isExpired ? ' (EXPIRED)' : '';
+                                  return html`<span style="color:${color}">${new Date(this.apiExpiresAt).toLocaleString()}${status}</span>`;
+                                } else {
+                                  return "not available";
+                                }
+                              })()}</span
                             ><br />
                             <span
                               >${trnslt(
@@ -2560,7 +2663,17 @@ export class MeteogramCard extends LitElement {
                                 "ui.card.meteogram.status.last_data_fetch",
                                 "Last Data Fetch"
                               )}
-                              : ${this._statusLastFetch || "unknown"}</span
+                              : ${(() => {
+                                // Use entity diagnostic data if available, otherwise fall back to API data
+                                if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
+                                  const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+                                  return diag.inMemoryData.lastFetchFormatted;
+                                } else {
+                                  return this._statusLastFetch 
+                                    ? (this._statusLastFetch.includes('T') ? new Date(this._statusLastFetch).toLocaleString() : this._statusLastFetch)
+                                    : "not available";
+                                }
+                              })()}</span
                             >
                           </div>
                           <div>
@@ -2609,6 +2722,17 @@ export class MeteogramCard extends LitElement {
                             <span>${successTooltip}</span>
                           </div>
                         </div>
+                        ${this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance && !this.diagnostics
+                          ? (() => {
+                              const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+                              return html`
+                                <div style="margin-top:6px; padding-top:6px; border-top:1px solid #ddd; font-size:0.83em;">
+                                  <b>Last data fetch:</b> ${diag.inMemoryData.lastFetchFormatted}<br>
+                                  <b>Entity:</b> ${diag.entityExists ? '✅' : '❌'} ${this.entityId.split('.')[1]} | <b>Sub:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Hourly:</b> ${diag.hourlyForecastData.processedLength}
+                                </div>
+                              `;
+                            })()
+                          : ""}
                       </div>
                     `
                   : ""}

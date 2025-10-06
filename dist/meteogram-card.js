@@ -1,4 +1,4 @@
-var version = "3.0.2-beta0";
+var version = "3.1.4-beta0";
 
 const CARD_NAME = "Meteogram Card";
 const METEOGRAM_CARD_STARTUP_TIME = new Date();
@@ -1160,6 +1160,25 @@ class WeatherAPI {
         diag += `Client type: <code>${navigator.userAgent}</code><br>`;
         return diag;
     }
+    getDiagnosticInfo() {
+        var _a, _b;
+        return {
+            apiType: 'MET.no Weather API',
+            hasData: !!this._forecastData,
+            dataTimeLength: ((_b = (_a = this._forecastData) === null || _a === void 0 ? void 0 : _a.time) === null || _b === void 0 ? void 0 : _b.length) || 0,
+            lastFetchTime: this._lastFetchTime ? new Date(this._lastFetchTime).toISOString() : 'never',
+            lastFetchFormatted: this._lastFetchTime ? new Date(this._lastFetchTime).toLocaleString() : 'not yet fetched',
+            dataAgeMinutes: this._lastFetchTime ? Math.round((Date.now() - this._lastFetchTime) / (60 * 1000)) : 'n/a',
+            expiresAt: this._expiresAt,
+            expiresAtFormatted: this._expiresAt ? new Date(this._expiresAt).toLocaleString() : 'not set',
+            isExpired: this._expiresAt ? Date.now() > this._expiresAt : false,
+            location: {
+                lat: this.lat,
+                lon: this.lon,
+                altitude: this.altitude
+            }
+        };
+    }
     // Helper to encode cache key as base64 of str(lat)+str(lon)+str(altitude)
     static encodeCacheKey(lat, lon, altitude) {
         let keyStr = String(lat) + "," + String(lon);
@@ -1455,10 +1474,20 @@ class WeatherEntityAPI {
         if (this.hass && this.entityId) {
             // console.debug(`[WeatherEntityAPI] from ${from} Subscribing to forecast updates for ${this.entityId}`);
             this.subscribeForecast((forecastArr) => {
-                var _a, _b;
+                var _a, _b, _c, _d, _e, _f, _g, _h;
+                console.debug(`[WeatherEntityAPI] 🔔 Subscription update received for ${this.entityId}:`, {
+                    forecastLength: (forecastArr === null || forecastArr === void 0 ? void 0 : forecastArr.length) || 0,
+                    firstItem: forecastArr === null || forecastArr === void 0 ? void 0 : forecastArr[0],
+                    updateTime: new Date().toISOString()
+                });
                 this._forecastData = this._parseForecastArray(forecastArr);
                 this._lastDataFetch = Date.now(); // Update fetch timestamp
-                console.debug(`[WeatherEntityAPI] from ${from} subscribeForecast: stored fresh ForecastData for ${this.entityId}`, (_b = (_a = this._forecastData) === null || _a === void 0 ? void 0 : _a.time) === null || _b === void 0 ? void 0 : _b.length);
+                console.debug(`[WeatherEntityAPI] ⏰ Updated _lastDataFetch to: ${new Date(this._lastDataFetch).toLocaleString()}`);
+                console.debug(`[WeatherEntityAPI] ✅ Subscription data processed for ${this.entityId}:`, {
+                    parsedTimeLength: ((_b = (_a = this._forecastData) === null || _a === void 0 ? void 0 : _a.time) === null || _b === void 0 ? void 0 : _b.length) || 0,
+                    firstTime: ((_e = (_d = (_c = this._forecastData) === null || _c === void 0 ? void 0 : _c.time) === null || _d === void 0 ? void 0 : _d[0]) === null || _e === void 0 ? void 0 : _e.toISOString()) || 'none',
+                    lastTime: ((_h = (_g = (_f = this._forecastData) === null || _f === void 0 ? void 0 : _f.time) === null || _g === void 0 ? void 0 : _g[this._forecastData.time.length - 1]) === null || _h === void 0 ? void 0 : _h.toISOString()) || 'none'
+                });
                 // Force chart update by dispatching a custom event
                 const card = document.querySelector('meteogram-card');
                 if (card && typeof card._scheduleDrawMeteogram === "function") {
@@ -1466,6 +1495,9 @@ class WeatherEntityAPI {
                 }
             }).then(unsub => {
                 this._unsubForecast = unsub;
+                console.debug(`[WeatherEntityAPI] ✅ Subscription established successfully for ${this.entityId}`);
+            }).catch(error => {
+                console.error(`[WeatherEntityAPI] ❌ Subscription failed for ${this.entityId}:`, error);
             });
         }
     }
@@ -1483,6 +1515,43 @@ class WeatherEntityAPI {
         if (removedCount > 0) {
             console.debug(`[WeatherEntityAPI] Cleaned up ${removedCount} old entity cache entries`);
         }
+    }
+    // Diagnostic method to check entity and subscription status
+    getDiagnosticInfo() {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+        const entity = this.hass.states[this.entityId];
+        const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+        const expiresAt = this._lastDataFetch ? this._lastDataFetch + oneHour : null;
+        return {
+            entityId: this.entityId,
+            entityExists: !!entity,
+            entityState: entity === null || entity === void 0 ? void 0 : entity.state,
+            entityLastChanged: entity === null || entity === void 0 ? void 0 : entity.last_changed,
+            entityLastUpdated: entity === null || entity === void 0 ? void 0 : entity.last_updated,
+            hasForecastAttribute: !!((_a = entity === null || entity === void 0 ? void 0 : entity.attributes) === null || _a === void 0 ? void 0 : _a.forecast),
+            hourlyForecastData: {
+                // Check processed data first, then fall back to entity attributes
+                processedLength: ((_c = (_b = this._forecastData) === null || _b === void 0 ? void 0 : _b.time) === null || _c === void 0 ? void 0 : _c.length) || 0,
+                entityRawLength: Array.isArray((_d = entity === null || entity === void 0 ? void 0 : entity.attributes) === null || _d === void 0 ? void 0 : _d.forecast) ? entity.attributes.forecast.length : 0,
+                status: ((_f = (_e = this._forecastData) === null || _e === void 0 ? void 0 : _e.time) === null || _f === void 0 ? void 0 : _f.length)
+                    ? `${this._forecastData.time.length} processed entries`
+                    : Array.isArray((_g = entity === null || entity === void 0 ? void 0 : entity.attributes) === null || _g === void 0 ? void 0 : _g.forecast)
+                        ? `${entity.attributes.forecast.length} raw entries (processing...)`
+                        : ((_h = entity === null || entity === void 0 ? void 0 : entity.attributes) === null || _h === void 0 ? void 0 : _h.forecast) ? 'invalid format' : 'no forecast attribute'
+            },
+            hasSubscription: !!this._unsubForecast,
+            hasConnection: !!((_j = this.hass) === null || _j === void 0 ? void 0 : _j.connection),
+            inMemoryData: {
+                hasData: !!this._forecastData,
+                dataTimeLength: ((_l = (_k = this._forecastData) === null || _k === void 0 ? void 0 : _k.time) === null || _l === void 0 ? void 0 : _l.length) || 0,
+                lastFetchTime: this._lastDataFetch ? new Date(this._lastDataFetch).toISOString() : 'never',
+                lastFetchFormatted: this._lastDataFetch ? new Date(this._lastDataFetch).toLocaleString() : 'not yet fetched',
+                dataAgeMinutes: this._lastDataFetch ? Math.round((Date.now() - this._lastDataFetch) / (60 * 1000)) : 'n/a',
+                expiresAt: expiresAt,
+                expiresAtFormatted: expiresAt ? new Date(expiresAt).toLocaleString() : 'not set',
+                isExpired: expiresAt ? Date.now() > expiresAt : false
+            }
+        };
     }
     _parseForecastArray(forecast) {
         // Try to get units from the entity attributes if available
@@ -1610,24 +1679,54 @@ class WeatherEntityAPI {
     }
     // Fetch fresh data directly from the entity (not from cache)
     _fetchFreshEntityData() {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
         console.debug(`[WeatherEntityAPI] _fetchFreshEntityData called for entityId=${this.entityId}`);
         const entity = this.hass.states[this.entityId];
         if (!entity) {
-            console.debug(`[WeatherEntityAPI] Entity not found: ${this.entityId}`);
+            console.debug(`[WeatherEntityAPI] ❌ Entity not found in hass.states: ${this.entityId}`);
+            console.debug(`[WeatherEntityAPI] Available entities:`, Object.keys(this.hass.states || {}).filter(id => id.includes('weather')));
             return;
         }
+        // Debug: Log entity state info
+        console.debug(`[WeatherEntityAPI] Entity found for ${this.entityId}:`, {
+            state: entity.state,
+            lastChanged: entity.last_changed,
+            lastUpdated: entity.last_updated,
+            hasAttributes: !!entity.attributes,
+            hasForecast: !!((_a = entity.attributes) === null || _a === void 0 ? void 0 : _a.forecast),
+            forecastLength: Array.isArray((_b = entity.attributes) === null || _b === void 0 ? void 0 : _b.forecast) ? entity.attributes.forecast.length : 'not array'
+        });
         if (!entity.attributes) {
-            console.debug(`[WeatherEntityAPI] Entity has no attributes: ${this.entityId}`);
+            console.debug(`[WeatherEntityAPI] ❌ Entity has no attributes: ${this.entityId}`);
             return;
         }
         if (!Array.isArray(entity.attributes.forecast)) {
-            console.debug(`[WeatherEntityAPI] Entity forecast attribute is not an array:`, entity.attributes.forecast);
+            console.debug(`[WeatherEntityAPI] ❌ Entity forecast attribute is not an array:`, {
+                forecastType: typeof entity.attributes.forecast,
+                forecastValue: entity.attributes.forecast
+            });
             return;
         }
+        // Check if forecast data looks fresh by examining timestamps
+        const forecast = entity.attributes.forecast;
+        const firstForecastTime = ((_c = forecast[0]) === null || _c === void 0 ? void 0 : _c.datetime) || ((_d = forecast[0]) === null || _d === void 0 ? void 0 : _d.time);
+        const lastForecastTime = ((_e = forecast[forecast.length - 1]) === null || _e === void 0 ? void 0 : _e.datetime) || ((_f = forecast[forecast.length - 1]) === null || _f === void 0 ? void 0 : _f.time);
+        console.debug(`[WeatherEntityAPI] Entity forecast data for ${this.entityId}:`, {
+            length: forecast.length,
+            firstTime: firstForecastTime,
+            lastTime: lastForecastTime,
+            entityLastUpdated: entity.last_updated,
+            sampleForecastItem: forecast[0]
+        });
         // Parse and store fresh data
         this._forecastData = this._parseForecastArray(entity.attributes.forecast);
         this._lastDataFetch = Date.now(); // Update fetch timestamp
-        console.debug(`[WeatherEntityAPI] Fresh data fetched for ${this.entityId}, forecast length: ${entity.attributes.forecast.length}`);
+        console.debug(`[WeatherEntityAPI] ✅ Fresh data fetched for ${this.entityId}:`, {
+            forecastLength: entity.attributes.forecast.length,
+            parsedTimeLength: ((_h = (_g = this._forecastData) === null || _g === void 0 ? void 0 : _g.time) === null || _h === void 0 ? void 0 : _h.length) || 0,
+            firstParsedTime: ((_l = (_k = (_j = this._forecastData) === null || _j === void 0 ? void 0 : _j.time) === null || _k === void 0 ? void 0 : _k[0]) === null || _l === void 0 ? void 0 : _l.toISOString()) || 'none',
+            lastParsedTime: ((_p = (_o = (_m = this._forecastData) === null || _m === void 0 ? void 0 : _m.time) === null || _o === void 0 ? void 0 : _o[this._forecastData.time.length - 1]) === null || _p === void 0 ? void 0 : _p.toISOString()) || 'none'
+        });
     }
     getForecast() {
         var _a;
@@ -1650,18 +1749,28 @@ class WeatherEntityAPI {
      */
     subscribeForecast(callback) {
         var _a;
-        console.debug(`[WeatherEntityAPI] subscribeForecast called for entityId=${this.entityId}`);
+        console.debug(`[WeatherEntityAPI] 📡 Setting up subscription for entityId=${this.entityId}`);
         if (!((_a = this.hass) === null || _a === void 0 ? void 0 : _a.connection)) {
-            // console.debug(`[WeatherEntityAPI] subscribeForecast: hass.connection not available`);
+            console.warn(`[WeatherEntityAPI] ❌ Cannot subscribe: hass.connection not available for ${this.entityId}`);
             return Promise.resolve(() => { });
         }
+        console.debug(`[WeatherEntityAPI] ✅ hass.connection available, creating subscription for ${this.entityId}`);
         const unsubPromise = this.hass.connection.subscribeMessage((event) => {
+            var _a;
+            console.debug(`[WeatherEntityAPI] 📨 Raw subscription event for ${this.entityId}:`, {
+                hasEvent: !!event,
+                hasForecast: !!(event === null || event === void 0 ? void 0 : event.forecast),
+                isArray: Array.isArray(event === null || event === void 0 ? void 0 : event.forecast),
+                forecastLength: ((_a = event === null || event === void 0 ? void 0 : event.forecast) === null || _a === void 0 ? void 0 : _a.length) || 0,
+                eventType: typeof event,
+                eventKeys: Object.keys(event || {})
+            });
             if (Array.isArray(event.forecast)) {
-                // console.debug(`[WeatherEntityAPI] subscribeForecast: received forecast update`, event.forecast);
+                console.debug(`[WeatherEntityAPI] ✅ Valid forecast array received for ${this.entityId}, length: ${event.forecast.length}`);
                 callback(event.forecast);
             }
             else {
-                console.debug(`[WeatherEntityAPI] subscribeForecast: event.forecast not array`, event);
+                console.warn(`[WeatherEntityAPI] ❌ Invalid forecast data for ${this.entityId}:`, event);
             }
         }, {
             type: "weather/subscribe_forecast",
@@ -1675,11 +1784,23 @@ class WeatherEntityAPI {
      * If _forecastData is null, try to fill it from localStorage.
      */
     getForecastData() {
+        var _a, _b, _c, _d, _e, _f, _g, _h;
+        console.debug(`[WeatherEntityAPI] getForecastData() called for ${this.entityId}`);
         // Check if we have data and if it's fresh (less than 1 hour old)
         const oneHour = 60 * 60 * 1000;
         const now = Date.now();
+        // Debug: Log current state
+        console.debug(`[WeatherEntityAPI] Current state for ${this.entityId}:`, {
+            hasData: !!this._forecastData,
+            dataTimeLength: ((_b = (_a = this._forecastData) === null || _a === void 0 ? void 0 : _a.time) === null || _b === void 0 ? void 0 : _b.length) || 0,
+            lastDataFetch: this._lastDataFetch ? new Date(this._lastDataFetch).toISOString() : 'never',
+            dataAgeMinutes: this._lastDataFetch ? Math.round((now - this._lastDataFetch) / (60 * 1000)) : 'unknown',
+            firstForecastTime: ((_e = (_d = (_c = this._forecastData) === null || _c === void 0 ? void 0 : _c.time) === null || _d === void 0 ? void 0 : _d[0]) === null || _e === void 0 ? void 0 : _e.toISOString()) || 'none',
+            lastForecastTime: ((_h = (_g = (_f = this._forecastData) === null || _f === void 0 ? void 0 : _f.time) === null || _g === void 0 ? void 0 : _g[this._forecastData.time.length - 1]) === null || _h === void 0 ? void 0 : _h.toISOString()) || 'none'
+        });
         if (this._forecastData && this._lastDataFetch && (now - this._lastDataFetch < oneHour)) {
             // Data is fresh, return it
+            console.debug(`[WeatherEntityAPI] Returning fresh data for ${this.entityId} (${Math.round((now - this._lastDataFetch) / (60 * 1000))} min old)`);
             return this._forecastData;
         }
         // Data is stale or doesn't exist, fetch fresh data
@@ -3806,6 +3927,16 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             this._weatherEntityApiInstance) {
             // Always fetch fresh data from the entity, not from any cache
             const entityData = this._weatherEntityApiInstance.getForecastData();
+            // Update status fields for entity data (similar to API data)
+            const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+            if (diag.inMemoryData.lastFetchFormatted !== 'not yet fetched') {
+                // Use pre-formatted version to avoid double formatting
+                this._statusLastFetch = diag.inMemoryData.lastFetchFormatted;
+            }
+            if (diag.inMemoryData.expiresAt) {
+                this._statusExpiresAt = new Date(diag.inMemoryData.expiresAt).toISOString();
+                this.apiExpiresAt = diag.inMemoryData.expiresAt; // Update main apiExpiresAt field
+            }
             // Retrieve attribution from entity if available
             let entityAttribution = null;
             if (this.hass &&
@@ -4810,6 +4941,51 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(", ")}
                     <br>Some supported features cannot be plotted because the required data is not provided.</div>`
                 : ""}
+                    ${(() => {
+                let debugInfo = '';
+                // Show Entity API debug info when using entity
+                if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
+                    const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+                    const expiryColor = diag.inMemoryData.isExpired ? '#f44336' : '#4caf50';
+                    debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
+                            <b>📱 Entity API:</b> ${diag.entityExists ? '✅' : '❌'} ${diag.entityState || 'unknown'} | <b>Last Updated:</b> ${diag.entityLastUpdated ? new Date(diag.entityLastUpdated).toLocaleString() : 'unknown'}<br>
+                            <b>Subscription:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Connection:</b> ${diag.hasConnection ? '✅' : '❌'}<br>
+                            <b>Last Data Fetch:</b> ${diag.inMemoryData.lastFetchFormatted} | <b>Age:</b> ${diag.inMemoryData.dataAgeMinutes} min<br>
+                            <b>Data Expires:</b> <span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted} ${diag.inMemoryData.isExpired ? '(EXPIRED)' : ''}</span><br>
+                            <b>Hourly Data:</b> ${diag.hourlyForecastData.status}
+                          </div>`;
+                }
+                // Show Weather API debug info when NOT using entity (coordinates mode)  
+                else {
+                    console.debug('[MeteogramCard] Checking Weather API diagnostic conditions:', {
+                        hasEntityId: !!(this.entityId && this.entityId !== "none"),
+                        hasEntityInstance: !!this._weatherEntityApiInstance,
+                        hasWeatherApiInstance: !!this._weatherApiInstance,
+                        entityId: this.entityId
+                    });
+                    if (this._weatherApiInstance) {
+                        console.debug('[MeteogramCard] Showing Weather API diagnostic info');
+                        try {
+                            const apiDiag = this._weatherApiInstance.getDiagnosticInfo();
+                            const apiExpiryColor = apiDiag.isExpired ? '#f44336' : '#4caf50';
+                            debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
+                                <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
+                                <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
+                                <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
+                                <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
+                              </div>`;
+                        }
+                        catch (error) {
+                            console.error('[MeteogramCard] Error getting Weather API diagnostic info:', error);
+                            debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>Weather API diagnostic error: ${error}</div>`;
+                        }
+                    }
+                    else {
+                        debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>No diagnostic info available</div>`;
+                    }
+                }
+                return debugInfo;
+            })()}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard_1.meteogramCardVersion}</div>
                 </div>
@@ -4826,6 +5002,34 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 this._missingForecastKeys.length > 0
                 ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(", ")}</div>`
                 : ""}
+                    ${(() => {
+                // Weather API diagnostic info for coordinates mode
+                console.debug('[MeteogramCard] Coordinates mode - checking Weather API diagnostic conditions:', {
+                    hasWeatherApiInstance: !!this._weatherApiInstance,
+                    entityId: this.entityId
+                });
+                if (this._weatherApiInstance) {
+                    console.debug('[MeteogramCard] Showing Weather API diagnostic info for coordinates mode');
+                    try {
+                        const apiDiag = this._weatherApiInstance.getDiagnosticInfo();
+                        const apiExpiryColor = apiDiag.isExpired ? '#f44336' : '#4caf50';
+                        return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
+                            <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
+                            <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
+                            <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
+                            <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
+                          </div>`;
+                    }
+                    catch (error) {
+                        console.error('[MeteogramCard] Error getting Weather API diagnostic info:', error);
+                        return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>Weather API diagnostic error: ${error}</div>`;
+                    }
+                }
+                else {
+                    console.debug('[MeteogramCard] No Weather API instance available');
+                    return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>No Weather API diagnostic info available</div>`;
+                }
+            })()}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard_1.meteogramCardVersion}</div>
                 </div>
@@ -4892,9 +5096,28 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                             <span
                               >${trnslt(this.hass, "ui.card.meteogram.status.expires_at", "Expires At")}
                               :
-                              ${this.apiExpiresAt
-                    ? new Date(this.apiExpiresAt).toISOString()
-                    : "unknown"}</span
+                              ${(() => {
+                    // Use entity diagnostic data if available, otherwise fall back to API data
+                    if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
+                        const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+                        const expiryColor = diag.inMemoryData.isExpired ? '#f44336' : '#4caf50';
+                        if (diag.inMemoryData.expiresAtFormatted !== 'not set') {
+                            return x `<span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted}${diag.inMemoryData.isExpired ? ' (EXPIRED)' : ''}</span>`;
+                        }
+                        else {
+                            return 'not set';
+                        }
+                    }
+                    else if (this.apiExpiresAt) {
+                        const isExpired = Date.now() > this.apiExpiresAt;
+                        const color = isExpired ? '#f44336' : '#4caf50';
+                        const status = isExpired ? ' (EXPIRED)' : '';
+                        return x `<span style="color:${color}">${new Date(this.apiExpiresAt).toLocaleString()}${status}</span>`;
+                    }
+                    else {
+                        return "not available";
+                    }
+                })()}</span
                             ><br />
                             <span
                               >${trnslt(this.hass, "ui.card.meteogram.status.last_render", "Last Render")}
@@ -4902,7 +5125,18 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                             ><br />
                             <span
                               >${trnslt(this.hass, "ui.card.meteogram.status.last_data_fetch", "Last Data Fetch")}
-                              : ${this._statusLastFetch || "unknown"}</span
+                              : ${(() => {
+                    // Use entity diagnostic data if available, otherwise fall back to API data
+                    if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
+                        const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+                        return diag.inMemoryData.lastFetchFormatted;
+                    }
+                    else {
+                        return this._statusLastFetch
+                            ? (this._statusLastFetch.includes('T') ? new Date(this._statusLastFetch).toLocaleString() : this._statusLastFetch)
+                            : "not available";
+                    }
+                })()}</span
                             >
                           </div>
                           <div>
@@ -4935,6 +5169,17 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                             <span>${successTooltip}</span>
                           </div>
                         </div>
+                        ${this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance && !this.diagnostics
+                    ? (() => {
+                        const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+                        return x `
+                                <div style="margin-top:6px; padding-top:6px; border-top:1px solid #ddd; font-size:0.83em;">
+                                  <b>Last data fetch:</b> ${diag.inMemoryData.lastFetchFormatted}<br>
+                                  <b>Entity:</b> ${diag.entityExists ? '✅' : '❌'} ${this.entityId.split('.')[1]} | <b>Sub:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Hourly:</b> ${diag.hourlyForecastData.processedLength}
+                                </div>
+                              `;
+                    })()
+                    : ""}
                       </div>
                     `
                 : ""}
