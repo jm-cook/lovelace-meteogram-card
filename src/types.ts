@@ -24,17 +24,16 @@ export interface MeteogramCardConfig {
 export interface MeteogramData {
   time: Date[];
   temperature: (number | null)[];
-  rain: number[];
-  rainMin: number[]; // Add min precipitation array
-  rainMax: number[]; // Add max precipitation array
-  snow: number[];
-  cloudCover: number[];
-  windSpeed: number[];
-  windDirection: number[];
+  rain: (number | null)[];
+  rainMin: (number | null)[]; // Add min precipitation array
+  rainMax: (number | null)[]; // Add max precipitation array
+  cloudCover: (number | null)[];
+  windSpeed: (number | null)[];
+  windDirection: (number | null)[];
+  windGust: (number | null)[];
   symbolCode: string[];
-  pressure: number[];
+  pressure: (number | null)[];
   fetchTimestamp?: string; // Add this property
-  pressureAvailable?: boolean; // Indicates whether pressure should be shown
 }
 
 export interface WeatherDataPoint {

@@ -198,16 +198,16 @@ export class WeatherEntityAPI {
         forecast.forEach((item: any) => {
             result.time.push(new Date(item.datetime || item.time));
             result.temperature.push(item.temperature ?? null);
-            result.rain.push(item.precipitation ?? 0);
+            result.rain.push(item.precipitation ?? null);
 
             // Only use actual min/max values if they exist, otherwise set to null
             result.rainMin.push('precipitation_min' in item && typeof item.precipitation_min === 'number' ? item.precipitation_min : null);
             result.rainMax.push('precipitation_max' in item && typeof item.precipitation_max === 'number' ? item.precipitation_max : null);
 
-            // Always push values to maintain array consistency (use 0 if not present)
-            result.cloudCover.push('cloud_coverage' in item && typeof item.cloud_coverage === 'number' ? item.cloud_coverage : 0);
-            result.windSpeed.push('wind_speed' in item && typeof item.wind_speed === 'number' ? item.wind_speed : 0);
-            result.windDirection.push('wind_bearing' in item && typeof item.wind_bearing === 'number' ? item.wind_bearing : 0);
+            // Always push values to maintain array consistency (use null if not present)
+            result.cloudCover.push('cloud_coverage' in item && typeof item.cloud_coverage === 'number' ? item.cloud_coverage : null);
+            result.windSpeed.push('wind_speed' in item && typeof item.wind_speed === 'number' ? item.wind_speed : null);
+            result.windDirection.push('wind_bearing' in item && typeof item.wind_bearing === 'number' ? item.wind_bearing : null);
             
             // Handle wind gust with proper null handling
             if ('wind_gust' in item && typeof item.wind_gust === 'number') {
@@ -233,7 +233,7 @@ export class WeatherEntityAPI {
             } else if ('pressure_hpa' in item && typeof item.pressure_hpa === 'number') {
                 result.pressure.push(item.pressure_hpa);
             } else {
-                result.pressure.push(0); // Maintain array consistency
+                result.pressure.push(null); // Maintain array consistency
             }
         });
 

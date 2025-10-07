@@ -1452,19 +1452,19 @@ class WeatherAPI {
             };
             result.fetchTimestamp = new Date().toISOString();
             filtered.forEach((item) => {
-                var _a, _b, _c, _d, _e;
+                var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
                 const time = new Date(item.time);
                 const instant = item.data.instant.details;
                 const next1h = (_a = item.data.next_1_hours) === null || _a === void 0 ? void 0 : _a.details;
                 const next6h = (_b = item.data.next_6_hours) === null || _b === void 0 ? void 0 : _b.details;
                 const next6hSummary = (_c = item.data.next_6_hours) === null || _c === void 0 ? void 0 : _c.summary;
                 result.time.push(time);
-                result.temperature.push(instant.air_temperature);
-                result.cloudCover.push(instant.cloud_area_fraction);
-                result.windSpeed.push(instant.wind_speed);
-                result.windGust.push(instant.wind_speed_of_gust || null);
-                result.windDirection.push(instant.wind_from_direction);
-                result.pressure.push(instant.air_pressure_at_sea_level);
+                result.temperature.push((_d = instant.air_temperature) !== null && _d !== void 0 ? _d : null);
+                result.cloudCover.push((_e = instant.cloud_area_fraction) !== null && _e !== void 0 ? _e : null);
+                result.windSpeed.push((_f = instant.wind_speed) !== null && _f !== void 0 ? _f : null);
+                result.windGust.push((_g = instant.wind_speed_of_gust) !== null && _g !== void 0 ? _g : null);
+                result.windDirection.push((_h = instant.wind_from_direction) !== null && _h !== void 0 ? _h : null);
+                result.pressure.push((_j = instant.air_pressure_at_sea_level) !== null && _j !== void 0 ? _j : null);
                 if (next1h) {
                     // Only use actual min/max values if they exist, otherwise set to null
                     const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
@@ -1473,8 +1473,8 @@ class WeatherAPI {
                         next1h.precipitation_amount_min : null;
                     result.rainMin.push(rainAmountMin);
                     result.rainMax.push(rainAmountMax);
-                    result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-                    if ((_e = (_d = item.data.next_1_hours) === null || _d === void 0 ? void 0 : _d.summary) === null || _e === void 0 ? void 0 : _e.symbol_code) {
+                    result.rain.push((_k = next1h.precipitation_amount) !== null && _k !== void 0 ? _k : null);
+                    if ((_m = (_l = item.data.next_1_hours) === null || _l === void 0 ? void 0 : _l.summary) === null || _m === void 0 ? void 0 : _m.symbol_code) {
                         result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
                     }
                     else {
@@ -1484,8 +1484,8 @@ class WeatherAPI {
                 else if (next6h) {
                     // Use next_6_hours data if next_1_hours is missing
                     // Distribute 6h precipitation over 6 hours (average per hour)
-                    const rain6h = next6h.precipitation_amount !== undefined ? next6h.precipitation_amount : 0;
-                    const rainPerHour = rain6h / 6;
+                    const rain6h = next6h.precipitation_amount;
+                    const rainPerHour = rain6h !== undefined ? rain6h / 6 : null;
                     result.rain.push(rainPerHour);
                     // 6h data doesn't have min/max ranges, so set to null
                     result.rainMin.push(null);
@@ -1499,7 +1499,7 @@ class WeatherAPI {
                 }
                 else {
                     // No precipitation data available
-                    result.rain.push(0);
+                    result.rain.push(null);
                     result.rainMin.push(null);
                     result.rainMax.push(null);
                     result.symbolCode.push('');
@@ -1709,14 +1709,14 @@ class WeatherEntityAPI {
             var _a, _b, _c;
             result.time.push(new Date(item.datetime || item.time));
             result.temperature.push((_a = item.temperature) !== null && _a !== void 0 ? _a : null);
-            result.rain.push((_b = item.precipitation) !== null && _b !== void 0 ? _b : 0);
+            result.rain.push((_b = item.precipitation) !== null && _b !== void 0 ? _b : null);
             // Only use actual min/max values if they exist, otherwise set to null
             result.rainMin.push('precipitation_min' in item && typeof item.precipitation_min === 'number' ? item.precipitation_min : null);
             result.rainMax.push('precipitation_max' in item && typeof item.precipitation_max === 'number' ? item.precipitation_max : null);
-            // Always push values to maintain array consistency (use 0 if not present)
-            result.cloudCover.push('cloud_coverage' in item && typeof item.cloud_coverage === 'number' ? item.cloud_coverage : 0);
-            result.windSpeed.push('wind_speed' in item && typeof item.wind_speed === 'number' ? item.wind_speed : 0);
-            result.windDirection.push('wind_bearing' in item && typeof item.wind_bearing === 'number' ? item.wind_bearing : 0);
+            // Always push values to maintain array consistency (use null if not present)
+            result.cloudCover.push('cloud_coverage' in item && typeof item.cloud_coverage === 'number' ? item.cloud_coverage : null);
+            result.windSpeed.push('wind_speed' in item && typeof item.wind_speed === 'number' ? item.wind_speed : null);
+            result.windDirection.push('wind_bearing' in item && typeof item.wind_bearing === 'number' ? item.wind_bearing : null);
             // Handle wind gust with proper null handling
             if ('wind_gust' in item && typeof item.wind_gust === 'number') {
                 result.windGust.push(item.wind_gust);
@@ -1746,7 +1746,7 @@ class WeatherEntityAPI {
                 result.pressure.push(item.pressure_hpa);
             }
             else {
-                result.pressure.push(0); // Maintain array consistency
+                result.pressure.push(null); // Maintain array consistency
             }
         });
         // Store the parsed forecast in localStorage using a shared cache object
@@ -3018,25 +3018,28 @@ class MeteogramChart {
     }
     drawRainBars(chart, rain, rainMax, N, x, yPrecip, dx, legendX, legendY) {
         const barWidth = dx * 0.8;
-        // Draw the max rain range bars first (only for non-null values)
-        const rainMaxData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
-        chart.selectAll(".rain-max-bar")
-            .data(rainMaxData)
-            .enter()
-            .append("rect")
-            .attr("class", "rain-max-bar")
-            .attr("x", (d) => x(d.index) + dx / 2 - barWidth / 2)
-            .attr("y", (d) => {
-            const h = this.card._chartHeight - yPrecip(d.value);
-            const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
-            return yPrecip(0) - scaledH;
-        })
-            .attr("width", barWidth)
-            .attr("height", (d) => {
-            const h = this.card._chartHeight - yPrecip(d.value);
-            return h < 2 && d.value > 0 ? 2 : h * 0.7;
-        })
-            .attr("fill", "currentColor");
+        // Only draw rainMax bars if precipitation min/max data is available
+        if (this.card._dataAvailability.precipitationMinMax) {
+            // Draw the max rain range bars first (only for non-null values)
+            const rainMaxData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+            chart.selectAll(".rain-max-bar")
+                .data(rainMaxData)
+                .enter()
+                .append("rect")
+                .attr("class", "rain-max-bar")
+                .attr("x", (d) => x(d.index) + dx / 2 - barWidth / 2)
+                .attr("y", (d) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
+                return yPrecip(0) - scaledH;
+            })
+                .attr("width", barWidth)
+                .attr("height", (d) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                return h < 2 && d.value > 0 ? 2 : h * 0.7;
+            })
+                .attr("fill", "currentColor");
+        }
         // Draw main rain bars (foreground, deeper blue)
         chart.selectAll(".rain-bar")
             .data(rain.slice(0, N - 1))
@@ -3072,31 +3075,33 @@ class MeteogramChart {
             return d < 1 ? d.toFixed(1) : d.toFixed(0);
         })
             .attr("opacity", (d) => d > 0 ? 1 : 0);
-        // Add max rain labels (show if max > rain and max is not null)
-        const rainMaxLabelData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null);
-        chart.selectAll(".rain-max-label")
-            .data(rainMaxLabelData)
-            .enter()
-            .append("text")
-            .attr("class", "rain-max-label")
-            .attr("x", (d) => x(d.index) + dx / 2)
-            .attr("y", (d) => {
-            const h = this.card._chartHeight - yPrecip(d.value);
-            const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
-            return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
-        })
-            .text((d) => {
-            var _a;
-            const rainValue = (_a = rain === null || rain === void 0 ? void 0 : rain[d.index]) !== null && _a !== void 0 ? _a : 0;
-            if (d.value <= rainValue)
-                return "";
-            return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
-        })
-            .attr("opacity", (d) => {
-            var _a;
-            const rainValue = (_a = rain === null || rain === void 0 ? void 0 : rain[d.index]) !== null && _a !== void 0 ? _a : 0;
-            return (d.value > rainValue) ? 1 : 0;
-        });
+        // Add max rain labels (only if precipitation min/max data is available)
+        if (this.card._dataAvailability.precipitationMinMax) {
+            const rainMaxLabelData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null);
+            chart.selectAll(".rain-max-label")
+                .data(rainMaxLabelData)
+                .enter()
+                .append("text")
+                .attr("class", "rain-max-label")
+                .attr("x", (d) => x(d.index) + dx / 2)
+                .attr("y", (d) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
+                return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
+            })
+                .text((d) => {
+                var _a;
+                const rainValue = (_a = rain === null || rain === void 0 ? void 0 : rain[d.index]) !== null && _a !== void 0 ? _a : 0;
+                if (d.value <= rainValue)
+                    return "";
+                return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
+            })
+                .attr("opacity", (d) => {
+                var _a;
+                const rainValue = (_a = rain === null || rain === void 0 ? void 0 : rain[d.index]) !== null && _a !== void 0 ? _a : 0;
+                return (d.value > rainValue) ? 1 : 0;
+            });
+        }
         // Add precipitation legend if coordinates are provided
         if (legendX !== undefined && legendY !== undefined) {
             const precipUnit = this.card.getSystemPrecipitationUnit();
@@ -3491,6 +3496,16 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         this._lastWeatherData = null;
         // Store the current units for each parameter
         this._currentUnits = {};
+        // Track data availability for forecast elements
+        this._dataAvailability = {
+            wind: false,
+            pressure: false,
+            cloudCover: false,
+            precipitation: false,
+            precipitationMinMax: false,
+            temperature: false,
+            windGust: false,
+        };
         // Add unit system class variables
         this._tempUnit = "°C";
         this._pressureUnit = "hPa";
@@ -4411,6 +4426,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             }
             this._currentUnits =
                 entityData && entityData.units ? entityData.units : {};
+            this.updateDataAvailability(entityData);
             this.checkMissingForecastKeys(entityData);
             return entityData;
         }
@@ -4474,6 +4490,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                     throw new Error("No forecast data available from WeatherAPI.");
                 }
                 result = resultMaybe;
+                this.updateDataAvailability(result);
                 this.checkMissingForecastKeys(result);
                 this.apiExpiresAt = weatherApi.expiresAt;
                 this._statusApiSuccess = true;
@@ -4566,6 +4583,27 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         catch (error) {
             console.warn("Error cleaning up chart:", error);
         }
+    }
+    /**
+     * Analyzes forecast data availability and updates _dataAvailability dictionary
+     */
+    updateDataAvailability(data) {
+        // Check if arrays exist and have valid (non-null) data
+        this._dataAvailability.temperature = Array.isArray(data.temperature) &&
+            data.temperature.some(val => val !== null && typeof val === 'number');
+        this._dataAvailability.wind = Array.isArray(data.windSpeed) &&
+            data.windSpeed.some(val => val !== null && typeof val === 'number');
+        this._dataAvailability.pressure = Array.isArray(data.pressure) &&
+            data.pressure.some(val => val !== null && typeof val === 'number');
+        this._dataAvailability.cloudCover = Array.isArray(data.cloudCover) &&
+            data.cloudCover.some(val => val !== null && typeof val === 'number');
+        this._dataAvailability.precipitation = Array.isArray(data.rain) &&
+            data.rain.some(val => val !== null && typeof val === 'number');
+        this._dataAvailability.precipitationMinMax =
+            (Array.isArray(data.rainMin) && data.rainMin.some(val => val !== null && typeof val === 'number')) ||
+                (Array.isArray(data.rainMax) && data.rainMax.some(val => val !== null && typeof val === 'number'));
+        this._dataAvailability.windGust = Array.isArray(data.windGust) &&
+            data.windGust.some(val => val !== null && typeof val === 'number');
     }
     /**
      * Checks which forecast keys are missing from the provided data and updates _missingForecastKeys.
@@ -4769,10 +4807,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 }
             }
             // Determine if wind data is available
-            const windAvailable = this.showWind &&
-                Array.isArray(data.windSpeed) &&
-                data.windSpeed.length > 1 &&
-                data.windSpeed.some((v) => typeof v === "number");
+            const windAvailable = this.showWind && this._dataAvailability.wind;
             // Set windBand based on wind availability
             const windBandHeight = windAvailable ? 45 : 0;
             const hourLabelBand = 30;
@@ -4918,6 +4953,35 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Use hass.language if available, fallback to "en"
         return this.hass && this.hass.language ? this.hass.language : "en";
     }
+    // Helper to calculate forecast data age
+    getForecastDataAge() {
+        if (!this._lastWeatherData || !this._lastWeatherData.time || this._lastWeatherData.time.length === 0) {
+            return "no data";
+        }
+        const earliestTime = this._lastWeatherData.time[0];
+        const now = new Date();
+        const earliestDate = earliestTime instanceof Date ? earliestTime : new Date(earliestTime);
+        if (isNaN(earliestDate.getTime())) {
+            return "invalid data";
+        }
+        const diffMs = now.getTime() - earliestDate.getTime();
+        const absDiffMs = Math.abs(diffMs);
+        const diffMinutes = Math.floor(absDiffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMinutes / 60);
+        // Handle future dates (forecast data is typically from current time forward)
+        const isInFuture = diffMs < 0;
+        const prefix = isInFuture ? "in " : "";
+        if (diffMinutes < 60) {
+            return `${prefix}${diffMinutes} min`;
+        }
+        else if (diffHours < 24) {
+            return `${prefix}${diffHours}h ${diffMinutes % 60}m`;
+        }
+        else {
+            const diffDays = Math.floor(diffHours / 24);
+            return `${prefix}${diffDays}d ${diffHours % 24}h`;
+        }
+    }
     // Centralized method to generate diagnostic information
     generateDiagnosticInfo() {
         let debugInfo = '';
@@ -4925,6 +4989,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         let expiresInfo = "not available";
         let lastFetchInfo = "not available";
         let lastRenderInfo = this._statusLastRender || "unknown";
+        // Calculate forecast data age for both entity and API modes
+        const forecastDataAge = this.getForecastDataAge();
         // Show Entity API debug info when using entity
         if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
             const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
@@ -4943,6 +5009,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         <b>Subscription:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Connection:</b> ${diag.hasConnection ? '✅' : '❌'}<br>
         <b>Last Data Fetch:</b> ${diag.inMemoryData.lastFetchFormatted} | <b>Age:</b> ${diag.inMemoryData.dataAgeMinutes} min<br>
         <b>Last Forecast Fetched:</b> ${diag.lastForecastFetch || 'never'} ${diag.lastForecastFetchAge ? `(${diag.lastForecastFetchAge})` : ''}<br>
+        <b>Earliest Forecast:</b> ${forecastDataAge} ago<br>
         <b>Data Expires:</b> <span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted} ${diag.inMemoryData.isExpired ? '(EXPIRED)' : ''}</span><br>
         <b>Hourly Data:</b> ${diag.hourlyForecastData.status}
       </div>`;
@@ -4968,6 +5035,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
           <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
           <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
+          <b>Earliest Forecast:</b> ${forecastDataAge} ago<br>
           <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
           <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
         </div>`;
@@ -5035,7 +5103,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             pressure.map((p) => this.convertPressure(p));
             windSpeed.map((w) => this.convertWindSpeed(w));
             windGust.map((w) => this.convertWindSpeed(w));
-            rainConverted = rain.map((r) => this.convertPrecipitation(r !== null && r !== void 0 ? r : 0));
+            rainConverted = rain.map((r) => r !== null ? this.convertPrecipitation(r) : null);
             rainMin.map((r) => r !== null ? this.convertPrecipitation(r) : null);
             rainMaxConverted = rainMax.map((r) => r !== null ? this.convertPrecipitation(r) : null);
         }
@@ -5045,22 +5113,24 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             rainMaxConverted = rainMax;
         }
         // Safely handle null values in arrays for calculations
-        rainConverted.map((r) => r !== null && r !== void 0 ? r : 0);
-        rainMaxConverted.map((r) => r !== null && r !== void 0 ? r : 0);
-        const pressureAvailable = this.showPressure && pressure && pressure.length > 0;
+        const nonNullRain = rainConverted.filter((r) => r !== null);
+        const nonNullRainMax = rainMaxConverted.filter((r) => r !== null);
+        const pressureAvailable = this.showPressure && this._dataAvailability.pressure;
         // windAvailable is now passed as an argument from _renderChart
-        const cloudAvailable = this.showCloudCover && cloudCover && cloudCover.length > 0;
+        const cloudAvailable = this.showCloudCover && this._dataAvailability.cloudCover;
         const enabledLegends = [];
         if (cloudAvailable) {
             enabledLegends.push({ class: "legend-cloud", label: "Cloud Cover" });
         }
-        if (this.showPrecipitation) {
+        if (this.showPrecipitation && this._dataAvailability.precipitation) {
             enabledLegends.push({ class: "legend-rain", label: "Precipitation" });
         }
         if (pressureAvailable) {
             enabledLegends.push({ class: "legend-pressure", label: "Pressure" });
         }
-        enabledLegends.push({ class: "legend-temp", label: "Temperature" });
+        if (this._dataAvailability.temperature) {
+            enabledLegends.push({ class: "legend-temp", label: "Temperature" });
+        }
         // SVG and chart parameters
         // In focussed mode, remove top margin for legends
         // Adjust margins based on focussed mode, pressure axis, and displayMode
@@ -5152,14 +5222,12 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Precipitation Y scale
         const yPrecip = d3
             .scaleLinear()
-            .domain([0, Math.max(2, d3.max([...rainMax, ...rain]) + 1)])
+            .domain([0, Math.max(2, d3.max([...nonNullRainMax, ...nonNullRain]) + 1)])
             .range([this._chartHeight, 0]); // <-- FIXED: range goes from this._chartHeight (bottom) to 0 (top)
         // Pressure Y scale - we'll use the right side of the chart
-        // Only create if pressure is shown and at least one value is not null/undefined
+        // Only create if pressure is shown and data is available
         let yPressure;
-        const hasPressure = this.showPressure &&
-            Array.isArray(pressure) &&
-            pressure.some((p) => p !== null && typeof p === "number" && !isNaN(p));
+        const hasPressure = this.showPressure && this._dataAvailability.pressure;
         if (hasPressure) {
             const validPressures = pressure.filter((p) => p !== null && typeof p === "number" && !isNaN(p));
             const pressureRange = d3.extent(validPressures);
@@ -5236,7 +5304,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             }
         }
         // Draw rain bars with legend
-        if (this.showPrecipitation) {
+        if (this.showPrecipitation && this._dataAvailability.precipitation) {
             const rainLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-rain"));
             if (rainLegendIndex >= 0 && legendPositions.length > 0) {
                 const legendPos = legendPositions[rainLegendIndex];

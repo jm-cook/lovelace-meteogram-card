@@ -2,16 +2,16 @@ import {version} from "../package.json";
 
 
 export interface ForecastData {
-    pressure: number[];
+    pressure: (number | null)[];
     time: Date[];
     temperature: (number | null)[];
-    rain: number[];
+    rain: (number | null)[];
     rainMin: (number | null)[];
     rainMax: (number | null)[];
-    cloudCover: number[];
-    windSpeed: number[];
+    cloudCover: (number | null)[];
+    windSpeed: (number | null)[];
     windGust: (number | null)[];
-    windDirection: number[];
+    windDirection: (number | null)[];
     symbolCode: string[];
     fetchTimestamp?: string;
     units?: {
@@ -439,12 +439,12 @@ export class WeatherAPI {
                 const next6hSummary = item.data.next_6_hours?.summary;
 
                 result.time.push(time);
-                result.temperature.push(instant.air_temperature);
-                result.cloudCover.push(instant.cloud_area_fraction);
-                result.windSpeed.push(instant.wind_speed);
-                result.windGust.push(instant.wind_speed_of_gust || null);
-                result.windDirection.push(instant.wind_from_direction);
-                result.pressure.push(instant.air_pressure_at_sea_level);
+                result.temperature.push(instant.air_temperature ?? null);
+                result.cloudCover.push(instant.cloud_area_fraction ?? null);
+                result.windSpeed.push(instant.wind_speed ?? null);
+                result.windGust.push(instant.wind_speed_of_gust ?? null);
+                result.windDirection.push(instant.wind_from_direction ?? null);
+                result.pressure.push(instant.air_pressure_at_sea_level ?? null);
 
                 if (next1h) {
                     // Only use actual min/max values if they exist, otherwise set to null
@@ -456,7 +456,7 @@ export class WeatherAPI {
 
                     result.rainMin.push(rainAmountMin);
                     result.rainMax.push(rainAmountMax);
-                    result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                    result.rain.push(next1h.precipitation_amount ?? null);
 
                     if (item.data.next_1_hours?.summary?.symbol_code) {
                         result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
@@ -466,8 +466,8 @@ export class WeatherAPI {
                 } else if (next6h) {
                     // Use next_6_hours data if next_1_hours is missing
                     // Distribute 6h precipitation over 6 hours (average per hour)
-                    const rain6h = next6h.precipitation_amount !== undefined ? next6h.precipitation_amount : 0;
-                    const rainPerHour = rain6h / 6;
+                    const rain6h = next6h.precipitation_amount;
+                    const rainPerHour = rain6h !== undefined ? rain6h / 6 : null;
                     result.rain.push(rainPerHour);
                     // 6h data doesn't have min/max ranges, so set to null
                     result.rainMin.push(null);
@@ -480,7 +480,7 @@ export class WeatherAPI {
                     }
                 } else {
                     // No precipitation data available
-                    result.rain.push(0);
+                    result.rain.push(null);
                     result.rainMin.push(null);
                     result.rainMax.push(null);
                     result.symbolCode.push('');

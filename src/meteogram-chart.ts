@@ -250,26 +250,30 @@ export class MeteogramChart {
         legendY?: number
     ) {
         const barWidth = dx * 0.8;
-        // Draw the max rain range bars first (only for non-null values)
-        const rainMaxData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
         
-        chart.selectAll(".rain-max-bar")
-            .data(rainMaxData)
-            .enter()
-            .append("rect")
-            .attr("class", "rain-max-bar")
-            .attr("x", (d: any) => x(d.index) + dx / 2 - barWidth / 2)
-            .attr("y", (d: any) => {
-                const h = this.card._chartHeight - yPrecip(d.value);
-                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
-                return yPrecip(0) - scaledH;
-            })
-            .attr("width", barWidth)
-            .attr("height", (d: any) => {
-                const h = this.card._chartHeight - yPrecip(d.value);
-                return h < 2 && d.value > 0 ? 2 : h * 0.7;
-            })
-            .attr("fill", "currentColor");
+        // Only draw rainMax bars if precipitation min/max data is available
+        if (this.card._dataAvailability.precipitationMinMax) {
+            // Draw the max rain range bars first (only for non-null values)
+            const rainMaxData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+            
+            chart.selectAll(".rain-max-bar")
+                .data(rainMaxData)
+                .enter()
+                .append("rect")
+                .attr("class", "rain-max-bar")
+                .attr("x", (d: any) => x(d.index) + dx / 2 - barWidth / 2)
+                .attr("y", (d: any) => {
+                    const h = this.card._chartHeight - yPrecip(d.value);
+                    const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
+                    return yPrecip(0) - scaledH;
+                })
+                .attr("width", barWidth)
+                .attr("height", (d: any) => {
+                    const h = this.card._chartHeight - yPrecip(d.value);
+                    return h < 2 && d.value > 0 ? 2 : h * 0.7;
+                })
+                .attr("fill", "currentColor");
+        }
 
         // Draw main rain bars (foreground, deeper blue)
         chart.selectAll(".rain-bar")
@@ -307,29 +311,31 @@ export class MeteogramChart {
             })
             .attr("opacity", (d: number) => d > 0 ? 1 : 0);
 
-        // Add max rain labels (show if max > rain and max is not null)
-        const rainMaxLabelData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null);
-        
-        chart.selectAll(".rain-max-label")
-            .data(rainMaxLabelData)
-            .enter()
-            .append("text")
-            .attr("class", "rain-max-label")
-            .attr("x", (d: any) => x(d.index) + dx / 2)
-            .attr("y", (d: any) => {
-                const h = this.card._chartHeight - yPrecip(d.value);
-                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
-                return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
-            })
-            .text((d: any) => {
-                const rainValue = rain?.[d.index] ?? 0;
-                if (d.value <= rainValue) return "";
-                return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
-            })
-            .attr("opacity", (d: any) => {
-                const rainValue = rain?.[d.index] ?? 0;
-                return (d.value > rainValue) ? 1 : 0;
-            });
+        // Add max rain labels (only if precipitation min/max data is available)
+        if (this.card._dataAvailability.precipitationMinMax) {
+            const rainMaxLabelData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null);
+            
+            chart.selectAll(".rain-max-label")
+                .data(rainMaxLabelData)
+                .enter()
+                .append("text")
+                .attr("class", "rain-max-label")
+                .attr("x", (d: any) => x(d.index) + dx / 2)
+                .attr("y", (d: any) => {
+                    const h = this.card._chartHeight - yPrecip(d.value);
+                    const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
+                    return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
+                })
+                .text((d: any) => {
+                    const rainValue = rain?.[d.index] ?? 0;
+                    if (d.value <= rainValue) return "";
+                    return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
+                })
+                .attr("opacity", (d: any) => {
+                    const rainValue = rain?.[d.index] ?? 0;
+                    return (d.value > rainValue) ? 1 : 0;
+                });
+        }
 
         // Add precipitation legend if coordinates are provided
         if (legendX !== undefined && legendY !== undefined) {
