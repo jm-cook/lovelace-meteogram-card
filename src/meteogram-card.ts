@@ -51,7 +51,10 @@ const cleanupExpiredForecastCache = () => {
         for (const key of Object.keys(cacheObj)) {
             if (key !== "default-location" && key !== "forecast-data") {
                 delete cacheObj[key];
-                console.debug(`[${CARD_NAME}] Removed unused cache key: ${key}`);
+                // Only log if debugging is enabled (check for special debug flag in localStorage)
+                if (localStorage.getItem('meteogram-debug') === 'true') {
+                    console.debug(`[${CARD_NAME}] Removed unused cache key: ${key}`);
+                }
                 changed = true;
             }
         }
@@ -73,7 +76,10 @@ const cleanupExpiredForecastCache = () => {
             }
         }
         if (changed) {
-            console.debug(`[${CARD_NAME}] Cleaned up expired forecast cache. cacheObj:`, cacheObj);
+            // Only log if debugging is enabled (check for special debug flag in localStorage)
+            if (localStorage.getItem('meteogram-debug') === 'true') {
+                console.debug(`[${CARD_NAME}] Cleaned up expired forecast cache. cacheObj:`, cacheObj);
+            }
             localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
         }
     } catch (e) {

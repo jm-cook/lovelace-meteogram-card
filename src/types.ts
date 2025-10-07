@@ -14,6 +14,7 @@ export interface MeteogramCardConfig {
     meteogram_hours?: string; // "8h", "12h", "24h", "48h", "54h", "max"
     styles?: MeteogramStyleConfig; // <-- Updated for mode support
     diagnostics?: boolean; // Add this line
+    debug?: boolean; // Add this line for debug logging (undocumented)
     entity_id?: string; // Add this line for weather entity selection
     focussed?: boolean; // Add this line for Focussed mode
     display_mode?: "full" | "core" | "focussed"; // Add this line for display mode

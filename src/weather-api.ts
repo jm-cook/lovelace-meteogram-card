@@ -37,18 +37,26 @@ export class WeatherAPI {
     private _expiresAt: number | null = null;
     private _fetchPromise: Promise<void> | null = null;
     private _lastFetchTime: number | null = null; // Track last fetch timestamp
+    private debug: boolean;
 
-    constructor(lat: number, lon: number, altitude?: number) {
+    constructor(lat: number, lon: number, altitude?: number, debug: boolean = false) {
         this.lat = lat;
         this.lon = lon;
+        this.debug = debug;
         if (Number.isFinite(altitude)) {
             this.altitude = altitude;
         }
     }
 
+    private _debugLog(...args: any[]) {
+        if (this.debug) {
+            console.debug(...args);
+        }
+    }
+
     // Getter for forecastData: checks expiry and refreshes if needed
     async getForecastData(): Promise<ForecastData | null> {
-        console.debug(`[weather-api] getForecastData called for lat=${this.lat}, lon=${this.lon}`);
+        this._debugLog(`[weather-api] getForecastData called for lat=${this.lat}, lon=${this.lon}`);
 
         // If no data loaded, try to load from cache first
         if (!this._forecastData) {
@@ -72,7 +80,7 @@ export class WeatherAPI {
             // If we're in throttle period but no active fetch, return cached data if available
             // This prevents the "retrying in 60 seconds" issue when fetch failed
             if (this._forecastData) {
-                console.debug('[weather-api] Using expired cached data during throttle period');
+                this._debugLog('[weather-api] Using expired cached data during throttle period');
                 return this._forecastData;
             }
         }
@@ -184,14 +192,16 @@ export class WeatherAPI {
             
             if (removedCount > 0 || invalidCount > 0) {
                 localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
-                console.debug(`[WeatherAPI] Cleaned up ${removedCount} old and ${invalidCount} invalid cache entries from metno-weather-cache`);
+                // Note: This is a static method so we can't use instance _debugLog
+                if (console.debug) console.debug(`[WeatherAPI] Cleaned up ${removedCount} old and ${invalidCount} invalid cache entries from metno-weather-cache`);
             }
         } catch (e) {
             console.warn(`[WeatherAPI] Failed to cleanup cache entries, clearing entire cache:`, e);
             // Clear corrupted cache entirely
             try {
                 localStorage.removeItem('metno-weather-cache');
-                console.debug(`[WeatherAPI] Cleared corrupted metno-weather-cache`);
+                // Note: This is a static method so we can't use instance _debugLog
+                if (console.debug) console.debug(`[WeatherAPI] Cleared corrupted metno-weather-cache`);
             } catch (clearError) {
                 console.error(`[WeatherAPI] Failed to clear corrupted cache:`, clearError);
             }
@@ -258,7 +268,7 @@ export class WeatherAPI {
                     const twentyFourHours = 24 * 60 * 60 * 1000;
                     const now = Date.now();
                     if (now - entry.expiresAt > twentyFourHours) {
-                        console.debug(`[WeatherAPI] Cached data for ${key} is too old (${Math.round((now - entry.expiresAt) / (60 * 60 * 1000))}h past expiry), removing from cache`);
+                        this._debugLog(`[WeatherAPI] Cached data for ${key} is too old (${Math.round((now - entry.expiresAt) / (60 * 60 * 1000))}h past expiry), removing from cache`);
                         if (!cacheObj["forecast-data"]) cacheObj["forecast-data"] = {};
                         delete cacheObj["forecast-data"][key];
                         shouldCleanupCache = true;
@@ -291,7 +301,7 @@ export class WeatherAPI {
                     // Save cleaned cache back to localStorage if changes were made
                     if (shouldCleanupCache) {
                         localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
-                        console.debug(`[WeatherAPI] Updated cache structure for ${key}`);
+                        this._debugLog(`[WeatherAPI] Updated cache structure for ${key}`);
                     }
                 } else {
                     this._expiresAt = null;
@@ -345,7 +355,7 @@ export class WeatherAPI {
 
             // Always use dedicated forecast URL
             // log impending call to fetch
-            console.debug(`[weather-api] Fetching weather data from ${urlToUse} with Origin ${headers['Origin']}`);
+            this._debugLog(`[weather-api] Fetching weather data from ${urlToUse} with Origin ${headers['Origin']}`);
             WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT++;
             const response = await fetch(urlToUse, {
                 headers,

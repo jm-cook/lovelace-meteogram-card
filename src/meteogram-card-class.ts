@@ -67,6 +67,7 @@ export class MeteogramCard extends LitElement {
     this.meteogramHours = "48h";
     this.styles = {};
     this.diagnostics = DIAGNOSTICS_DEFAULT;
+    this.debug = false;
     // Initialize state properties
     this.chartLoaded = false;
     this.meteogramError = "";
@@ -91,6 +92,7 @@ export class MeteogramCard extends LitElement {
   @property({ type: String }) meteogramHours: string = "48h"; // Default is now 48h
   @property({ type: Object }) styles: MeteogramStyleConfig = {}; // NEW: styles override
   @property({ type: Boolean }) diagnostics: boolean = DIAGNOSTICS_DEFAULT; // Initialize here
+  @property({ type: Boolean }) debug: boolean = false; // Debug logging (undocumented)
   @property({ type: String }) entityId?: string; // NEW: entity_id for weather integration
   @property({ type: Boolean }) focussed = false; // NEW: Focussed mode
   @property({ type: String }) displayMode: "full" | "core" | "focussed" =
@@ -184,6 +186,13 @@ export class MeteogramCard extends LitElement {
     } else {
       console.log('No weather instances available - card may not be initialized');
       return 'Card not fully initialized';
+    }
+  }
+
+  // Debug helper method for conditional logging
+  private _debugLog(...args: any[]): void {
+    if (this.debug) {
+      console.debug(...args);
     }
   }
 
@@ -283,7 +292,7 @@ export class MeteogramCard extends LitElement {
     const now = Date.now();
     this._drawCallIndex++;
     const callerId = `${source}#${this._drawCallIndex}`;
-    console.debug(
+    this._debugLog(
       `[${CARD_NAME}] _scheduleDrawMeteogram called from: ${callerId}`
     );
 
@@ -293,7 +302,7 @@ export class MeteogramCard extends LitElement {
       (this._redrawScheduled ||
         now - this._lastDrawScheduleTime < this._drawThrottleMs)
     ) {
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] _scheduleDrawMeteogram: redraw already scheduled or throttled, skipping.`
       );
       return;
@@ -395,6 +404,8 @@ export class MeteogramCard extends LitElement {
       config.diagnostics !== undefined
         ? config.diagnostics
         : DIAGNOSTICS_DEFAULT;
+    // Add debug option (undocumented)
+    this.debug = config.debug !== undefined ? config.debug : false;
     // Set entityId from config
     this.entityId = config.entity_id || undefined;
     // Ensure boolean for focussed mode
@@ -430,7 +441,7 @@ export class MeteogramCard extends LitElement {
       if (newEntityId) {
         // now set: construct new API
         if (this.hass) {
-          console.debug(
+          this._debugLog(
             `[${CARD_NAME}] setConfig Initializing WeatherEntityAPI for entity: ${this.entityId}`,
             this.hass
           );
@@ -438,7 +449,8 @@ export class MeteogramCard extends LitElement {
             this.hass,
             newEntityId as string,
             this,
-            "setConfig"
+            "setConfig",
+            this.debug
           );
         }
       } // else remains null
@@ -461,6 +473,7 @@ export class MeteogramCard extends LitElement {
       dense_weather_icons: true,
       meteogram_hours: "48h",
       diagnostics: DIAGNOSTICS_DEFAULT, // Default to DIAGNOSTICS_DEFAULT
+      debug: false, // Debug logging (undocumented)
     });
     return editor;
   }
@@ -477,6 +490,7 @@ export class MeteogramCard extends LitElement {
       dense_weather_icons: true,
       meteogram_hours: "48h",
       diagnostics: DIAGNOSTICS_DEFAULT, // Default to DIAGNOSTICS_DEFAULT
+      debug: false, // Debug logging (undocumented)
       altitude: undefined, // Optional altitude for WeatherAPI
       // Coordinates will be fetched from HA configuration
     };
@@ -760,7 +774,7 @@ export class MeteogramCard extends LitElement {
     if (isVisible) {
       // Element became visible - ensure subscription is active
       if (this._weatherEntityApiInstance && !this._weatherEntityApiInstance.isSubscriptionActive()) {
-        console.debug(`[${CARD_NAME}] Element became visible, resuming subscription`);
+        this._debugLog(`[${CARD_NAME}] Element became visible, resuming subscription`);
         this._resumeWeatherSubscription("element visible");
       }
       
@@ -778,7 +792,7 @@ export class MeteogramCard extends LitElement {
         !svgExists;
       // Guard: If chart is already rendered and visible, skip scheduling
       if (!needsRedraw && svgExists && chartIsVisible) {
-        console.debug(
+        this._debugLog(
           `[${CARD_NAME}] _handleVisibilityChange: chart already rendered and visible, skipping redraw.`
         );
         return;
@@ -837,7 +851,7 @@ export class MeteogramCard extends LitElement {
     // If a resize occurs during rendering, queue a redraw
     if (significantChange && this._chartRenderInProgress) {
       this._pendingRender = true;
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] _onResize: chart render in progress, queuing redraw after render.`
       );
       // Schedule final redraw after resize ends
@@ -886,12 +900,12 @@ export class MeteogramCard extends LitElement {
       Math.abs(currentWidth - this._lastRenderedWidth) > 2 ||
       Math.abs(currentHeight - this._lastRenderedHeight) > 2
     ) {
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] _onResizeEnd: detected final size change, scheduling redraw.`
       );
       this._scheduleDrawMeteogram("_onResizeEnd-final");
     } else {
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] _onResizeEnd: no significant size change since last render, skipping redraw.`
       );
     }
@@ -900,7 +914,7 @@ export class MeteogramCard extends LitElement {
   // Pause weather entity subscription when tab becomes hidden
   private _pauseWeatherSubscription(from: string): void {
     if (this._weatherEntityApiInstance && this._weatherEntityApiInstance.isSubscriptionActive()) {
-      console.debug(`[${CARD_NAME}] Pausing weather subscription from: ${from}`);
+      this._debugLog(`[${CARD_NAME}] Pausing weather subscription from: ${from}`);
       this._weatherEntityApiInstance.pause(from);
     }
   }
@@ -908,10 +922,10 @@ export class MeteogramCard extends LitElement {
   // Resume weather entity subscription when tab becomes visible
   private async _resumeWeatherSubscription(from: string): Promise<void> {
     if (this._weatherEntityApiInstance && !this._weatherEntityApiInstance.isSubscriptionActive()) {
-      console.debug(`[${CARD_NAME}] Resuming weather subscription from: ${from}`);
+      this._debugLog(`[${CARD_NAME}] Resuming weather subscription from: ${from}`);
       try {
         await this._weatherEntityApiInstance.resume(from);
-        console.debug(`[${CARD_NAME}] Weather subscription resumed successfully from: ${from}`);
+        this._debugLog(`[${CARD_NAME}] Weather subscription resumed successfully from: ${from}`);
       } catch (error) {
         console.error(`[${CARD_NAME}] Failed to resume weather subscription from: ${from}:`, error);
       }
@@ -972,27 +986,16 @@ export class MeteogramCard extends LitElement {
       changedProps.has("meteogramHours");
 
     if (needsRedraw) {
-      console.debug(`[${CARD_NAME}] updated(): needsRedraw because:`, {
-        latitude: changedProps.has("latitude"),
-        longitude: changedProps.has("longitude"),
-        // hass: changedProps.has('hass'),
-        showCloudCover: changedProps.has("showCloudCover"),
-        showPressure: changedProps.has("showPressure"),
-        showPrecipitation: changedProps.has("show_precipitation"),
-        showWeatherIcons: changedProps.has("showWeatherIcons"),
-        showWind: changedProps.has("showWind"),
-        denseWeatherIcons: changedProps.has("denseWeatherIcons"),
-        meteogramHours: changedProps.has("meteogramHours"),
-      });
+
     }
 
     if (!needsRedraw) {
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] updated(): no redraw needed or chart render in progress, skipping.`
       );
       return;
     } else {
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] updated(): scheduling redraw, chartLoaded=${this.chartLoaded}`
       );
     }
@@ -1051,7 +1054,7 @@ export class MeteogramCard extends LitElement {
         JSON.stringify(locationObj)
       );
     } catch (e) {
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] Failed to save default location to localStorage:`,
         e
       );
@@ -1083,7 +1086,7 @@ export class MeteogramCard extends LitElement {
       }
       return null;
     } catch (e) {
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] Failed to load default location from localStorage:`,
         e
       );
@@ -1107,7 +1110,8 @@ export class MeteogramCard extends LitElement {
         this._weatherApiInstance = new WeatherAPI(
           this.latitude,
           this.longitude,
-          this.altitude
+          this.altitude,
+          this.debug
         );
       }
       return;
@@ -1147,10 +1151,11 @@ export class MeteogramCard extends LitElement {
           this._weatherApiInstance = new WeatherAPI(
             this.latitude,
             this.longitude,
-            this.altitude
+            this.altitude,
+            this.debug
           );
         }
-        console.debug(
+        this._debugLog(
           `[${CARD_NAME}] Using HA location: ${this.latitude}, ${this.longitude}`
         );
         return;
@@ -1172,10 +1177,11 @@ export class MeteogramCard extends LitElement {
           this._weatherApiInstance = new WeatherAPI(
             this.latitude,
             this.longitude,
-            this.altitude
+            this.altitude,
+            this.debug
           );
         }
-        console.debug(
+        this._debugLog(
           `[${CARD_NAME}] Using cached default-location: ${this.latitude}, ${this.longitude}`
         );
       } else {
@@ -1190,10 +1196,11 @@ export class MeteogramCard extends LitElement {
           this._weatherApiInstance = new WeatherAPI(
             this.latitude,
             this.longitude,
-            this.altitude
+            this.altitude,
+            this.debug
           );
         }
-        console.debug(
+        this._debugLog(
           `[${CARD_NAME}] Using default location: ${this.latitude}, ${this.longitude}`
         );
       }
@@ -1229,7 +1236,7 @@ export class MeteogramCard extends LitElement {
       !this._weatherEntityApiInstance
     ) {
       if (this.hass) {
-        console.debug(
+        this._debugLog(
           `[${CARD_NAME}] Initializing WeatherEntityAPI for entity: ${this.entityId}`,
           this._weatherEntityApiInstance
         );
@@ -1237,7 +1244,8 @@ export class MeteogramCard extends LitElement {
           this.hass,
           this.entityId as string,
           this,
-          "fetchWeatherData"
+          "fetchWeatherData",
+          this.debug
         );
       }
     } else {
@@ -1306,7 +1314,7 @@ export class MeteogramCard extends LitElement {
       this.longitude !== undefined
         ? parseFloat(Number(this.longitude).toFixed(4))
         : undefined;
-    console.debug(
+    this._debugLog(
       `[${CARD_NAME}] fetchWeatherData called with lat=${lat}, lon=${lon}`
     );
 
@@ -1337,7 +1345,7 @@ export class MeteogramCard extends LitElement {
       this._weatherApiInstance.lon !== lon ||
       this._weatherApiInstance.altitude !== this.altitude
     ) {
-      this._weatherApiInstance = new WeatherAPI(lat!, lon!, this.altitude);
+      this._weatherApiInstance = new WeatherAPI(lat!, lon!, this.altitude, this.debug);
     }
     const weatherApi = this._weatherApiInstance;
 
@@ -1353,7 +1361,7 @@ export class MeteogramCard extends LitElement {
           this._statusLastFetch = new Date(lastFetch).toISOString();
         }
       }
-      console.debug(
+      this._debugLog(
         `[${CARD_NAME}] fetchWeatherData: returning existing in-progress promise.`
       );
       return this.weatherDataPromise;
@@ -1363,14 +1371,7 @@ export class MeteogramCard extends LitElement {
       let result: ForecastData = null as any;
       try {
         // Use the new getForecastData method
-        console.debug(`[${CARD_NAME}] About to call weatherApi.getForecastData()`);
         const resultMaybe = await weatherApi.getForecastData();
-        console.debug(`[${CARD_NAME}] weatherApi.getForecastData() completed, result:`, {
-          hasResult: !!resultMaybe,
-          timeLength: resultMaybe?.time?.length || 0,
-          firstTime: resultMaybe?.time?.[0],
-          lastTime: resultMaybe?.time?.[resultMaybe.time.length - 1]
-        });
         if (!resultMaybe) {
           throw new Error("No forecast data available from WeatherAPI.");
         }
@@ -1432,7 +1433,7 @@ export class MeteogramCard extends LitElement {
         });
         this._statusApiSuccess = false;
         let diag = weatherApi.getDiagnosticText();
-        console.debug(`[${CARD_NAME}] WeatherAPI diagnostic:`, diag);
+        this._debugLog(`[${CARD_NAME}] WeatherAPI diagnostic:`, diag);
         this.setError(diag);
         this.logErrorContext("fetchWeatherData", error);
         throw new Error(
@@ -1551,7 +1552,7 @@ export class MeteogramCard extends LitElement {
 
   async _drawMeteogram(caller: string = "unknown") {
     this.logMethodEntry("_drawMeteogram", { caller });
-    console.debug(`[${CARD_NAME}] _drawMeteogram called from: ${caller}`);
+    this._debugLog(`[${CARD_NAME}] _drawMeteogram called from: ${caller}`);
     // Limit excessive error messages
     const now = Date.now();
     if (this.meteogramError && now - this.lastErrorTime < 60000) {
@@ -1649,17 +1650,13 @@ export class MeteogramCard extends LitElement {
 
   private _renderChart(chartDiv: Element, source: string = "unknown") {
     this.logMethodEntry("_renderChart", { source });
-    console.debug(`[${CARD_NAME}] _renderChart called from: ${source}`);
+    this._debugLog(`[${CARD_NAME}] _renderChart called from: ${source}`);
 
     // Queue logic: If already rendering, do not start another
     if (this._chartRenderInProgress) {
-      console.debug(
-        `[${CARD_NAME}] _renderChart: already in progress, skipping.`
-      );
       return;
     }
     this._chartRenderInProgress = true;
-    console.debug(`[${CARD_NAME}] _renderChart: starting render.`);
 
     // Responsive sizing based on parent
     const parent = chartDiv.parentElement;
@@ -1775,7 +1772,6 @@ export class MeteogramCard extends LitElement {
         const undefinedProps = dataProperties.filter(prop => !(data as any)[prop] || !Array.isArray((data as any)[prop]));
         if (undefinedProps.length > 0) {
           console.warn(`[${CARD_NAME}] ForecastData has undefined/non-array properties:`, undefinedProps);
-          console.debug(`[${CARD_NAME}] Full data object:`, data);
         }
 
         const slicedData: ForecastData = {
@@ -1819,7 +1815,7 @@ export class MeteogramCard extends LitElement {
           const delay = Math.max(this.apiExpiresAt + 60000 - now, 0);
           if (this._weatherRefreshTimeout)
             clearTimeout(this._weatherRefreshTimeout);
-          console.debug(
+          this._debugLog(
             `[${CARD_NAME}] Setting scheduled-refresh-after-expiresAt in ${Math.round(
               delay / 1000
             )}s (at ${new Date(this.apiExpiresAt + 60000).toISOString()})`
@@ -1888,11 +1884,9 @@ export class MeteogramCard extends LitElement {
         this.weatherDataPromise = null;
         // Assign _statusLastRender with a date string when rendering completes
         this._statusLastRender = new Date().toISOString();
-        console.debug(`[${CARD_NAME}] _renderChart: finished render.`);
         // If a render was queued, run it now
         if (this._pendingRender) {
           this._pendingRender = false;
-          console.debug(`[${CARD_NAME}] _renderChart: running pending render.`);
           this._drawMeteogram("pending-after-render");
         }
       });
@@ -2853,14 +2847,14 @@ export class MeteogramCard extends LitElement {
 
   // Add logging method to help debug DOM structure - only used when errors occur
   private _logDomState() {
-    if (this.errorCount > 0) {
-      console.debug("DOM state check:");
-      console.debug("- shadowRoot exists:", !!this.shadowRoot);
+    if (this.errorCount > 0 && this.debug) {
+      this._debugLog("DOM state check:");
+      this._debugLog("- shadowRoot exists:", !!this.shadowRoot);
       if (this.shadowRoot) {
         const chartDiv = this.shadowRoot.querySelector("#chart");
-        console.debug("- chart div exists:", !!chartDiv);
+        this._debugLog("- chart div exists:", !!chartDiv);
         if (chartDiv) {
-          console.debug(
+          this._debugLog(
             "- chart div size:",
             (chartDiv as HTMLElement).offsetWidth,
             "x",
@@ -2868,17 +2862,17 @@ export class MeteogramCard extends LitElement {
           );
         }
       }
-      console.debug("- Is connected:", this.isConnected);
-      console.debug("- Chart loaded:", this.chartLoaded);
+      this._debugLog("- Is connected:", this.isConnected);
+      this._debugLog("- Chart loaded:", this.chartLoaded);
     }
   }
 
   // Add a logging helper to log method entry and errors with context
   private logMethodEntry(method: string, context?: any) {
     if (context !== undefined) {
-      console.debug(`[${CARD_NAME}] ENTER: ${method}`, context);
+      this._debugLog(`[${CARD_NAME}] ENTER: ${method}`, context);
     } else {
-      console.debug(`[${CARD_NAME}] ENTER: ${method}`);
+      this._debugLog(`[${CARD_NAME}] ENTER: ${method}`);
     }
   }
   private logErrorContext(context: string, error: any) {
@@ -3083,7 +3077,10 @@ export class MeteogramCard extends LitElement {
             
             if (removedCount > 0 || invalidCount > 0) {
               localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
-              console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old and ${invalidCount} invalid MET.no cache entries`);
+              // Static method - check localStorage for debug flag
+              if (localStorage.getItem('meteogram-debug') === 'true') {
+                console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old and ${invalidCount} invalid MET.no cache entries`);
+              }
             }
           }
         } catch (e) {
@@ -3149,7 +3146,10 @@ export class MeteogramCard extends LitElement {
           
           if (removedCount > 0 || invalidCount > 0) {
             localStorage.setItem('meteogram-card-entity-weather-cache', JSON.stringify(entityCache));
-            console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old and ${invalidCount} invalid entity cache entries`);
+            // Static method - check localStorage for debug flag
+            if (localStorage.getItem('meteogram-debug') === 'true') {
+              console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old and ${invalidCount} invalid entity cache entries`);
+            }
           }
         } catch (e) {
           console.warn(`[${CARD_NAME}] Corrupted entity cache during startup cleanup, clearing:`, e);
