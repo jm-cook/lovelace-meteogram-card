@@ -275,41 +275,45 @@ export class MeteogramChart {
                 .attr("fill", "currentColor");
         }
 
-        // Draw main rain bars (foreground, deeper blue)
+        // Draw main rain bars (foreground, deeper blue) - filter out null values
+        const rainBarData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+        
         chart.selectAll(".rain-bar")
-            .data(rain.slice(0, N - 1))
+            .data(rainBarData)
             .enter().append("rect")
             .attr("class", "rain-bar")
-            .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-            .attr("y", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+            .attr("x", (d: any) => x(d.index) + dx / 2 - barWidth / 2)
+            .attr("y", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
                 return yPrecip(0) - scaledH;
             })
             .attr("width", barWidth)
-            .attr("height", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                return h < 2 && d > 0 ? 2 : h * 0.7;
+            .attr("height", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                return h < 2 && d.value > 0 ? 2 : h * 0.7;
             })
             .attr("fill", "currentColor");
 
-        // Add main rain labels (show if rain > 0)
+        // Add main rain labels (show if rain > 0) - filter out null values
+        const rainLabelData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+        
         chart.selectAll(".rain-label")
-            .data(rain.slice(0, N - 1))
+            .data(rainLabelData)
             .enter()
             .append("text")
             .attr("class", "rain-label")
-            .attr("x", (_: number, i: number) => x(i) + dx / 2)
-            .attr("y", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+            .attr("x", (d: any) => x(d.index) + dx / 2)
+            .attr("y", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
                 return yPrecip(0) - scaledH - 4; // 4px above the top of the bar
             })
-            .text((d: number) => {
-                if (d <= 0) return "";
-                return d < 1 ? d.toFixed(1) : d.toFixed(0);
+            .text((d: any) => {
+                if (d.value <= 0) return "";
+                return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
             })
-            .attr("opacity", (d: number) => d > 0 ? 1 : 0);
+            .attr("opacity", (d: any) => d.value > 0 ? 1 : 0);
 
         // Add max rain labels (only if precipitation min/max data is available)
         if (this.card._dataAvailability.precipitationMinMax) {

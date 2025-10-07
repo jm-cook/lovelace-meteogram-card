@@ -3,6 +3,7 @@ import {ForecastData} from "./weather-api";
 export class WeatherEntityAPI {
     hass: any;
     entityId: string;
+    private _cardInstance: any; // Reference to the specific meteogram card instance
     private _forecastData: ForecastData | null = null;
     private _lastDataFetch: number | null = null; // Timestamp of last data fetch
     private _unsubForecast: (() => void) | null = null;
@@ -10,11 +11,12 @@ export class WeatherEntityAPI {
     private _lastResumeTime: number | null = null; // Timestamp of last resume
     private _lastForecastFetch: number | null = null; // Timestamp of last forecast data received (subscription or service)
 
-    constructor(hass: any, entityId: string, from: string) {
+    constructor(hass: any, entityId: string, cardInstance: any, from: string) {
         // Instrumentation: log caller stack and arguments
         console.debug(`[WeatherEntityAPI] from ${from} Constructor called for entityId: ${entityId}`);
         this.hass = hass;
         this.entityId = entityId;
+        this._cardInstance = cardInstance;
         
         // Verify entity exists before setting up subscription
         if (!this.hass?.states?.[this.entityId]) {
@@ -45,10 +47,9 @@ export class WeatherEntityAPI {
                     firstTime: this._forecastData?.time?.[0]?.toISOString() || 'none',
                     lastTime: this._forecastData?.time?.[this._forecastData.time.length - 1]?.toISOString() || 'none'
                 });
-                // Force chart update by dispatching a custom event
-                const card = document.querySelector('meteogram-card') as any;
-                if (card && typeof card._scheduleDrawMeteogram === "function") {
-                    card._scheduleDrawMeteogram("WeatherEntityAPI-forecast-update", true);
+                // Force chart update using the specific card instance
+                if (this._cardInstance && typeof this._cardInstance._scheduleDrawMeteogram === "function") {
+                    this._cardInstance._scheduleDrawMeteogram("WeatherEntityAPI-forecast-update", true);
                 }
             }).then(unsub => {
                 this._unsubForecast = unsub;
@@ -506,9 +507,8 @@ export class WeatherEntityAPI {
                     this._lastForecastFetch = Date.now();
                     
                     // Force chart update
-                    const card = document.querySelector('meteogram-card') as any;
-                    if (card && typeof card._scheduleDrawMeteogram === "function") {
-                        card._scheduleDrawMeteogram("WeatherEntityAPI-resume-update", true);
+                    if (this._cardInstance && typeof this._cardInstance._scheduleDrawMeteogram === "function") {
+                        this._cardInstance._scheduleDrawMeteogram("WeatherEntityAPI-resume-update", true);
                     }
                 });
                 
@@ -620,13 +620,12 @@ export class WeatherEntityAPI {
                 
                 console.debug(`[WeatherEntityAPI] ⏰ Updated _lastDataFetch to: ${new Date(this._lastDataFetch).toISOString()}`);
                 
-                // Force chart update with fresh data
-                const card = document.querySelector('meteogram-card') as any;
-                if (card && typeof card._scheduleDrawMeteogram === "function") {
+                // Force chart update with fresh data using specific card instance
+                if (this._cardInstance && typeof this._cardInstance._scheduleDrawMeteogram === "function") {
                     console.debug(`[WeatherEntityAPI] 🔄 Triggering chart update from _checkAndUpdateFromHassState`);
-                    card._scheduleDrawMeteogram("WeatherEntityAPI-fresh-service-data", true);
+                    this._cardInstance._scheduleDrawMeteogram("WeatherEntityAPI-fresh-service-data", true);
                 } else {
-                    console.warn(`[WeatherEntityAPI] ⚠️ Could not trigger chart update - meteogram-card not found or missing _scheduleDrawMeteogram method`);
+                    console.warn(`[WeatherEntityAPI] ⚠️ Could not trigger chart update - card instance not found or missing _scheduleDrawMeteogram method`);
                 }
             } else {
                 const responseData = result?.response || result;
@@ -659,6 +658,7 @@ export class WeatherEntityAPI {
     /**
      * Get a concise summary for browser console debugging
      * Call this from console: document.querySelector('meteogram-card').weatherEntityAPI.getFreshnessSummary()
+     * Or for multiple cards, use: document.querySelectorAll('meteogram-card')[0].weatherEntityAPI.getFreshnessSummary()
      */
     getFreshnessSummary(): string {
         const diag = this.getDiagnosticInfo();

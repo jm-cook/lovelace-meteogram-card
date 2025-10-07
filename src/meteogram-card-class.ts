@@ -437,6 +437,7 @@ export class MeteogramCard extends LitElement {
           this._weatherEntityApiInstance = new WeatherEntityAPI(
             this.hass,
             newEntityId as string,
+            this,
             "setConfig"
           );
         }
@@ -1235,6 +1236,7 @@ export class MeteogramCard extends LitElement {
         this._weatherEntityApiInstance = new WeatherEntityAPI(
           this.hass,
           this.entityId as string,
+          this,
           "fetchWeatherData"
         );
       }

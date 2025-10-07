@@ -1527,7 +1527,7 @@ WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT = 0;
 WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT = 0;
 
 class WeatherEntityAPI {
-    constructor(hass, entityId, from) {
+    constructor(hass, entityId, cardInstance, from) {
         var _a, _b, _c;
         this._forecastData = null;
         this._lastDataFetch = null; // Timestamp of last data fetch
@@ -1539,6 +1539,7 @@ class WeatherEntityAPI {
         console.debug(`[WeatherEntityAPI] from ${from} Constructor called for entityId: ${entityId}`);
         this.hass = hass;
         this.entityId = entityId;
+        this._cardInstance = cardInstance;
         // Verify entity exists before setting up subscription
         if (!((_b = (_a = this.hass) === null || _a === void 0 ? void 0 : _a.states) === null || _b === void 0 ? void 0 : _b[this.entityId])) {
             console.warn(`[WeatherEntityAPI] ❌ Weather entity ${this.entityId} not found in hass.states`);
@@ -1566,10 +1567,9 @@ class WeatherEntityAPI {
                     firstTime: ((_e = (_d = (_c = this._forecastData) === null || _c === void 0 ? void 0 : _c.time) === null || _d === void 0 ? void 0 : _d[0]) === null || _e === void 0 ? void 0 : _e.toISOString()) || 'none',
                     lastTime: ((_h = (_g = (_f = this._forecastData) === null || _f === void 0 ? void 0 : _f.time) === null || _g === void 0 ? void 0 : _g[this._forecastData.time.length - 1]) === null || _h === void 0 ? void 0 : _h.toISOString()) || 'none'
                 });
-                // Force chart update by dispatching a custom event
-                const card = document.querySelector('meteogram-card');
-                if (card && typeof card._scheduleDrawMeteogram === "function") {
-                    card._scheduleDrawMeteogram("WeatherEntityAPI-forecast-update", true);
+                // Force chart update using the specific card instance
+                if (this._cardInstance && typeof this._cardInstance._scheduleDrawMeteogram === "function") {
+                    this._cardInstance._scheduleDrawMeteogram("WeatherEntityAPI-forecast-update", true);
                 }
             }).then(unsub => {
                 this._unsubForecast = unsub;
@@ -1995,9 +1995,8 @@ class WeatherEntityAPI {
                     this._lastDataFetch = Date.now();
                     this._lastForecastFetch = Date.now();
                     // Force chart update
-                    const card = document.querySelector('meteogram-card');
-                    if (card && typeof card._scheduleDrawMeteogram === "function") {
-                        card._scheduleDrawMeteogram("WeatherEntityAPI-resume-update", true);
+                    if (this._cardInstance && typeof this._cardInstance._scheduleDrawMeteogram === "function") {
+                        this._cardInstance._scheduleDrawMeteogram("WeatherEntityAPI-resume-update", true);
                     }
                 });
                 this._unsubForecast = await unsubPromise;
@@ -2094,14 +2093,13 @@ class WeatherEntityAPI {
                 this._lastDataFetch = Date.now();
                 this._lastForecastFetch = Date.now(); // Track forecast data from service call
                 console.debug(`[WeatherEntityAPI] ⏰ Updated _lastDataFetch to: ${new Date(this._lastDataFetch).toISOString()}`);
-                // Force chart update with fresh data
-                const card = document.querySelector('meteogram-card');
-                if (card && typeof card._scheduleDrawMeteogram === "function") {
+                // Force chart update with fresh data using specific card instance
+                if (this._cardInstance && typeof this._cardInstance._scheduleDrawMeteogram === "function") {
                     console.debug(`[WeatherEntityAPI] 🔄 Triggering chart update from _checkAndUpdateFromHassState`);
-                    card._scheduleDrawMeteogram("WeatherEntityAPI-fresh-service-data", true);
+                    this._cardInstance._scheduleDrawMeteogram("WeatherEntityAPI-fresh-service-data", true);
                 }
                 else {
-                    console.warn(`[WeatherEntityAPI] ⚠️ Could not trigger chart update - meteogram-card not found or missing _scheduleDrawMeteogram method`);
+                    console.warn(`[WeatherEntityAPI] ⚠️ Could not trigger chart update - card instance not found or missing _scheduleDrawMeteogram method`);
                 }
             }
             else {
@@ -2134,6 +2132,7 @@ class WeatherEntityAPI {
     /**
      * Get a concise summary for browser console debugging
      * Call this from console: document.querySelector('meteogram-card').weatherEntityAPI.getFreshnessSummary()
+     * Or for multiple cards, use: document.querySelectorAll('meteogram-card')[0].weatherEntityAPI.getFreshnessSummary()
      */
     getFreshnessSummary() {
         var _a, _b;
@@ -3040,41 +3039,43 @@ class MeteogramChart {
             })
                 .attr("fill", "currentColor");
         }
-        // Draw main rain bars (foreground, deeper blue)
+        // Draw main rain bars (foreground, deeper blue) - filter out null values
+        const rainBarData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
         chart.selectAll(".rain-bar")
-            .data(rain.slice(0, N - 1))
+            .data(rainBarData)
             .enter().append("rect")
             .attr("class", "rain-bar")
-            .attr("x", (_, i) => x(i) + dx / 2 - barWidth / 2)
+            .attr("x", (d) => x(d.index) + dx / 2 - barWidth / 2)
             .attr("y", (d) => {
-            const h = this.card._chartHeight - yPrecip(d);
-            const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+            const h = this.card._chartHeight - yPrecip(d.value);
+            const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
             return yPrecip(0) - scaledH;
         })
             .attr("width", barWidth)
             .attr("height", (d) => {
-            const h = this.card._chartHeight - yPrecip(d);
-            return h < 2 && d > 0 ? 2 : h * 0.7;
+            const h = this.card._chartHeight - yPrecip(d.value);
+            return h < 2 && d.value > 0 ? 2 : h * 0.7;
         })
             .attr("fill", "currentColor");
-        // Add main rain labels (show if rain > 0)
+        // Add main rain labels (show if rain > 0) - filter out null values
+        const rainLabelData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
         chart.selectAll(".rain-label")
-            .data(rain.slice(0, N - 1))
+            .data(rainLabelData)
             .enter()
             .append("text")
             .attr("class", "rain-label")
-            .attr("x", (_, i) => x(i) + dx / 2)
+            .attr("x", (d) => x(d.index) + dx / 2)
             .attr("y", (d) => {
-            const h = this.card._chartHeight - yPrecip(d);
-            const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+            const h = this.card._chartHeight - yPrecip(d.value);
+            const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
             return yPrecip(0) - scaledH - 4; // 4px above the top of the bar
         })
             .text((d) => {
-            if (d <= 0)
+            if (d.value <= 0)
                 return "";
-            return d < 1 ? d.toFixed(1) : d.toFixed(0);
+            return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
         })
-            .attr("opacity", (d) => d > 0 ? 1 : 0);
+            .attr("opacity", (d) => d.value > 0 ? 1 : 0);
         // Add max rain labels (only if precipitation min/max data is available)
         if (this.card._dataAvailability.precipitationMinMax) {
             const rainMaxLabelData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null);
@@ -3770,7 +3771,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 // now set: construct new API
                 if (this.hass) {
                     console.debug(`[${CARD_NAME}] setConfig Initializing WeatherEntityAPI for entity: ${this.entityId}`, this.hass);
-                    this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, newEntityId, "setConfig");
+                    this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, newEntityId, this, "setConfig");
                 }
             } // else remains null
         }
@@ -4382,7 +4383,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             !this._weatherEntityApiInstance) {
             if (this.hass) {
                 console.debug(`[${CARD_NAME}] Initializing WeatherEntityAPI for entity: ${this.entityId}`, this._weatherEntityApiInstance);
-                this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId, "fetchWeatherData");
+                this._weatherEntityApiInstance = new WeatherEntityAPI(this.hass, this.entityId, this, "fetchWeatherData");
             }
         }
         else {
