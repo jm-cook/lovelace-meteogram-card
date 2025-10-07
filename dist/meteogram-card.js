@@ -1619,15 +1619,17 @@ class WeatherEntityAPI {
     }
     // Diagnostic method to check entity and subscription status
     getDiagnosticInfo() {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
-        const entity = this.hass.states[this.entityId];
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+        // Use current hass from card instance, not the potentially stale stored hass
+        const currentHass = ((_a = this._cardInstance) === null || _a === void 0 ? void 0 : _a.hass) || this.hass;
+        const entity = (_b = currentHass === null || currentHass === void 0 ? void 0 : currentHass.states) === null || _b === void 0 ? void 0 : _b[this.entityId];
         const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
         const expiresAt = this._lastDataFetch ? this._lastDataFetch + oneHour : null;
         const now = Date.now();
         // Analyze forecast timing details
-        const forecastTimingInfo = ((_a = this._forecastData) === null || _a === void 0 ? void 0 : _a.time) ? {
-            firstForecastTime: ((_b = this._forecastData.time[0]) === null || _b === void 0 ? void 0 : _b.toISOString()) || 'none',
-            lastForecastTime: ((_c = this._forecastData.time[this._forecastData.time.length - 1]) === null || _c === void 0 ? void 0 : _c.toISOString()) || 'none',
+        const forecastTimingInfo = ((_c = this._forecastData) === null || _c === void 0 ? void 0 : _c.time) ? {
+            firstForecastTime: ((_d = this._forecastData.time[0]) === null || _d === void 0 ? void 0 : _d.toISOString()) || 'none',
+            lastForecastTime: ((_e = this._forecastData.time[this._forecastData.time.length - 1]) === null || _e === void 0 ? void 0 : _e.toISOString()) || 'none',
             firstForecastAge: this._forecastData.time[0] ? Math.round((now - this._forecastData.time[0].getTime()) / (60 * 1000)) + ' minutes ago' : 'unknown',
             forecastSpanHours: this._forecastData.time.length > 1 ?
                 Math.round((this._forecastData.time[this._forecastData.time.length - 1].getTime() - this._forecastData.time[0].getTime()) / (60 * 60 * 1000)) + ' hours' :
@@ -1651,8 +1653,8 @@ class WeatherEntityAPI {
             } : null,
             hourlyForecastData: {
                 // In modern HA, forecast data comes only from subscriptions, not entity attributes
-                processedLength: ((_e = (_d = this._forecastData) === null || _d === void 0 ? void 0 : _d.time) === null || _e === void 0 ? void 0 : _e.length) || 0,
-                status: ((_g = (_f = this._forecastData) === null || _f === void 0 ? void 0 : _f.time) === null || _g === void 0 ? void 0 : _g.length)
+                processedLength: ((_g = (_f = this._forecastData) === null || _f === void 0 ? void 0 : _f.time) === null || _g === void 0 ? void 0 : _g.length) || 0,
+                status: ((_j = (_h = this._forecastData) === null || _h === void 0 ? void 0 : _h.time) === null || _j === void 0 ? void 0 : _j.length)
                     ? `${this._forecastData.time.length} processed entries`
                     : 'waiting for subscription data',
                 forecastTiming: forecastTimingInfo
@@ -1663,25 +1665,27 @@ class WeatherEntityAPI {
             lastResumeTime: this._lastResumeTime ? new Date(this._lastResumeTime).toLocaleString() : 'never',
             lastForecastFetch: this._lastForecastFetch ? new Date(this._lastForecastFetch).toLocaleString() : 'never',
             lastForecastFetchAge: this._lastForecastFetch ? Math.round((now - this._lastForecastFetch) / (60 * 1000)) + ' minutes ago' : 'never',
-            hasConnection: !!((_h = this.hass) === null || _h === void 0 ? void 0 : _h.connection),
+            hasConnection: !!((_k = this.hass) === null || _k === void 0 ? void 0 : _k.connection),
             inMemoryData: {
                 hasData: !!this._forecastData,
-                dataTimeLength: ((_k = (_j = this._forecastData) === null || _j === void 0 ? void 0 : _j.time) === null || _k === void 0 ? void 0 : _k.length) || 0,
+                dataTimeLength: ((_m = (_l = this._forecastData) === null || _l === void 0 ? void 0 : _l.time) === null || _m === void 0 ? void 0 : _m.length) || 0,
                 lastFetchTime: this._lastDataFetch ? new Date(this._lastDataFetch).toISOString() : 'never',
                 lastFetchFormatted: this._lastDataFetch ? new Date(this._lastDataFetch).toLocaleString() : 'not yet fetched',
                 dataAgeMinutes: this._lastDataFetch ? Math.round((Date.now() - this._lastDataFetch) / (60 * 1000)) : 'n/a',
                 expiresAt: expiresAt,
                 expiresAtFormatted: expiresAt ? new Date(expiresAt).toLocaleString() : 'not set',
                 isExpired: expiresAt ? Date.now() > expiresAt : false,
-                fetchTimestamp: ((_l = this._forecastData) === null || _l === void 0 ? void 0 : _l.fetchTimestamp) || 'none'
+                fetchTimestamp: ((_o = this._forecastData) === null || _o === void 0 ? void 0 : _o.fetchTimestamp) || 'none'
             }
         };
     }
     _parseForecastArray(forecast) {
-        // Try to get units from the entity attributes if available
+        var _a;
+        // Try to get units from the entity attributes if available (use current hass from card)
         let units = undefined;
-        if (this.hass && this.entityId && this.hass.states && this.hass.states[this.entityId]) {
-            const attrs = this.hass.states[this.entityId].attributes || {};
+        const currentHass = ((_a = this._cardInstance) === null || _a === void 0 ? void 0 : _a.hass) || this.hass;
+        if (currentHass && this.entityId && currentHass.states && currentHass.states[this.entityId]) {
+            const attrs = currentHass.states[this.entityId].attributes || {};
             units = {
                 temperature: attrs.temperature_unit,
                 pressure: attrs.pressure_unit,
@@ -2014,11 +2018,13 @@ class WeatherEntityAPI {
     async _checkAndUpdateFromHassState() {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
         console.debug(`[WeatherEntityAPI] 🔍 _checkAndUpdateFromHassState called for ${this.entityId}`);
-        if (!((_b = (_a = this.hass) === null || _a === void 0 ? void 0 : _a.states) === null || _b === void 0 ? void 0 : _b[this.entityId])) {
-            console.debug(`[WeatherEntityAPI] ❌ Entity ${this.entityId} not found in hass.states during resume check`);
+        // Use current hass from card instance, not the potentially stale stored hass
+        const currentHass = ((_a = this._cardInstance) === null || _a === void 0 ? void 0 : _a.hass) || this.hass;
+        if (!((_b = currentHass === null || currentHass === void 0 ? void 0 : currentHass.states) === null || _b === void 0 ? void 0 : _b[this.entityId])) {
+            console.debug(`[WeatherEntityAPI] ❌ Entity ${this.entityId} not found in current hass.states during resume check`);
             return;
         }
-        const entity = this.hass.states[this.entityId];
+        const entity = currentHass.states[this.entityId];
         const entityLastUpdated = entity.last_updated ? new Date(entity.last_updated).getTime() : 0;
         const entityLastChanged = entity.last_changed ? new Date(entity.last_changed).getTime() : 0;
         const ourLastFetch = this._lastDataFetch || 0;
@@ -2042,7 +2048,7 @@ class WeatherEntityAPI {
         try {
             const serviceCallStart = Date.now();
             // Use the working method (direct WebSocket connection) 
-            const result = await this.hass.connection.sendMessagePromise({
+            const result = await currentHass.connection.sendMessagePromise({
                 type: 'call_service',
                 domain: 'weather',
                 service: 'get_forecasts',
@@ -2180,16 +2186,17 @@ class WeatherEntityAPI {
      * Call this from browser console to debug forecast data freshness
      */
     async testGetForecastsService() {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1;
         console.log(`[WeatherEntityAPI] 🧪 Manual test of get_forecasts service for ${this.entityId}`);
-        if (!((_a = this.hass) === null || _a === void 0 ? void 0 : _a.connection)) {
+        const currentHass = ((_a = this._cardInstance) === null || _a === void 0 ? void 0 : _a.hass) || this.hass;
+        if (!(currentHass === null || currentHass === void 0 ? void 0 : currentHass.connection)) {
             console.error(`[WeatherEntityAPI] ❌ No hass connection available`);
             return null;
         }
         try {
             const serviceCallStart = Date.now();
             // Use the working method (Method 3 - direct connection)
-            const result = await this.hass.connection.sendMessagePromise({
+            const result = await currentHass.connection.sendMessagePromise({
                 type: 'call_service',
                 domain: 'weather',
                 service: 'get_forecasts',
@@ -2255,10 +2262,10 @@ class WeatherEntityAPI {
                     keys: error ? Object.keys(error) : []
                 },
                 hassState: {
-                    hasConnection: !!((_x = this.hass) === null || _x === void 0 ? void 0 : _x.connection),
-                    entityExists: !!((_z = (_y = this.hass) === null || _y === void 0 ? void 0 : _y.states) === null || _z === void 0 ? void 0 : _z[this.entityId]),
-                    entityState: (_2 = (_1 = (_0 = this.hass) === null || _0 === void 0 ? void 0 : _0.states) === null || _1 === void 0 ? void 0 : _1[this.entityId]) === null || _2 === void 0 ? void 0 : _2.state,
-                    entityAttributes: ((_5 = (_4 = (_3 = this.hass) === null || _3 === void 0 ? void 0 : _3.states) === null || _4 === void 0 ? void 0 : _4[this.entityId]) === null || _5 === void 0 ? void 0 : _5.attributes) ? Object.keys(this.hass.states[this.entityId].attributes) : []
+                    hasConnection: !!(currentHass === null || currentHass === void 0 ? void 0 : currentHass.connection),
+                    entityExists: !!((_x = currentHass === null || currentHass === void 0 ? void 0 : currentHass.states) === null || _x === void 0 ? void 0 : _x[this.entityId]),
+                    entityState: (_z = (_y = currentHass === null || currentHass === void 0 ? void 0 : currentHass.states) === null || _y === void 0 ? void 0 : _y[this.entityId]) === null || _z === void 0 ? void 0 : _z.state,
+                    entityAttributes: ((_1 = (_0 = currentHass === null || currentHass === void 0 ? void 0 : currentHass.states) === null || _0 === void 0 ? void 0 : _0[this.entityId]) === null || _1 === void 0 ? void 0 : _1.attributes) ? Object.keys(currentHass.states[this.entityId].attributes) : []
                 }
             };
             console.error(`[WeatherEntityAPI] 🧪 get_forecasts test failed:`, errorAnalysis);

@@ -105,7 +105,9 @@ export class WeatherEntityAPI {
 
     // Diagnostic method to check entity and subscription status
     getDiagnosticInfo(): any {
-        const entity = this.hass.states[this.entityId];
+        // Use current hass from card instance, not the potentially stale stored hass
+        const currentHass = this._cardInstance?.hass || this.hass;
+        const entity = currentHass?.states?.[this.entityId];
         const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
         const expiresAt = this._lastDataFetch ? this._lastDataFetch + oneHour : null;
         const now = Date.now();
@@ -168,10 +170,11 @@ export class WeatherEntityAPI {
     }
 
     private _parseForecastArray(forecast: any[]): ForecastData {
-        // Try to get units from the entity attributes if available
+        // Try to get units from the entity attributes if available (use current hass from card)
         let units: ForecastData['units'] = undefined;
-        if (this.hass && this.entityId && this.hass.states && this.hass.states[this.entityId]) {
-            const attrs = this.hass.states[this.entityId].attributes || {};
+        const currentHass = this._cardInstance?.hass || this.hass;
+        if (currentHass && this.entityId && currentHass.states && currentHass.states[this.entityId]) {
+            const attrs = currentHass.states[this.entityId].attributes || {};
             units = {
                 temperature: attrs.temperature_unit,
                 pressure: attrs.pressure_unit,
@@ -527,12 +530,14 @@ export class WeatherEntityAPI {
     private async _checkAndUpdateFromHassState(): Promise<void> {
         console.debug(`[WeatherEntityAPI] 🔍 _checkAndUpdateFromHassState called for ${this.entityId}`);
         
-        if (!this.hass?.states?.[this.entityId]) {
-            console.debug(`[WeatherEntityAPI] ❌ Entity ${this.entityId} not found in hass.states during resume check`);
+        // Use current hass from card instance, not the potentially stale stored hass
+        const currentHass = this._cardInstance?.hass || this.hass;
+        if (!currentHass?.states?.[this.entityId]) {
+            console.debug(`[WeatherEntityAPI] ❌ Entity ${this.entityId} not found in current hass.states during resume check`);
             return;
         }
 
-        const entity = this.hass.states[this.entityId];
+        const entity = currentHass.states[this.entityId];
         const entityLastUpdated = entity.last_updated ? new Date(entity.last_updated).getTime() : 0;
         const entityLastChanged = entity.last_changed ? new Date(entity.last_changed).getTime() : 0;
         const ourLastFetch = this._lastDataFetch || 0;
@@ -560,7 +565,7 @@ export class WeatherEntityAPI {
             const serviceCallStart = Date.now();
             
             // Use the working method (direct WebSocket connection) 
-            const result = await this.hass.connection.sendMessagePromise({
+            const result = await currentHass.connection.sendMessagePromise({
                 type: 'call_service',
                 domain: 'weather',
                 service: 'get_forecasts',
@@ -715,7 +720,8 @@ export class WeatherEntityAPI {
     async testGetForecastsService(): Promise<any> {
         console.log(`[WeatherEntityAPI] 🧪 Manual test of get_forecasts service for ${this.entityId}`);
         
-        if (!this.hass?.connection) {
+        const currentHass = this._cardInstance?.hass || this.hass;
+        if (!currentHass?.connection) {
             console.error(`[WeatherEntityAPI] ❌ No hass connection available`);
             return null;
         }
@@ -723,7 +729,7 @@ export class WeatherEntityAPI {
         try {
             const serviceCallStart = Date.now();
             // Use the working method (Method 3 - direct connection)
-            const result = await this.hass.connection.sendMessagePromise({
+            const result = await currentHass.connection.sendMessagePromise({
                 type: 'call_service',
                 domain: 'weather',
                 service: 'get_forecasts',
@@ -793,10 +799,10 @@ export class WeatherEntityAPI {
                     keys: error ? Object.keys(error) : []
                 },
                 hassState: {
-                    hasConnection: !!this.hass?.connection,
-                    entityExists: !!this.hass?.states?.[this.entityId],
-                    entityState: this.hass?.states?.[this.entityId]?.state,
-                    entityAttributes: this.hass?.states?.[this.entityId]?.attributes ? Object.keys(this.hass.states[this.entityId].attributes) : []
+                    hasConnection: !!currentHass?.connection,
+                    entityExists: !!currentHass?.states?.[this.entityId],
+                    entityState: currentHass?.states?.[this.entityId]?.state,
+                    entityAttributes: currentHass?.states?.[this.entityId]?.attributes ? Object.keys(currentHass.states[this.entityId].attributes) : []
                 }
             };
             
