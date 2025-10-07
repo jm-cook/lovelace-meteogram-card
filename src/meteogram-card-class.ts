@@ -153,6 +153,39 @@ export class MeteogramCard extends LitElement {
 
   // Add WeatherEntityAPI instance as a class variable
   private _weatherEntityApiInstance: WeatherEntityAPI | null = null;
+  
+  // Public getter for console debugging access
+  get weatherEntityAPI(): WeatherEntityAPI | null {
+    return this._weatherEntityApiInstance;
+  }
+  
+  // Debug helper method for console access
+  debugMeteogram(): any {
+    console.log('=== METEOGRAM CARD DEBUG ===');
+    console.log('Entity ID:', this.entityId);
+    console.log('Weather Entity API Instance:', !!this._weatherEntityApiInstance);
+    console.log('Weather API Instance:', !!this._weatherApiInstance);
+    console.log('Card Configuration:', {
+      entityId: this.entityId,
+      latitude: this.latitude,
+      longitude: this.longitude,
+      diagnostics: this.diagnostics,
+      usingEntity: !!this.entityId && this.entityId !== 'none',
+      usingDirectAPI: !!(this.latitude && this.longitude)
+    });
+    
+    if (this._weatherEntityApiInstance) {
+      console.log('Weather Entity API available - use: card.weatherEntityAPI.getFreshnessSummary()');
+      return this._weatherEntityApiInstance.getFreshnessSummary();
+    } else if (this._weatherApiInstance) {
+      console.log('Using Met.no API directly - Entity API not available');
+      console.log('API Instance:', this._weatherApiInstance);
+      return 'Using Met.no API directly - no entity debugging available';
+    } else {
+      console.log('No weather instances available - card may not be initialized');
+      return 'Card not fully initialized';
+    }
+  }
 
   // Add these properties for throttling
   private _redrawScheduled = false;
@@ -1822,6 +1855,87 @@ export class MeteogramCard extends LitElement {
     // Use hass.language if available, fallback to "en"
     return this.hass && this.hass.language ? this.hass.language : "en";
   }
+
+  // Centralized method to generate diagnostic information
+  private generateDiagnosticInfo(): { 
+    tooltip: string; 
+    panel: any;
+    expires: any;
+    lastFetch: string;
+    lastRender: string;
+  } {
+    let debugInfo = '';
+    let panelInfo = null;
+    let expiresInfo: any = "not available";
+    let lastFetchInfo = "not available"; 
+    let lastRenderInfo = this._statusLastRender || "unknown";
+    
+    // Show Entity API debug info when using entity
+    if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
+      const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
+      const expiryColor = diag.inMemoryData.isExpired ? '#f44336' : '#4caf50';
+      
+      // Set expires and lastFetch info for main panel
+      if (diag.inMemoryData.expiresAtFormatted !== 'not set') {
+        expiresInfo = html`<span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted}${diag.inMemoryData.isExpired ? ' (EXPIRED)' : ''}</span>`;
+      } else {
+        expiresInfo = 'not set';
+      }
+      lastFetchInfo = diag.inMemoryData.lastFetchFormatted;
+      
+      // For tooltip - include the Last forecast fetched info you want to see
+      debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
+        <b>📱 Entity API:</b> ${diag.entityExists ? '✅' : '❌'} ${diag.entityState || 'unknown'} | <b>Last Updated:</b> ${diag.entityLastUpdated ? new Date(diag.entityLastUpdated).toLocaleString() : 'unknown'}<br>
+        <b>Subscription:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Connection:</b> ${diag.hasConnection ? '✅' : '❌'}<br>
+        <b>Last Data Fetch:</b> ${diag.inMemoryData.lastFetchFormatted} | <b>Age:</b> ${diag.inMemoryData.dataAgeMinutes} min<br>
+        <b>Last Forecast Fetched:</b> ${diag.lastForecastFetch || 'never'} ${diag.lastForecastFetchAge ? `(${diag.lastForecastFetchAge})` : ''}<br>
+        <b>Data Expires:</b> <span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted} ${diag.inMemoryData.isExpired ? '(EXPIRED)' : ''}</span><br>
+        <b>Hourly Data:</b> ${diag.hourlyForecastData.status}
+      </div>`;
+      
+      // For diagnostic panel - remove the detailed info that was getting cut off
+      // Keep this null to remove the extra panel section
+      panelInfo = null;
+    }
+    // Show Weather API debug info when NOT using entity (coordinates mode)  
+    else if (this._weatherApiInstance) {
+      try {
+        const apiDiag = this._weatherApiInstance.getDiagnosticInfo();
+        const apiExpiryColor = apiDiag.isExpired ? '#f44336' : '#4caf50';
+        
+        // Set expires and lastFetch info for main panel
+        if (this.apiExpiresAt) {
+          const isExpired = Date.now() > this.apiExpiresAt;
+          const color = isExpired ? '#f44336' : '#4caf50';
+          const status = isExpired ? ' (EXPIRED)' : '';
+          expiresInfo = html`<span style="color:${color}">${new Date(this.apiExpiresAt).toLocaleString()}${status}</span>`;
+        }
+        lastFetchInfo = this._statusLastFetch 
+          ? (this._statusLastFetch.includes('T') ? new Date(this._statusLastFetch).toLocaleString() : this._statusLastFetch)
+          : "not available";
+        
+        debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
+          <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
+          <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
+          <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
+          <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
+        </div>`;
+      } catch (error) {
+        console.error('[MeteogramCard] Error getting Weather API diagnostic info:', error);
+        debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>Weather API diagnostic error: ${error}</div>`;
+      }
+    } else {
+      debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>No diagnostic info available</div>`;
+    }
+    
+    return { 
+      tooltip: debugInfo, 
+      panel: panelInfo,
+      expires: expiresInfo,
+      lastFetch: lastFetchInfo,
+      lastRender: lastRenderInfo
+    };
+  }
   // Add a helper to determine if day or night based on time and location
   private isDaytimeAt(date: Date): boolean {
     // 1. Try weather entity attributes
@@ -2462,7 +2576,7 @@ export class MeteogramCard extends LitElement {
         }
       }
       attributionTooltip = `
-                <div style='padding:8px;max-width:320px;'>
+                <div style='padding:8px;min-width:300px;max-width:450px;text-align:left;'>
                     <div style='margin-bottom:4px;'>${
                       this.entityAttribution
                     }</div>
@@ -2483,61 +2597,14 @@ export class MeteogramCard extends LitElement {
                     <br>Some supported features cannot be plotted because the required data is not provided.</div>`
                         : ""
                     }
-                    ${
-                      (() => {
-                        let debugInfo = '';
-                        
-                        // Show Entity API debug info when using entity
-                        if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
-                          const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
-                          const expiryColor = diag.inMemoryData.isExpired ? '#f44336' : '#4caf50';
-                          debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
-                            <b>📱 Entity API:</b> ${diag.entityExists ? '✅' : '❌'} ${diag.entityState || 'unknown'} | <b>Last Updated:</b> ${diag.entityLastUpdated ? new Date(diag.entityLastUpdated).toLocaleString() : 'unknown'}<br>
-                            <b>Subscription:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Connection:</b> ${diag.hasConnection ? '✅' : '❌'}<br>
-                            <b>Last Data Fetch:</b> ${diag.inMemoryData.lastFetchFormatted} | <b>Age:</b> ${diag.inMemoryData.dataAgeMinutes} min<br>
-                            <b>Data Expires:</b> <span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted} ${diag.inMemoryData.isExpired ? '(EXPIRED)' : ''}</span><br>
-                            <b>Hourly Data:</b> ${diag.hourlyForecastData.status}
-                          </div>`;
-                        }
-                        // Show Weather API debug info when NOT using entity (coordinates mode)  
-                        else {
-                          console.debug('[MeteogramCard] Checking Weather API diagnostic conditions:', {
-                            hasEntityId: !!(this.entityId && this.entityId !== "none"),
-                            hasEntityInstance: !!this._weatherEntityApiInstance,
-                            hasWeatherApiInstance: !!this._weatherApiInstance,
-                            entityId: this.entityId
-                          });
-                          
-                          if (this._weatherApiInstance) {
-                            console.debug('[MeteogramCard] Showing Weather API diagnostic info');
-                            try {
-                              const apiDiag = this._weatherApiInstance.getDiagnosticInfo();
-                              const apiExpiryColor = apiDiag.isExpired ? '#f44336' : '#4caf50';
-                              debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
-                                <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
-                                <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
-                                <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
-                                <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
-                              </div>`;
-                            } catch (error) {
-                              console.error('[MeteogramCard] Error getting Weather API diagnostic info:', error);
-                              debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>Weather API diagnostic error: ${error}</div>`;
-                            }
-                          } else {
-                            debugInfo += `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>No diagnostic info available</div>`;
-                          }
-                        }
-                        
-                        return debugInfo;
-                      })()
-                    }
+                    ${this.generateDiagnosticInfo().tooltip}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard.meteogramCardVersion}</div>
                 </div>
             `;
     } else {
       attributionTooltip = `
-                <div style='padding:8px;max-width:320px;'>
+                <div style='padding:8px;min-width:300px;max-width:450px;text-align:left;'>
                     <div style='margin-bottom:4px;'>
                         Weather data from <a href='https://www.met.no/en' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>the Norwegian Meteorological Institute (MET Norway)</a>,
                         licensed under <a href='https://creativecommons.org/licenses/by/4.0/' target='_blank' rel='noopener' style='color:inherit;text-decoration:underline;'>CC BY 4.0</a>
@@ -2550,33 +2617,7 @@ export class MeteogramCard extends LitElement {
                           )}</div>`
                         : ""
                     }
-                    ${(() => {
-                      // Weather API diagnostic info for coordinates mode
-                      console.debug('[MeteogramCard] Coordinates mode - checking Weather API diagnostic conditions:', {
-                        hasWeatherApiInstance: !!this._weatherApiInstance,
-                        entityId: this.entityId
-                      });
-                      
-                      if (this._weatherApiInstance) {
-                        console.debug('[MeteogramCard] Showing Weather API diagnostic info for coordinates mode');
-                        try {
-                          const apiDiag = this._weatherApiInstance.getDiagnosticInfo();
-                          const apiExpiryColor = apiDiag.isExpired ? '#f44336' : '#4caf50';
-                          return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
-                            <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
-                            <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
-                            <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
-                            <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
-                          </div>`;
-                        } catch (error) {
-                          console.error('[MeteogramCard] Error getting Weather API diagnostic info:', error);
-                          return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>Weather API diagnostic error: ${error}</div>`;
-                        }
-                      } else {
-                        console.debug('[MeteogramCard] No Weather API instance available');
-                        return `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>No Weather API diagnostic info available</div>`;
-                      }
-                    })()}
+                    ${this.generateDiagnosticInfo().tooltip}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard.meteogramCardVersion}</div>
                 </div>
@@ -2627,136 +2668,100 @@ export class MeteogramCard extends LitElement {
                   <div id="chart" style="width:100%;height:100%"></div>
                 </div>
                 ${this.diagnostics
-                  ? html`
-                      <div
-                        id="meteogram-status-panel"
-                        style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
-                        xmlns="http://www.w3.org/1999/html"
-                      >
-                        <b
-                          >${trnslt(
-                            this.hass,
-                            "ui.card.meteogram.status_panel",
-                            "Status Panel"
-                          )}</b
-                        >
+                  ? (() => {
+                      const diagnosticInfo = this.generateDiagnosticInfo();
+                      return html`
                         <div
-                          style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;"
+                          id="meteogram-status-panel"
+                          style="margin-top:12px; font-size:0.95em; background:#f5f5f5; border-radius:6px; padding:8px; color:#333;"
+                          xmlns="http://www.w3.org/1999/html"
                         >
-                          <div>
-                            <span
-                              >${trnslt(
-                                this.hass,
-                                "ui.card.meteogram.status.expires_at",
-                                "Expires At"
-                              )}
-                              :
-                              ${(() => {
-                                // Use entity diagnostic data if available, otherwise fall back to API data
-                                if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
-                                  const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
-                                  const expiryColor = diag.inMemoryData.isExpired ? '#f44336' : '#4caf50';
-                                  if (diag.inMemoryData.expiresAtFormatted !== 'not set') {
-                                    return html`<span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted}${diag.inMemoryData.isExpired ? ' (EXPIRED)' : ''}</span>`;
-                                  } else {
-                                    return 'not set';
-                                  }
-                                } else if (this.apiExpiresAt) {
-                                  const isExpired = Date.now() > this.apiExpiresAt;
-                                  const color = isExpired ? '#f44336' : '#4caf50';
-                                  const status = isExpired ? ' (EXPIRED)' : '';
-                                  return html`<span style="color:${color}">${new Date(this.apiExpiresAt).toLocaleString()}${status}</span>`;
-                                } else {
-                                  return "not available";
-                                }
-                              })()}</span
-                            ><br />
-                            <span
-                              >${trnslt(
-                                this.hass,
-                                "ui.card.meteogram.status.last_render",
-                                "Last Render"
-                              )}
-                              : ${this._statusLastRender || "unknown"}</span
-                            ><br />
-                            <span
-                              >${trnslt(
-                                this.hass,
-                                "ui.card.meteogram.status.last_data_fetch",
-                                "Last Data Fetch"
-                              )}
-                              : ${(() => {
-                                // Use entity diagnostic data if available, otherwise fall back to API data
-                                if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
-                                  const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
-                                  return diag.inMemoryData.lastFetchFormatted;
-                                } else {
-                                  return this._statusLastFetch 
-                                    ? (this._statusLastFetch.includes('T') ? new Date(this._statusLastFetch).toLocaleString() : this._statusLastFetch)
-                                    : "not available";
-                                }
-                              })()}</span
-                            >
+                          <b
+                            >${trnslt(
+                              this.hass,
+                              "ui.card.meteogram.status_panel",
+                              "Status Panel"
+                            )}</b
+                          >
+                          <div
+                            style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;"
+                          >
+                            <div>
+                              <span
+                                >${trnslt(
+                                  this.hass,
+                                  "ui.card.meteogram.status.expires_at",
+                                  "Expires At"
+                                )}
+                                : ${diagnosticInfo.expires}</span
+                              ><br />
+                              <span
+                                >${trnslt(
+                                  this.hass,
+                                  "ui.card.meteogram.status.last_render",
+                                  "Last Render"
+                                )}
+                                : ${diagnosticInfo.lastRender}</span
+                              ><br />
+                              <span
+                                >${trnslt(
+                                  this.hass,
+                                  "ui.card.meteogram.status.last_data_fetch",
+                                  "Last Data Fetch"
+                                )}
+                                : ${diagnosticInfo.lastFetch}</span
+                              >
+                            </div>
+                            <div>
+                              <span
+                                title="${this._lastApiSuccess
+                                  ? trnslt(
+                                      this.hass,
+                                      "ui.card.meteogram.status.success",
+                                      "success"
+                                    ) + ` : ${successTooltip}`
+                                  : this._statusApiSuccess === null
+                                  ? trnslt(
+                                      this.hass,
+                                      "ui.card.meteogram.status.cached",
+                                      "cached"
+                                    ) + ` : ${successTooltip}`
+                                  : trnslt(
+                                      this.hass,
+                                      "ui.card.meteogram.status.failed",
+                                      "failed"
+                                    ) + ` : ${successTooltip}`}"
+                              >
+                                ${trnslt(
+                                  this.hass,
+                                  "ui.card.meteogram.status.api_success",
+                                  "API Success"
+                                )}
+                                :
+                                ${this._lastApiSuccess
+                                  ? "✅"
+                                  : this._statusApiSuccess === null
+                                  ? "❎"
+                                  : "❌"}
+                              </span>
+                              <br />
+                              <span
+                                >Card version:
+                                <code
+                                  >${MeteogramCard.meteogramCardVersion}</code
+                                ></span
+                              ><br />
+                              <span
+                                >Client type:
+                                <code>${getClientName()}</code></span
+                              ><br />
+                              <span>${successTooltip}</span>
+                            </div>
                           </div>
-                          <div>
-                            <span
-                              title="${this._lastApiSuccess
-                                ? trnslt(
-                                    this.hass,
-                                    "ui.card.meteogram.status.success",
-                                    "success"
-                                  ) + ` : ${successTooltip}`
-                                : this._statusApiSuccess === null
-                                ? trnslt(
-                                    this.hass,
-                                    "ui.card.meteogram.status.cached",
-                                    "cached"
-                                  ) + ` : ${successTooltip}`
-                                : trnslt(
-                                    this.hass,
-                                    "ui.card.meteogram.status.failed",
-                                    "failed"
-                                  ) + ` : ${successTooltip}`}"
-                            >
-                              ${trnslt(
-                                this.hass,
-                                "ui.card.meteogram.status.api_success",
-                                "API Success"
-                              )}
-                              :
-                              ${this._lastApiSuccess
-                                ? "✅"
-                                : this._statusApiSuccess === null
-                                ? "❎"
-                                : "❌"}
-                            </span>
-                            <br />
-                            <span
-                              >Card version:
-                              <code
-                                >${MeteogramCard.meteogramCardVersion}</code
-                              ></span
-                            ><br />
-                            <span
-                              >Client type:
-                              <code>${getClientName()}</code></span
-                            ><br />
-                            <span>${successTooltip}</span>
-                          </div>
+                          ${diagnosticInfo.panel || ""}
                         </div>
-                        ${this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance && !this.diagnostics
-                          ? (() => {
-                              const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
-                              return html`
-                                <div style="margin-top:6px; padding-top:6px; border-top:1px solid #ddd; font-size:0.83em;">
-                                  <b>Last data fetch:</b> ${diag.inMemoryData.lastFetchFormatted}<br>
-                                  <b>Entity:</b> ${diag.entityExists ? '✅' : '❌'} ${this.entityId.split('.')[1]} | <b>Sub:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Hourly:</b> ${diag.hourlyForecastData.processedLength}
-                                </div>
-                              `;
-                            })()
-                          : ""}
-                      </div>
-                    `
+                      `;
+                    })()
                   : ""}
               `}
         </div>
