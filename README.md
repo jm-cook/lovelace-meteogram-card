@@ -33,7 +33,6 @@ Add the card to your dashboard:
 
 ```yaml
 type: custom:meteogram-card
-type: custom:meteogram-card
 styles:
   meteogram-label-font-size: "18px"      # Axis labels, date/hour/rain labels
   meteogram-legend-font-size: "16px"     # Legend text
