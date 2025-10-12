@@ -33,16 +33,10 @@ Add the card to your dashboard:
 
 ```yaml
 type: custom:meteogram-card
-styles:
-  meteogram-label-font-size: "18px"      # Axis labels, date/hour/rain labels
-  meteogram-legend-font-size: "16px"     # Legend text
-  meteogram-tick-font-size: "15px"       # Y axis tick text
 entity_id: weather.home
-# Optional: toggle display components
-show_cloud_cover: true
-show_pressure: true
 ```
 
+Optional: modify styles for the card.
 ```
 type: custom:meteogram-card
 styles:
