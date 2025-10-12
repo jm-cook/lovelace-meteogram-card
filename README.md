@@ -29,10 +29,6 @@ A custom card showing a meteogram with wind barbs, powered by Met.no API or Home
 4. Click **Install**.
 5. Restart Home Assistant if prompted.
 
-type: custom:meteogram-card
-styles:
-  meteogram-cloud-color: "#ffb300"
-  meteogram-grid-color: "#1976d2"
 Add the card to your dashboard:
 
 ```yaml
@@ -46,6 +42,9 @@ entity_id: weather.home
 # Optional: toggle display components
 show_cloud_cover: true
 show_pressure: true
+```
+
+```
 type: custom:meteogram-card
 styles:
   meteogram-rain-bar-color: "#2196f3"
