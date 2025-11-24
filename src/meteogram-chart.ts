@@ -161,6 +161,57 @@ export class MeteogramChart {
 
     drawTemperatureLine(chart: any, temperature: (number|null)[], x: any, yTemp: any, legendX?: number, legendY?: number) {
         const d3 = window.d3;
+
+        // Create a gradient that transitions from blue (cold/below freezing) to red (warm/above freezing)
+        const gradientId = `temp-gradient-${Math.random().toString(36).substr(2, 9)}`;
+        const defs = chart.append("defs");
+        const gradient = defs.append("linearGradient")
+            .attr("id", gradientId)
+            .attr("x1", "0%")
+            .attr("y1", "100%")  // Bottom of chart
+            .attr("x2", "0%")
+            .attr("y2", "0%");   // Top of chart
+
+        // Get the temperature domain
+        const tempDomain = yTemp.domain(); // [min, max] in temperature units
+
+        // Calculate the position of 0°C as a percentage
+        const freezingPoint = 0;
+        const freezingPercent = ((freezingPoint - tempDomain[0]) / (tempDomain[1] - tempDomain[0])) * 100;
+
+        // Clamp to valid range
+        const clampedFreezingPercent = Math.max(0, Math.min(100, freezingPercent));
+
+        // Create gradient stops
+        // Deep blue for very cold temperatures
+        gradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", "#0066cc");
+
+        // Transition to lighter blue approaching freezing
+        if (clampedFreezingPercent > 10) {
+            gradient.append("stop")
+                .attr("offset", `${Math.max(0, clampedFreezingPercent - 10)}%`)
+                .attr("stop-color", "#4da6ff");
+        }
+
+        // At freezing point, use a neutral blue
+        gradient.append("stop")
+            .attr("offset", `${clampedFreezingPercent}%`)
+            .attr("stop-color", "#66b3ff");
+
+        // Transition to orange/red above freezing
+        if (clampedFreezingPercent < 90) {
+            gradient.append("stop")
+                .attr("offset", `${Math.min(100, clampedFreezingPercent + 10)}%`)
+                .attr("stop-color", "#ff9933");
+        }
+
+        // Deep red/orange for warm temperatures
+        gradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", "#ff6600");
+
         const line = d3.line()
             .defined((d: number | null) => d !== null)
             .x((_: number | null, i: number) => x(i))
@@ -171,7 +222,7 @@ export class MeteogramChart {
             .datum(temperature)
             .attr("class", "temp-line")
             .attr("d", line)
-            .attr("stroke", "currentColor");
+            .attr("stroke", `url(#${gradientId})`);
 
             // Always draw axis label (if not in focussed mode)
             if (!this.card.focussed && this.card.displayMode !== "core") {
