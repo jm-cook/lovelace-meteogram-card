@@ -1,5 +1,6 @@
 import { trnslt } from "./translations";
 import { mapHaConditionToMetnoSymbol } from "./weather-entity";
+import { convertWindSpeed } from "./conversions";
 // meteogram-chart.ts
 // Handles all SVG/D3 chart rendering for MeteogramCard
 
@@ -29,7 +30,7 @@ export class MeteogramChart {
         const iconInterval = this.card.denseWeatherIcons
             ? 1
             : Math.max(1, Math.ceil(N / maxIcons));
-        
+
         console.log('Icon spacing debug:', {
             denseWeatherIcons: this.card.denseWeatherIcons,
             chartWidth,
@@ -194,13 +195,92 @@ export class MeteogramChart {
 
     drawTemperatureLine(chart: any, temperature: (number|null)[], x: any, yTemp: any, legendX?: number, legendY?: number) {
         const d3 = window.d3;
+
+        // Create a gradient that transitions from blue (cold/below freezing) to red (warm/above freezing)
+        const gradientId = `temp-gradient-${Math.random().toString(36).substr(2, 9)}`;
+        this.card._debugLog(`🎨 Creating temperature gradient with ID: ${gradientId}`);
+
+        const defs = chart.append("defs");
+        const gradient = defs.append("linearGradient")
+            .attr("id", gradientId)
+            .attr("x1", "0%")
+            .attr("y1", "100%")  // Bottom of chart
+            .attr("x2", "0%")
+            .attr("y2", "0%");   // Top of chart
+
+        // Get the temperature domain
+        const tempDomain = yTemp.domain(); // [min, max] in temperature units
+        this.card._debugLog(`🎨 Temperature domain: [${tempDomain[0]}°, ${tempDomain[1]}°]`);
+
+        // Calculate the position of 0°C as a percentage
+        const freezingPoint = 0;
+        const freezingPercent = ((freezingPoint - tempDomain[0]) / (tempDomain[1] - tempDomain[0])) * 100;
+        this.card._debugLog(`🎨 Freezing point position (before clamp): ${freezingPercent.toFixed(1)}%`);
+
+        // Clamp to valid range
+        const clampedFreezingPercent = Math.max(0, Math.min(100, freezingPercent));
+        this.card._debugLog(`🎨 Freezing point position (after clamp): ${clampedFreezingPercent.toFixed(1)}%`);
+
+        // Create gradient stops
+        const gradientStops: Array<{offset: string, color: string}> = [];
+
+        // Deep blue for very cold temperatures
+        gradientStops.push({offset: "0%", color: "#0066cc"});
+        gradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", "#0066cc");
+
+        // Transition to lighter blue approaching freezing
+        if (clampedFreezingPercent > 10) {
+            const offset = `${Math.max(0, clampedFreezingPercent - 10)}%`;
+            gradientStops.push({offset, color: "#4da6ff"});
+            gradient.append("stop")
+                .attr("offset", offset)
+                .attr("stop-color", "#4da6ff");
+        }
+
+        // At freezing point, use a neutral blue
+        gradientStops.push({offset: `${clampedFreezingPercent}%`, color: "#66b3ff"});
+        gradient.append("stop")
+            .attr("offset", `${clampedFreezingPercent}%`)
+            .attr("stop-color", "#66b3ff");
+
+        // Transition to orange/red above freezing
+        if (clampedFreezingPercent < 90) {
+            const offset = `${Math.min(100, clampedFreezingPercent + 10)}%`;
+            gradientStops.push({offset, color: "#ff9933"});
+            gradient.append("stop")
+                .attr("offset", offset)
+                .attr("stop-color", "#ff9933");
+        }
+
+        // Deep red/orange for warm temperatures
+        gradientStops.push({offset: "100%", color: "#ff6600"});
+        gradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", "#ff6600");
+
+        this.card._debugLog(`🎨 Gradient stops created:`, gradientStops);
+
         const line = d3.line()
             .defined((d: number | null) => d !== null)
             .x((_: number | null, i: number) => x(i))
             .y((_: number | null, i: number) => temperature[i] !== null ? yTemp(temperature[i]) : 0)
             .curve(d3.curveMonotoneX);
 
-        chart.append("path")
+        this.card._debugLog(`🎨 Applying gradient to temperature line with stroke: url(#${gradientId})`);
+
+        // Check if user has set a custom color that would override the gradient
+        const tempLineColorVar = getComputedStyle(this.card).getPropertyValue('--meteogram-temp-line-color');
+        const hasCustomColor = tempLineColorVar && tempLineColorVar.trim();
+
+        if (hasCustomColor) {
+            this.card._debugLog(`⚠️ CSS variable --meteogram-temp-line-color is set to "${tempLineColorVar.trim()}" - using custom color instead of gradient`);
+        } else {
+            this.card._debugLog(`✅ No custom --meteogram-temp-line-color set, using gradient`);
+        }
+
+        const tempPath = chart.append("path")
             .datum(temperature)
             .attr("class", "temp-line")
             .attr("d", line)
@@ -208,6 +288,24 @@ export class MeteogramChart {
             .attr("stroke-width", "1.5")
             .attr("opacity", "0.6")
             .attr("fill", "none");
+            .attr("d", line);
+
+        // Apply either custom color or gradient
+        if (hasCustomColor) {
+            tempPath.style("stroke", tempLineColorVar.trim());
+        } else {
+            tempPath.attr("stroke", `url(#${gradientId})`);
+        }
+
+        // Verify the gradient was added to the DOM
+        const gradientElement = chart.select(`#${gradientId}`);
+        if (gradientElement.empty()) {
+            this.card._debugLog(`⚠️ WARNING: Gradient element #${gradientId} not found in DOM!`);
+        } else {
+            this.card._debugLog(`✅ Gradient element #${gradientId} successfully added to DOM`);
+            const stops = gradientElement.selectAll('stop');
+            this.card._debugLog(`✅ Gradient has ${stops.size()} stops`);
+        }
 
             // Always draw axis label (if not in focussed mode)
             if (!this.card.focussed && this.card.displayMode !== "core") {
@@ -278,111 +376,103 @@ export class MeteogramChart {
         chart: any,
         rain: (number|null)[],
         rainMax: (number|null)[],
-        snow: (number|null)[],
         N: number,
         x: any,
         yPrecip: any,
         dx: number,
-        snowAvailable: boolean,
         legendX?: number,
         legendY?: number
     ) {
         const barWidth = dx * 0.8;
-        // Draw the max rain range bars first (if present)
-        chart.selectAll(".rain-max-bar")
-            .data(rainMax.slice(0, N - 1))
-            .enter()
-            .append("rect")
-            .attr("class", "rain-max-bar")
-            .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-            .attr("y", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
-                return yPrecip(0) - scaledH;
-            })
-            .attr("width", barWidth)
-            .attr("height", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                return h < 2 && d > 0 ? 2 : h * 0.7;
-            })
-            .attr("fill", "currentColor");
 
-        // Draw main rain bars (foreground, deeper blue)
+        // Only draw rainMax bars if precipitation min/max data is available
+        if (this.card._dataAvailability.precipitationMinMax) {
+            // Draw the max rain range bars first (only for non-null values)
+            const rainMaxData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+
+            chart.selectAll(".rain-max-bar")
+                .data(rainMaxData)
+                .enter()
+                .append("rect")
+                .attr("class", "rain-max-bar")
+                .attr("x", (d: any) => x(d.index) + dx / 2 - barWidth / 2)
+                .attr("y", (d: any) => {
+                    const h = this.card._chartHeight - yPrecip(d.value);
+                    const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
+                    return yPrecip(0) - scaledH;
+                })
+                .attr("width", barWidth)
+                .attr("height", (d: any) => {
+                    const h = this.card._chartHeight - yPrecip(d.value);
+                    return h < 2 && d.value > 0 ? 2 : h * 0.7;
+                })
+                .attr("fill", "currentColor");
+        }
+
+        // Draw main rain bars (foreground, deeper blue) - filter out null values
+        const rainBarData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+
         chart.selectAll(".rain-bar")
-            .data(rain.slice(0, N - 1))
+            .data(rainBarData)
             .enter().append("rect")
             .attr("class", "rain-bar")
-            .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-            .attr("y", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+            .attr("x", (d: any) => x(d.index) + dx / 2 - barWidth / 2)
+            .attr("y", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
                 return yPrecip(0) - scaledH;
             })
             .attr("width", barWidth)
-            .attr("height", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                return h < 2 && d > 0 ? 2 : h * 0.7;
+            .attr("height", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                return h < 2 && d.value > 0 ? 2 : h * 0.7;
             })
             .attr("fill", "currentColor");
 
-        // Add main rain labels (show if rain > 0)
+        // Add main rain labels (show if rain > 0) - filter out null values
+        const rainLabelData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+
         chart.selectAll(".rain-label")
-            .data(rain.slice(0, N - 1))
+            .data(rainLabelData)
             .enter()
             .append("text")
             .attr("class", "rain-label")
-            .attr("x", (_: number, i: number) => x(i) + dx / 2)
-            .attr("y", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
+            .attr("x", (d: any) => x(d.index) + dx / 2)
+            .attr("y", (d: any) => {
+                const h = this.card._chartHeight - yPrecip(d.value);
+                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
                 return yPrecip(0) - scaledH - 4; // 4px above the top of the bar
             })
-            .text((d: number) => {
-                if (d <= 0) return "";
-                return d < 1 ? d.toFixed(1) : d.toFixed(0);
+            .text((d: any) => {
+                if (d.value <= 0) return "";
+                return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
             })
-            .attr("opacity", (d: number) => d > 0 ? 1 : 0);
+            .attr("opacity", (d: any) => d.value > 0 ? 1 : 0);
 
-        // Add max rain labels (show if max > rain)
-        chart.selectAll(".rain-max-label")
-            .data(rainMax.slice(0, N - 1))
-            .enter()
-            .append("text")
-            .attr("class", "rain-max-label")
-            .attr("x", (_: number, i: number) => x(i) + dx / 2)
-            .attr("y", (d: number) => {
-                const h = this.card._chartHeight - yPrecip(d);
-                const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
-                return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
-            })
-            .text((d: number, i: number) => {
-                const rainValue = rain?.[i] ?? 0;
-                if (d <= rainValue) return "";
-                return d < 1 ? d.toFixed(1) : d.toFixed(0);
-            })
-            .attr("opacity", (d: number, i: number) => {
-                const rainValue = rain?.[i] ?? 0;
-                return (d > rainValue) ? 1 : 0;
-            });
+        // Add max rain labels (only if precipitation min/max data is available)
+        if (this.card._dataAvailability.precipitationMinMax) {
+            const rainMaxLabelData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null);
 
-        // Draw snow bars with a different style if present
-        if (snowAvailable) {
-            chart.selectAll(".snow-bar")
-                .data(snow.slice(0, N - 1))
-                .enter().append("rect")
-                .attr("class", "snow-bar")
-                .attr("x", (_: number, i: number) => x(i) + dx / 2 - barWidth / 2)
-                .attr("y", (d: number) => {
-                    const h = this.card._chartHeight - yPrecip(d);
-                    const scaledH = h < 2 && d > 0 ? 2 : h * 0.7;
-                    return yPrecip(0) - scaledH; // 18px above the top of the max bar
+            chart.selectAll(".rain-max-label")
+                .data(rainMaxLabelData)
+                .enter()
+                .append("text")
+                .attr("class", "rain-max-label")
+                .attr("x", (d: any) => x(d.index) + dx / 2)
+                .attr("y", (d: any) => {
+                    const h = this.card._chartHeight - yPrecip(d.value);
+                    const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
+                    return yPrecip(0) - scaledH - 18; // 18px above the top of the max bar
                 })
-                .attr("width", barWidth)
-                .attr("height", (d: number) => {
-                    const h = this.card._chartHeight - yPrecip(d);
-                    return h < 2 && d > 0 ? 2 : h * 0.7;
+                .text((d: any) => {
+                    const rainValue = rain?.[d.index] ?? 0;
+                    if (d.value <= rainValue) return "";
+                    return d.value < 1 ? d.value.toFixed(1) : d.value.toFixed(0);
                 })
-                .attr("fill", "currentColor");
+                .attr("opacity", (d: any) => {
+                    const rainValue = rain?.[d.index] ?? 0;
+                    return (d.value > rainValue) ? 1 : 0;
+                });
         }
 
         // Add precipitation legend if coordinates are provided
@@ -535,7 +625,9 @@ export class MeteogramChart {
         N: number,
         time: Date[],
         windSpeed: (number|null)[],
-        windDirection: (number|null)[]
+        windGust: (number|null)[],
+        windDirection: (number|null)[],
+        windSpeedUnit: string
     ) {
         const d3 = window.d3;
         const windBandYOffset = margin.top + this.card._chartHeight;
@@ -608,15 +700,21 @@ export class MeteogramChart {
             const centerX = (x(startIdx) + x(endIdx)) / 2;
             const dataIdx = Math.floor((startIdx + endIdx) / 2);
             const speed = windSpeed[dataIdx];
+            const gust = windGust[dataIdx];
             const dir = windDirection[dataIdx];
             if (typeof speed !== 'number' || typeof dir !== 'number' || isNaN(speed) || isNaN(dir)) continue;
+
+            // Convert wind speeds to knots for proper wind barb calculation
+            const speedInKnots = convertWindSpeed(speed, windSpeedUnit, "kt");
+            const gustInKnots = typeof gust === 'number' && !isNaN(gust) ? convertWindSpeed(gust, windSpeedUnit, "kt") : null;
+
             const minBarbLen = width < 400 ? 18 : 23;
             const maxBarbLen = width < 400 ? 30 : 38;
             const windLenScale = d3.scaleLinear()
                 .domain([0, Math.max(15, d3.max(windSpeed.filter(v => typeof v === 'number' && !isNaN(v))) || 20)])
                 .range([minBarbLen, maxBarbLen]);
             const barbLen = windLenScale(speed);
-            this.drawWindBarb(windBand, centerX, windBarbY, speed, dir, barbLen, width < 400 ? 0.7 : 0.8);
+            this.drawWindBarb(windBand, centerX, windBarbY, speedInKnots, gustInKnots, dir, barbLen, width < 400 ? 0.7 : 0.8);
         }
     }
 
@@ -628,6 +726,7 @@ export class MeteogramChart {
         x: number,
         y: number,
         speed: number,
+        gust: number | null,
         dirDeg: number,
         len: number,
         scale = 0.8
@@ -637,7 +736,7 @@ export class MeteogramChart {
         const featherYOffset = 3;
 
         const barbGroup = g.append("g")
-            .attr("transform", `translate(${x},${y}) rotate(${(dirDeg + 180) % 360}) scale(${scale})`);
+            .attr("transform", `translate(${x},${y}) rotate(${(dirDeg) % 360}) scale(${scale})`);
 
         const y0 = -len / 2, y1 = +len / 2;
 
@@ -662,23 +761,89 @@ export class MeteogramChart {
             .attr("r", 4);
 
         let v = speed, wy = y0, step = 7;
+
+        // Calculate pennants (50 knots each), then full feathers (10 knots), then half feathers (5 knots)
+        let n50 = Math.floor(v / 50);
+        v -= n50 * 50;
         let n10 = Math.floor(v / 10);
         v -= n10 * 10;
         let n5 = Math.floor(v / 5);
         v -= n5 * 5;
 
+        // Draw pennants (triangles) for 50 knot increments
+        for (let i = 0; i < n50; i++, wy += step * 1.5) {
+            const pennantHeight = 10;
+            const pennantWidth = featherLong;
+            barbGroup.append("polygon")
+                .attr("class", "wind-barb-pennant")
+                .attr("points", `0,${wy} ${pennantWidth},${wy + featherYOffset} 0,${wy + pennantHeight}`)
+                .attr("fill", "currentColor")
+                .attr("stroke", "currentColor")
+                .attr("stroke-width", 1);
+        }
+
+        // Draw full feathers for 10 knot increments
         for (let i = 0; i < n10; i++, wy += step) {
             barbGroup.append("line")
                 .attr("class", "wind-barb-feather")
                 .attr("x1", 0).attr("y1", wy)
-                .attr("x2", featherLong).attr("y2", wy + featherYOffset);
+                .attr("x2", featherLong).attr("y2", wy + featherYOffset)
+                .attr("stroke-width", 2);
         }
 
+        // Draw half feathers for 5 knot increments
         for (let i = 0; i < n5; i++, wy += step) {
             barbGroup.append("line")
                 .attr("class", "wind-barb-half")
                 .attr("x1", 0).attr("y1", wy)
-                .attr("x2", featherShort).attr("y2", wy + featherYOffset / 1.5);
+                .attr("x2", featherShort).attr("y2", wy + featherYOffset / 1.5)
+                .attr("stroke-width", 2);
+        }
+
+        // Draw gust feathers on the opposite side (left side) in yellow/orange
+        // Only show gusts if they are greater than sustained wind speed
+        if (typeof gust === 'number' && !isNaN(gust) && gust > speed) {
+            let gustWy = y0;
+            let gustV = gust; // Show absolute gust speed, not difference
+            const gustStep = 7;
+
+            // Calculate gust pennants, feathers, and half-feathers (showing absolute gust speed)
+            let gustN50 = Math.floor(gustV / 50);
+            gustV -= gustN50 * 50;
+            let gustN10 = Math.floor(gustV / 10);
+            gustV -= gustN10 * 10;
+            let gustN5 = Math.floor(gustV / 5);
+
+            // Draw gust pennants on the left side for 50 knot increments
+            for (let i = 0; i < gustN50; i++, gustWy += gustStep * 1.5) {
+                const pennantHeight = 10;
+                const pennantWidth = -featherLong; // Negative for left side
+                barbGroup.append("polygon")
+                    .attr("class", "wind-barb-gust-pennant")
+                    .attr("points", `0,${gustWy} ${pennantWidth},${gustWy + featherYOffset} 0,${gustWy + pennantHeight}`)
+                    .attr("fill", "#FF8C00")
+                    .attr("stroke", "#FF8C00")
+                    .attr("stroke-width", 1);
+            }
+
+            // Draw gust feathers on the left side (negative x values)
+            for (let i = 0; i < gustN10; i++, gustWy += gustStep) {
+                barbGroup.append("line")
+                    .attr("class", "wind-barb-gust-feather")
+                    .attr("x1", 0).attr("y1", gustWy)
+                    .attr("x2", -featherLong).attr("y2", gustWy + featherYOffset)
+                    .attr("stroke", "#FF8C00") // Orange color for gusts
+                    .attr("stroke-width", 2);
+            }
+
+            for (let i = 0; i < gustN5; i++, gustWy += gustStep) {
+                barbGroup.append("line")
+                    .attr("class", "wind-barb-gust-half")
+                    .attr("x1", 0).attr("y1", gustWy)
+                    .attr("x2", -featherShort).attr("y2", gustWy + featherYOffset / 1.5)
+                    .attr("stroke", "#FFA500") // Slightly lighter orange for half-feathers
+                    .attr("stroke-width", 2);
+            }
         }
     }
 }

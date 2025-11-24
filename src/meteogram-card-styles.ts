@@ -60,12 +60,8 @@ export const meteogramCardStyles = css`
     }
 
     .temp-line {
-        stroke: var(--meteogram-temp-line-color, orange);
         stroke-width: 3;
         fill: none;
-    }
-    :host([dark]) .temp-line {
-        stroke: var(--meteogram-temp-line-color, orange);
     }
     
     .pressure-line {
@@ -144,13 +140,6 @@ export const meteogramCardStyles = css`
         fill: var(--meteogram-rain-bar-color, deepskyblue);
     }
 
-    .legend-snow {
-        fill: var(--meteogram-snow-bar-color, #b3e6ff);
-    }
-    :host([dark]) .legend-snow {
-        fill: var(--meteogram-snow-bar-color, #e0f7fa);
-    }
-
     .legend-cloud {
         fill: var(--meteogram-cloud-color, #b0bec5);
     }
@@ -168,7 +157,7 @@ export const meteogramCardStyles = css`
 
     .wind-barb-feather {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
-        stroke-width: 1.4;
+        stroke-width: 2;
     }
     :host([dark]) .wind-barb-feather {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
@@ -176,7 +165,7 @@ export const meteogramCardStyles = css`
 
     .wind-barb-half {
         stroke: var(--meteogram-wind-barb-color, #1976d2);
-        stroke-width: 0.8;
+        stroke-width: 2;
     }
     :host([dark]) .wind-barb-half {
         stroke: var(--meteogram-wind-barb-color, #1976d2);

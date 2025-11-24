@@ -25,6 +25,13 @@ export function convertWindSpeed(value: number, from: string, to: string): numbe
     if (from === "mph" && to === "m/s") return value / 2.2369362920544;
     if (from === "km/h" && to === "mph") return value * 0.62137119223733;
     if (from === "mph" && to === "km/h") return value / 0.62137119223733;
+    // Knots conversions for wind barbs
+    if (from === "m/s" && to === "kt") return value * 1.9438444924574;
+    if (from === "kt" && to === "m/s") return value / 1.9438444924574;
+    if (from === "km/h" && to === "kt") return value * 0.5399568034557;
+    if (from === "kt" && to === "km/h") return value / 0.5399568034557;
+    if (from === "mph" && to === "kt") return value * 0.8689762419006;
+    if (from === "kt" && to === "mph") return value / 0.8689762419006;
     console.warn(`[meteogram-card] Wind speed conversion from ${from} to ${to} not implemented.`);
     return value;
 }

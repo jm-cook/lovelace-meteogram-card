@@ -1,15 +1,41 @@
-## BREAKING CHANGE (September 2025)
+## v3.2.0 – Temperature Gradient
 
-- The legacy `show_rain` option has been **removed**. Only `show_precipitation` is now supported for controlling precipitation (rain and snow) display. Update your configuration to use `show_precipitation` only.
+**New Features:**
+- **Temperature Gradient Line:**
+  - The temperature line now features a color gradient that transitions from blue (cold/below freezing) to red/orange (warm/above freezing).
+  - The gradient automatically calculates the freezing point position based on your temperature range.
+  - Fully backwards compatible: If you have set a custom `--meteogram-temp-line-color` CSS variable, your custom color will be used instead of the gradient.
+  - The gradient provides better visual differentiation of temperature ranges at a glance.
 
-## [NEXT VERSION] Breaking Change: Styles config and dark mode
+**Upgrade Notes:**
+- No breaking changes in this release.
+- The temperature gradient is enabled by default. To use a solid color instead, set the `--meteogram-temp-line-color` CSS variable in your theme or card styles.
+- See the README and STYLES.md for full details.
 
-**BREAKING:** The `styles:` config for the card now uses variable names without the `--` prefix (e.g., `meteogram-grid-color` instead of `--meteogram-grid-color`).
+---
 
-You can now also specify dark mode overrides directly in your card config using a `modes: dark:` section inside `styles:` (just like in Home Assistant themes). The old `-dark` variable names are no longer supported in the config.
+## v3.1.3 – Code Reorganization & Styles Config Breaking Change
 
-**Example:**
+**Summary:**
+Much of the code has been reorganized to facilitate easier extension and addition of new features. There is not much new functionality of note, but the way that the `styles:` option works has changed to align with the Home Assistant approach for themes.
+
+Some improvements have also been made to data updating so that if you are running an "always on" wall panel, the meteogram will update and hopefully not continue to show stale data.
+
+**BREAKING CHANGE: Styles Configuration**
+
+The `styles:` config for the card now uses variable names **without** the `--` prefix (e.g., `meteogram-grid-color` instead of `--meteogram-grid-color`).
+
+You can now specify dark mode overrides directly in your card config using a `modes: dark:` section inside `styles:` (just like in Home Assistant themes). The old `-dark` variable names are no longer supported in the config.
+
+**Migration Example:**
 ```yaml
+# Old format (no longer supported):
+type: custom:meteogram-card
+styles:
+  --meteogram-grid-color: "#1976d2"
+  --meteogram-grid-color-dark: "#444"
+
+# New format:
 type: custom:meteogram-card
 styles:
   meteogram-grid-color: "#1976d2"
@@ -18,7 +44,21 @@ styles:
       meteogram-grid-color: "#444"
 ```
 
-Update your card YAML and any automations/scripts that set styles accordingly. See the README and STYLES.md for full details and migration instructions.
+**Upgrade Notes:**
+- **REQUIRED:** Update your card YAML if you use the `styles:` config. Remove the `--` prefix from variable names and migrate any `-dark` variables to the new `modes: dark:` structure.
+- Update any automations or scripts that set styles accordingly.
+- See the README and STYLES.md for full details and migration instructions.
+
+**Full Changelog**: https://github.com/jm-cook/lovelace-meteogram-card/compare/v3.0.3...v3.1.3
+
+---
+
+## DEPRECATED (September 2025)
+
+- The legacy `show_rain` option has been **removed**. Only `show_precipitation` is now supported for controlling precipitation (rain and snow) display. Update your configuration to use `show_precipitation` only.
+
+---
+
 ## v3.0.3 – Wind Barb Direction Correction
 
 **Highlights:**

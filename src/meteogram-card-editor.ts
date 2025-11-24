@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { MeteogramCardConfig, MeteogramCardEditorElement, ConfigurableHTMLElement } from "./types";
 import { trnslt } from "./translations";
 import { DIAGNOSTICS_DEFAULT } from "./constants";
+import { version } from "../package.json";
 
 
 @customElement('meteogram-card-editor')
@@ -368,6 +369,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
       <p class="help-text">Set the aspect ratio for the chart area. Use a ratio like 16:9, 4:3, 1:1, or a custom value (e.g. 1.6 or 5:3).</p>
       ` : ""}
 
+      ${version.includes("beta") ? `
       <div class="toggle-section"></div>
         <div class="toggle-row">
           <div class="toggle-label">Diagnostics (debug logging)</div>
@@ -376,6 +378,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
             .checked="${diagnostics}"
           ></ha-switch>
         </div>
+      ` : ""}
       </div>
     </div>
   </ha-card>

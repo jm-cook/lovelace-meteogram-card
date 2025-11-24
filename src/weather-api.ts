@@ -2,16 +2,16 @@ import {version} from "../package.json";
 
 
 export interface ForecastData {
-    pressure: number[];
+    pressure: (number | null)[];
     time: Date[];
     temperature: (number | null)[];
-    rain: number[];
-    rainMin: number[];
-    rainMax: number[];
-    snow: number[];
-    cloudCover: number[];
-    windSpeed: number[];
-    windDirection: number[];
+    rain: (number | null)[];
+    rainMin: (number | null)[];
+    rainMax: (number | null)[];
+    cloudCover: (number | null)[];
+    windSpeed: (number | null)[];
+    windGust: (number | null)[];
+    windDirection: (number | null)[];
     symbolCode: string[];
     fetchTimestamp?: string;
     units?: {
@@ -37,18 +37,26 @@ export class WeatherAPI {
     private _expiresAt: number | null = null;
     private _fetchPromise: Promise<void> | null = null;
     private _lastFetchTime: number | null = null; // Track last fetch timestamp
+    private debug: boolean;
 
-    constructor(lat: number, lon: number, altitude?: number) {
+    constructor(lat: number, lon: number, altitude?: number, debug: boolean = false) {
         this.lat = lat;
         this.lon = lon;
+        this.debug = debug;
         if (Number.isFinite(altitude)) {
             this.altitude = altitude;
         }
     }
 
+    private _debugLog(...args: any[]) {
+        if (this.debug) {
+            console.debug(...args);
+        }
+    }
+
     // Getter for forecastData: checks expiry and refreshes if needed
     async getForecastData(): Promise<ForecastData | null> {
-        console.debug(`[weather-api] getForecastData called for lat=${this.lat}, lon=${this.lon}`);
+        this._debugLog(`[weather-api] getForecastData called for lat=${this.lat}, lon=${this.lon}`);
 
         // If no data loaded, try to load from cache first
         if (!this._forecastData) {
@@ -62,11 +70,19 @@ export class WeatherAPI {
         const now = Date.now();
         if (
             this._lastFetchTime &&
-            now - this._lastFetchTime < 60000 &&
-            this._fetchPromise
+            now - this._lastFetchTime < 60000
         ) {
-            await this._fetchPromise;
-            return this._forecastData;
+            // If there's an active fetch, wait for it
+            if (this._fetchPromise) {
+                await this._fetchPromise;
+                return this._forecastData;
+            }
+            // If we're in throttle period but no active fetch, return cached data if available
+            // This prevents the "retrying in 60 seconds" issue when fetch failed
+            if (this._forecastData) {
+                this._debugLog('[weather-api] Using expired cached data during throttle period');
+                return this._forecastData;
+            }
         }
         if (!this._fetchPromise) {
             this._fetchPromise = this._fetchWeatherDataFromAPI();
@@ -76,6 +92,12 @@ export class WeatherAPI {
         } finally {
             this._fetchPromise = null;
         }
+        
+        // Final safeguard: if we still don't have data, throw an error
+        if (!this._forecastData) {
+            throw new Error('Weather data fetch completed but no valid data was obtained');
+        }
+        
         return this._forecastData;
     }
 
@@ -96,6 +118,25 @@ export class WeatherAPI {
         return diag;
     }
 
+    getDiagnosticInfo(): any {
+        return {
+            apiType: 'MET.no Weather API',
+            hasData: !!this._forecastData,
+            dataTimeLength: this._forecastData?.time?.length || 0,
+            lastFetchTime: this._lastFetchTime ? new Date(this._lastFetchTime).toISOString() : 'never',
+            lastFetchFormatted: this._lastFetchTime ? new Date(this._lastFetchTime).toLocaleString() : 'not yet fetched',
+            dataAgeMinutes: this._lastFetchTime ? Math.round((Date.now() - this._lastFetchTime) / (60 * 1000)) : 'n/a',
+            expiresAt: this._expiresAt,
+            expiresAtFormatted: this._expiresAt ? new Date(this._expiresAt).toLocaleString() : 'not set',
+            isExpired: this._expiresAt ? Date.now() > this._expiresAt : false,
+            location: {
+                lat: this.lat,
+                lon: this.lon,
+                altitude: this.altitude
+            }
+        };
+    }
+
     // Helper to encode cache key as base64 of str(lat)+str(lon)+str(altitude)
     private static encodeCacheKey(lat: number, lon: number, altitude?: number): string {
         let keyStr = String(lat) + "," + String(lon);
@@ -105,9 +146,75 @@ export class WeatherAPI {
         return btoa(keyStr);
     }
 
+    // Clean up old cache entries (older than 24h) and validate data structures
+    private static cleanupOldCacheEntries() {
+        try {
+            const cacheStr = localStorage.getItem('metno-weather-cache');
+            if (!cacheStr) return;
+            
+            const cacheObj = JSON.parse(cacheStr);
+            if (!cacheObj["forecast-data"]) return;
+            
+            const now = Date.now();
+            const twentyFourHours = 24 * 60 * 60 * 1000;
+            const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+            let removedCount = 0;
+            let invalidCount = 0;
+            
+            // Remove old entries and validate data structures
+            for (const [key, entry] of Object.entries(cacheObj["forecast-data"])) {
+                const entryData = entry as { expiresAt: number; data: ForecastData };
+                let shouldRemove = false;
+                
+                // Remove entries older than 24h past expiry
+                if (now - entryData.expiresAt > twentyFourHours) {
+                    shouldRemove = true;
+                    removedCount++;
+                }
+                // Validate data structure
+                else if (!entryData.data || typeof entryData.data !== 'object') {
+                    shouldRemove = true;
+                    invalidCount++;
+                }
+                // Check for missing required arrays
+                else {
+                    const missingArrays = requiredArrays.filter(prop => !Array.isArray(entryData.data[prop as keyof ForecastData]));
+                    if (missingArrays.length > 0) {
+                        shouldRemove = true;
+                        invalidCount++;
+                    }
+                }
+                
+                if (shouldRemove) {
+                    delete cacheObj["forecast-data"][key];
+                }
+            }
+            
+            if (removedCount > 0 || invalidCount > 0) {
+                localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+                // Note: This is a static method so we can't use instance _debugLog
+                if (console.debug) console.debug(`[WeatherAPI] Cleaned up ${removedCount} old and ${invalidCount} invalid cache entries from metno-weather-cache`);
+            }
+        } catch (e) {
+            console.warn(`[WeatherAPI] Failed to cleanup cache entries, clearing entire cache:`, e);
+            // Clear corrupted cache entirely
+            try {
+                localStorage.removeItem('metno-weather-cache');
+                // Note: This is a static method so we can't use instance _debugLog
+                if (console.debug) console.debug(`[WeatherAPI] Cleared corrupted metno-weather-cache`);
+            } catch (clearError) {
+                console.error(`[WeatherAPI] Failed to clear corrupted cache:`, clearError);
+            }
+        }
+    }
+
     // Save forecast data to localStorage
     saveCacheToStorage() {
         if (!this._forecastData || !this._expiresAt) return;
+        
+        // Clean up old entries before saving new ones
+        WeatherAPI.cleanupOldCacheEntries();
+        
         const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)), this.altitude !== undefined ? Number(this.altitude.toFixed(2)) : undefined);
         let cacheObj: {
             ["forecast-data"]?: Record<string, {
@@ -134,33 +241,87 @@ export class WeatherAPI {
     // Load forecast data from localStorage
     loadCacheFromStorage() {
         const key = WeatherAPI.encodeCacheKey(Number(this.lat.toFixed(4)), Number(this.lon.toFixed(4)), this.altitude !== undefined ? Number(this.altitude.toFixed(2)) : undefined);
-        const cacheStr = localStorage.getItem('metno-weather-cache');
-        if (cacheStr) {
-            let cacheObj: {
-                ["forecast-data"]?: Record<string, {
-                    expiresAt: number,
-                    data: ForecastData
-                }>
-            } = {};
-            try {
-                cacheObj = JSON.parse(cacheStr);
-            } catch {
-                cacheObj = {};
-            }
-            const entry = cacheObj["forecast-data"]?.[key];
-            if (entry && entry.expiresAt && entry.data) {
-                this._expiresAt = entry.expiresAt;
-                // Restore Date objects in time array
-                if (Array.isArray(entry.data.time)) {
-                    entry.data.time = entry.data.time.map((t: string | Date) =>
-                        typeof t === "string" ? new Date(t) : t
-                    );
+        let shouldCleanupCache = false;
+        
+        try {
+            const cacheStr = localStorage.getItem('metno-weather-cache');
+            if (cacheStr) {
+                let cacheObj: {
+                    ["forecast-data"]?: Record<string, {
+                        expiresAt: number,
+                        data: ForecastData
+                    }>
+                } = {};
+                try {
+                    cacheObj = JSON.parse(cacheStr);
+                } catch {
+                    console.warn(`[WeatherAPI] Corrupted cache JSON, clearing metno-weather-cache`);
+                    localStorage.removeItem('metno-weather-cache');
+                    this._expiresAt = null;
+                    this._forecastData = null;
+                    return;
                 }
-                this._forecastData = entry.data;
+                
+                const entry = cacheObj["forecast-data"]?.[key];
+                if (entry && entry.expiresAt && entry.data) {
+                    // Check if cache entry is expired (older than 24h past expiresAt)
+                    const twentyFourHours = 24 * 60 * 60 * 1000;
+                    const now = Date.now();
+                    if (now - entry.expiresAt > twentyFourHours) {
+                        this._debugLog(`[WeatherAPI] Cached data for ${key} is too old (${Math.round((now - entry.expiresAt) / (60 * 60 * 1000))}h past expiry), removing from cache`);
+                        if (!cacheObj["forecast-data"]) cacheObj["forecast-data"] = {};
+                        delete cacheObj["forecast-data"][key];
+                        shouldCleanupCache = true;
+                        this._expiresAt = null;
+                        this._forecastData = null;
+                    } else {
+                        // Validate that cached data has all required array properties
+                        const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+                        const missingArrays = requiredArrays.filter(prop => !Array.isArray(entry.data[prop as keyof ForecastData]));
+                        
+                        if (missingArrays.length > 0) {
+                            console.warn(`[WeatherAPI] Cached data for ${key} is missing required arrays: ${missingArrays.join(', ')}, removing from cache`);
+                            if (!cacheObj["forecast-data"]) cacheObj["forecast-data"] = {};
+                            delete cacheObj["forecast-data"][key];
+                            shouldCleanupCache = true;
+                            this._expiresAt = null;
+                            this._forecastData = null;
+                        } else {
+                            this._expiresAt = entry.expiresAt;
+                            // Restore Date objects in time array
+                            if (Array.isArray(entry.data.time)) {
+                                entry.data.time = entry.data.time.map((t: string | Date) =>
+                                    typeof t === "string" ? new Date(t) : t
+                                );
+                            }
+                            this._forecastData = entry.data;
+                        }
+                    }
+                    
+                    // Save cleaned cache back to localStorage if changes were made
+                    if (shouldCleanupCache) {
+                        localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+                        this._debugLog(`[WeatherAPI] Updated cache structure for ${key}`);
+                    }
+                } else {
+                    this._expiresAt = null;
+                    this._forecastData = null;
+                }
             } else {
                 this._expiresAt = null;
                 this._forecastData = null;
             }
+        } catch (e) {
+            console.warn(`[WeatherAPI] Failed to load cache:`, e);
+            // Clear corrupted cache entirely
+            try {
+                localStorage.removeItem('metno-weather-cache');
+                console.warn(`[WeatherAPI] Cleared corrupted metno-weather-cache due to error`);
+            } catch (cleanupError) {
+                console.error(`[WeatherAPI] Failed to clear corrupted cache:`, cleanupError);
+            }
+            this._expiresAt = null;
+            this._forecastData = null;
         }
     }
 
@@ -194,7 +355,7 @@ export class WeatherAPI {
 
             // Always use dedicated forecast URL
             // log impending call to fetch
-            console.debug(`[weather-api] Fetching weather data from ${urlToUse} with Origin ${headers['Origin']}`);
+            this._debugLog(`[weather-api] Fetching weather data from ${urlToUse} with Origin ${headers['Origin']}`);
             WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT++;
             const response = await fetch(urlToUse, {
                 headers,
@@ -243,6 +404,8 @@ export class WeatherAPI {
             this.saveCacheToStorage();
         } catch (error: unknown) {
             this.lastError = error;
+            // Reset throttling on fetch failure to allow retry sooner
+            this._lastFetchTime = null;
             const diag = this.getDiagnosticText() +
                 `API URL: <code>${urlToUse}</code><br>` +
                 `Origin header: <code>${headers['Origin']}</code><br>`;
@@ -268,9 +431,9 @@ export class WeatherAPI {
                 rain: [],
                 rainMin: [],
                 rainMax: [],
-                snow: [],
                 cloudCover: [],
                 windSpeed: [],
+                windGust: [],
                 windDirection: [],
                 symbolCode: [],
                 pressure: [],
@@ -286,25 +449,24 @@ export class WeatherAPI {
                 const next6hSummary = item.data.next_6_hours?.summary;
 
                 result.time.push(time);
-                result.temperature.push(instant.air_temperature);
-                result.cloudCover.push(instant.cloud_area_fraction);
-                result.windSpeed.push(instant.wind_speed);
-                result.windDirection.push(instant.wind_from_direction);
-                result.pressure.push(instant.air_pressure_at_sea_level);
+                result.temperature.push(instant.air_temperature ?? null);
+                result.cloudCover.push(instant.cloud_area_fraction ?? null);
+                result.windSpeed.push(instant.wind_speed ?? null);
+                result.windGust.push(instant.wind_speed_of_gust ?? null);
+                result.windDirection.push(instant.wind_from_direction ?? null);
+                result.pressure.push(instant.air_pressure_at_sea_level ?? null);
 
                 if (next1h) {
+                    // Only use actual min/max values if they exist, otherwise set to null
                     const rainAmountMax = next1h.precipitation_amount_max !== undefined ?
-                        next1h.precipitation_amount_max :
-                        (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                        next1h.precipitation_amount_max : null;
 
                     const rainAmountMin = next1h.precipitation_amount_min !== undefined ?
-                        next1h.precipitation_amount_min :
-                        (next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
+                        next1h.precipitation_amount_min : null;
 
                     result.rainMin.push(rainAmountMin);
                     result.rainMax.push(rainAmountMax);
-                    result.rain.push(next1h.precipitation_amount !== undefined ? next1h.precipitation_amount : 0);
-                    result.snow.push(0);
+                    result.rain.push(next1h.precipitation_amount ?? null);
 
                     if (item.data.next_1_hours?.summary?.symbol_code) {
                         result.symbolCode.push(item.data.next_1_hours.summary.symbol_code);
@@ -314,12 +476,12 @@ export class WeatherAPI {
                 } else if (next6h) {
                     // Use next_6_hours data if next_1_hours is missing
                     // Distribute 6h precipitation over 6 hours (average per hour)
-                    const rain6h = next6h.precipitation_amount !== undefined ? next6h.precipitation_amount : 0;
-                    const rainPerHour = rain6h / 6;
+                    const rain6h = next6h.precipitation_amount;
+                    const rainPerHour = rain6h !== undefined ? rain6h / 6 : null;
                     result.rain.push(rainPerHour);
-                    result.rainMin.push(rainPerHour);
-                    result.rainMax.push(rainPerHour);
-                    result.snow.push(0);
+                    // 6h data doesn't have min/max ranges, so set to null
+                    result.rainMin.push(null);
+                    result.rainMax.push(null);
 
                     if (next6hSummary?.symbol_code) {
                         result.symbolCode.push(next6hSummary.symbol_code);
@@ -328,10 +490,9 @@ export class WeatherAPI {
                     }
                 } else {
                     // No precipitation data available
-                    result.rain.push(0);
-                    result.rainMin.push(0);
-                    result.rainMax.push(0);
-                    result.snow.push(0);
+                    result.rain.push(null);
+                    result.rainMin.push(null);
+                    result.rainMax.push(null);
                     result.symbolCode.push('');
                 }
             });

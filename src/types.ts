@@ -14,6 +14,7 @@ export interface MeteogramCardConfig {
     meteogram_hours?: string; // "8h", "12h", "24h", "48h", "54h", "max"
     styles?: MeteogramStyleConfig; // <-- Updated for mode support
     diagnostics?: boolean; // Add this line
+    debug?: boolean; // Add this line for debug logging (undocumented)
     entity_id?: string; // Add this line for weather entity selection
     focussed?: boolean; // Add this line for Focussed mode
     display_mode?: "full" | "core" | "focussed"; // Add this line for display mode
@@ -24,17 +25,16 @@ export interface MeteogramCardConfig {
 export interface MeteogramData {
   time: Date[];
   temperature: (number | null)[];
-  rain: number[];
-  rainMin: number[]; // Add min precipitation array
-  rainMax: number[]; // Add max precipitation array
-  snow: number[];
-  cloudCover: number[];
-  windSpeed: number[];
-  windDirection: number[];
+  rain: (number | null)[];
+  rainMin: (number | null)[]; // Add min precipitation array
+  rainMax: (number | null)[]; // Add max precipitation array
+  cloudCover: (number | null)[];
+  windSpeed: (number | null)[];
+  windDirection: (number | null)[];
+  windGust: (number | null)[];
   symbolCode: string[];
-  pressure: number[];
+  pressure: (number | null)[];
   fetchTimestamp?: string; // Add this property
-  pressureAvailable?: boolean; // Indicates whether pressure should be shown
 }
 
 export interface WeatherDataPoint {
