@@ -1,15 +1,20 @@
-## BREAKING CHANGE (September 2025)
+## v3.2.0 – Temperature Gradient & Styles Config Breaking Change
 
-- The legacy `show_rain` option has been **removed**. Only `show_precipitation` is now supported for controlling precipitation (rain and snow) display. Update your configuration to use `show_precipitation` only.
+**BREAKING CHANGE: Styles Configuration**
 
-## [NEXT VERSION] Breaking Change: Styles config and dark mode
+The `styles:` config for the card now uses variable names **without** the `--` prefix (e.g., `meteogram-grid-color` instead of `--meteogram-grid-color`).
 
-**BREAKING:** The `styles:` config for the card now uses variable names without the `--` prefix (e.g., `meteogram-grid-color` instead of `--meteogram-grid-color`).
+You can now specify dark mode overrides directly in your card config using a `modes: dark:` section inside `styles:` (just like in Home Assistant themes). The old `-dark` variable names are no longer supported in the config.
 
-You can now also specify dark mode overrides directly in your card config using a `modes: dark:` section inside `styles:` (just like in Home Assistant themes). The old `-dark` variable names are no longer supported in the config.
-
-**Example:**
+**Migration Example:**
 ```yaml
+# Old format (no longer supported):
+type: custom:meteogram-card
+styles:
+  --meteogram-grid-color: "#1976d2"
+  --meteogram-grid-color-dark: "#444"
+
+# New format:
 type: custom:meteogram-card
 styles:
   meteogram-grid-color: "#1976d2"
@@ -18,7 +23,27 @@ styles:
       meteogram-grid-color: "#444"
 ```
 
-Update your card YAML and any automations/scripts that set styles accordingly. See the README and STYLES.md for full details and migration instructions.
+**New Features:**
+- **Temperature Gradient Line:**
+  - The temperature line now features a color gradient that transitions from blue (cold/below freezing) to red/orange (warm/above freezing).
+  - The gradient automatically calculates the freezing point position based on your temperature range.
+  - Fully backwards compatible: If you have set a custom `--meteogram-temp-line-color` CSS variable, your custom color will be used instead of the gradient.
+  - The gradient provides better visual differentiation of temperature ranges at a glance.
+
+**Upgrade Notes:**
+- **REQUIRED:** Update your card YAML if you use the `styles:` config. Remove the `--` prefix from variable names and migrate any `-dark` variables to the new `modes: dark:` structure.
+- Update any automations or scripts that set styles accordingly.
+- The temperature gradient is enabled by default. To use a solid color instead, set the `--meteogram-temp-line-color` CSS variable in your theme or card styles.
+- See the README and STYLES.md for full details and migration instructions.
+
+---
+
+## DEPRECATED (September 2025)
+
+- The legacy `show_rain` option has been **removed**. Only `show_precipitation` is now supported for controlling precipitation (rain and snow) display. Update your configuration to use `show_precipitation` only.
+
+---
+
 ## v3.0.3 – Wind Barb Direction Correction
 
 **Highlights:**
