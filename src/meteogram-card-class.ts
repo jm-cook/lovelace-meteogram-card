@@ -1980,13 +1980,16 @@ export class MeteogramCard extends LitElement {
     // Only allocate slots for enabled legends, so they fill left-to-right
     // Skip legends entirely in "core" display mode
     const numLegends = this.displayMode === "core" ? 0 : enabledLegends.length;
-    const legendPositions = this.displayMode === "core" ? [] : enabledLegends.map((_: LegendInfo, i: number) => {
-      const slotWidth = this._chartWidth / numLegends;
-      return {
-        x: i * slotWidth + 2,
-        y: -45,
-      };
-    });
+    const legendPositions =
+      this.displayMode === "core"
+        ? []
+        : enabledLegends.map((_: LegendInfo, i: number) => {
+            const slotWidth = this._chartWidth / numLegends;
+            return {
+              x: i * slotWidth + 2,
+              y: -45,
+            };
+          });
 
     // Alternate shaded background for days
     svg
@@ -2043,7 +2046,6 @@ export class MeteogramCard extends LitElement {
 
     // Draw bottom hour labels using helper
     this._chartRenderer.drawBottomHourLabels(
-
       svg,
       data.time,
       margin,
@@ -2063,9 +2065,12 @@ export class MeteogramCard extends LitElement {
     // Draw cloud cover band with legend
     // Cloud cover band - only if enabled
     if (cloudAvailable) {
-      const cloudLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l: LegendInfo) =>
-        l.class.includes("legend-cloud")
-      );
+      const cloudLegendIndex =
+        this.displayMode === "core"
+          ? -1
+          : enabledLegends.findIndex((l: LegendInfo) =>
+              l.class.includes("legend-cloud")
+            );
       if (cloudLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[cloudLegendIndex];
         this._chartRenderer.drawCloudBand(
@@ -2082,9 +2087,12 @@ export class MeteogramCard extends LitElement {
     }
     // Draw rain bars with legend
     if (this.showPrecipitation) {
-      const rainLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l: LegendInfo) =>
-        l.class.includes("legend-rain")
-      );
+      const rainLegendIndex =
+        this.displayMode === "core"
+          ? -1
+          : enabledLegends.findIndex((l: LegendInfo) =>
+              l.class.includes("legend-rain")
+            );
       if (rainLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[rainLegendIndex];
         this._chartRenderer.drawRainBars(
@@ -2117,9 +2125,12 @@ export class MeteogramCard extends LitElement {
 
     // Draw pressure line with legend
     if (pressureAvailable && yPressure) {
-      const pressureLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l: LegendInfo) =>
-        l.class.includes("legend-pressure")
-      );
+      const pressureLegendIndex =
+        this.displayMode === "core"
+          ? -1
+          : enabledLegends.findIndex((l: LegendInfo) =>
+              l.class.includes("legend-pressure")
+            );
       if (pressureLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[pressureLegendIndex];
         this._chartRenderer.drawPressureLine(
@@ -2151,9 +2162,12 @@ export class MeteogramCard extends LitElement {
     }
 
     // Draw temperature line with legend
-    const tempLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l: LegendInfo) =>
-      l.class.includes("legend-temp")
-    );
+    const tempLegendIndex =
+      this.displayMode === "core"
+        ? -1
+        : enabledLegends.findIndex((l: LegendInfo) =>
+            l.class.includes("legend-temp")
+          );
     if (tempLegendIndex >= 0 && legendPositions.length > 0) {
       const legendPos = legendPositions[tempLegendIndex];
       this._chartRenderer.drawTemperatureLine(
@@ -2385,7 +2399,9 @@ export class MeteogramCard extends LitElement {
                         : ""
                     }
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
-                    <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard.meteogramCardVersion}</div>
+                    <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${
+                      MeteogramCard.meteogramCardVersion
+                    }</div>
                 </div>
             `;
     } else {
@@ -2404,7 +2420,9 @@ export class MeteogramCard extends LitElement {
                         : ""
                     }
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
-                    <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${MeteogramCard.meteogramCardVersion}</div>
+                    <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${
+                      MeteogramCard.meteogramCardVersion
+                    }</div>
                 </div>
             `;
     }
