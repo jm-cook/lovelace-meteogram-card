@@ -164,6 +164,8 @@ export class MeteogramChart {
 
         // Create a gradient that transitions from blue (cold/below freezing) to red (warm/above freezing)
         const gradientId = `temp-gradient-${Math.random().toString(36).substr(2, 9)}`;
+        this.card._debugLog(`🎨 Creating temperature gradient with ID: ${gradientId}`);
+        
         const defs = chart.append("defs");
         const gradient = defs.append("linearGradient")
             .attr("id", gradientId)
@@ -174,43 +176,57 @@ export class MeteogramChart {
 
         // Get the temperature domain
         const tempDomain = yTemp.domain(); // [min, max] in temperature units
+        this.card._debugLog(`🎨 Temperature domain: [${tempDomain[0]}°, ${tempDomain[1]}°]`);
 
         // Calculate the position of 0°C as a percentage
         const freezingPoint = 0;
         const freezingPercent = ((freezingPoint - tempDomain[0]) / (tempDomain[1] - tempDomain[0])) * 100;
+        this.card._debugLog(`🎨 Freezing point position (before clamp): ${freezingPercent.toFixed(1)}%`);
 
         // Clamp to valid range
         const clampedFreezingPercent = Math.max(0, Math.min(100, freezingPercent));
+        this.card._debugLog(`🎨 Freezing point position (after clamp): ${clampedFreezingPercent.toFixed(1)}%`);
 
         // Create gradient stops
+        const gradientStops: Array<{offset: string, color: string}> = [];
+        
         // Deep blue for very cold temperatures
+        gradientStops.push({offset: "0%", color: "#0066cc"});
         gradient.append("stop")
             .attr("offset", "0%")
             .attr("stop-color", "#0066cc");
 
         // Transition to lighter blue approaching freezing
         if (clampedFreezingPercent > 10) {
+            const offset = `${Math.max(0, clampedFreezingPercent - 10)}%`;
+            gradientStops.push({offset, color: "#4da6ff"});
             gradient.append("stop")
-                .attr("offset", `${Math.max(0, clampedFreezingPercent - 10)}%`)
+                .attr("offset", offset)
                 .attr("stop-color", "#4da6ff");
         }
 
         // At freezing point, use a neutral blue
+        gradientStops.push({offset: `${clampedFreezingPercent}%`, color: "#66b3ff"});
         gradient.append("stop")
             .attr("offset", `${clampedFreezingPercent}%`)
             .attr("stop-color", "#66b3ff");
 
         // Transition to orange/red above freezing
         if (clampedFreezingPercent < 90) {
+            const offset = `${Math.min(100, clampedFreezingPercent + 10)}%`;
+            gradientStops.push({offset, color: "#ff9933"});
             gradient.append("stop")
-                .attr("offset", `${Math.min(100, clampedFreezingPercent + 10)}%`)
+                .attr("offset", offset)
                 .attr("stop-color", "#ff9933");
         }
 
         // Deep red/orange for warm temperatures
+        gradientStops.push({offset: "100%", color: "#ff6600"});
         gradient.append("stop")
             .attr("offset", "100%")
             .attr("stop-color", "#ff6600");
+
+        this.card._debugLog(`🎨 Gradient stops created:`, gradientStops);
 
         const line = d3.line()
             .defined((d: number | null) => d !== null)
@@ -218,11 +234,39 @@ export class MeteogramChart {
             .y((_: number | null, i: number) => temperature[i] !== null ? yTemp(temperature[i]) : 0)
             .curve(d3.curveMonotoneX);
 
-        chart.append("path")
+        this.card._debugLog(`🎨 Applying gradient to temperature line with stroke: url(#${gradientId})`);
+        
+        // Check if user has set a custom color that would override the gradient
+        const tempLineColorVar = getComputedStyle(this.card).getPropertyValue('--meteogram-temp-line-color');
+        const hasCustomColor = tempLineColorVar && tempLineColorVar.trim();
+        
+        if (hasCustomColor) {
+            this.card._debugLog(`⚠️ CSS variable --meteogram-temp-line-color is set to "${tempLineColorVar.trim()}" - using custom color instead of gradient`);
+        } else {
+            this.card._debugLog(`✅ No custom --meteogram-temp-line-color set, using gradient`);
+        }
+        
+        const tempPath = chart.append("path")
             .datum(temperature)
             .attr("class", "temp-line")
-            .attr("d", line)
-            .attr("stroke", `url(#${gradientId})`);
+            .attr("d", line);
+        
+        // Apply either custom color or gradient
+        if (hasCustomColor) {
+            tempPath.style("stroke", tempLineColorVar.trim());
+        } else {
+            tempPath.attr("stroke", `url(#${gradientId})`);
+        }
+
+        // Verify the gradient was added to the DOM
+        const gradientElement = chart.select(`#${gradientId}`);
+        if (gradientElement.empty()) {
+            this.card._debugLog(`⚠️ WARNING: Gradient element #${gradientId} not found in DOM!`);
+        } else {
+            this.card._debugLog(`✅ Gradient element #${gradientId} successfully added to DOM`);
+            const stops = gradientElement.selectAll('stop');
+            this.card._debugLog(`✅ Gradient has ${stops.size()} stops`);
+        }
 
             // Always draw axis label (if not in focussed mode)
             if (!this.card.focussed && this.card.displayMode !== "core") {

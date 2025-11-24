@@ -60,12 +60,8 @@ export const meteogramCardStyles = css`
     }
 
     .temp-line {
-        stroke: var(--meteogram-temp-line-color, orange);
         stroke-width: 3;
         fill: none;
-    }
-    :host([dark]) .temp-line {
-        stroke: var(--meteogram-temp-line-color, orange);
     }
     
     .pressure-line {
