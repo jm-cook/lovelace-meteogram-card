@@ -170,9 +170,9 @@ export class MeteogramChart {
         const gradient = defs.append("linearGradient")
             .attr("id", gradientId)
             .attr("x1", "0%")
-            .attr("y1", "100%")  // Bottom of chart
+            .attr("y1", "0%")    // Top of chart (warm)
             .attr("x2", "0%")
-            .attr("y2", "0%");   // Top of chart
+            .attr("y2", "100%"); // Bottom of chart (cold)
 
         // Get the temperature domain
         const tempDomain = yTemp.domain(); // [min, max] in temperature units
@@ -190,41 +190,70 @@ export class MeteogramChart {
         // Create gradient stops
         const gradientStops: Array<{offset: string, color: string}> = [];
         
-        // Deep blue for very cold temperatures
-        gradientStops.push({offset: "0%", color: "#0066cc"});
-        gradient.append("stop")
-            .attr("offset", "0%")
-            .attr("stop-color", "#0066cc");
-
-        // Transition to lighter blue approaching freezing
-        if (clampedFreezingPercent > 10) {
-            const offset = `${Math.max(0, clampedFreezingPercent - 10)}%`;
-            gradientStops.push({offset, color: "#4da6ff"});
+        // If freezing point is below the visible range (all temps above freezing)
+        if (clampedFreezingPercent === 0) {
+            // All warm colors: deep red at top to lighter orange at bottom
+            gradientStops.push({offset: "0%", color: "#ff6600"});
             gradient.append("stop")
-                .attr("offset", offset)
-                .attr("stop-color", "#4da6ff");
-        }
-
-        // At freezing point, use a neutral blue
-        gradientStops.push({offset: `${clampedFreezingPercent}%`, color: "#66b3ff"});
-        gradient.append("stop")
-            .attr("offset", `${clampedFreezingPercent}%`)
-            .attr("stop-color", "#66b3ff");
-
-        // Transition to orange/red above freezing
-        if (clampedFreezingPercent < 90) {
-            const offset = `${Math.min(100, clampedFreezingPercent + 10)}%`;
-            gradientStops.push({offset, color: "#ff9933"});
+                .attr("offset", "0%")
+                .attr("stop-color", "#ff6600");
+            
+            gradientStops.push({offset: "100%", color: "#ff9933"});
             gradient.append("stop")
-                .attr("offset", offset)
+                .attr("offset", "100%")
                 .attr("stop-color", "#ff9933");
         }
+        // If freezing point is above the visible range (all temps below freezing)
+        else if (clampedFreezingPercent === 100) {
+            // All cold colors: lighter blue at top to deep blue at bottom
+            gradientStops.push({offset: "0%", color: "#4da6ff"});
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", "#4da6ff");
+            
+            gradientStops.push({offset: "100%", color: "#0066cc"});
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "#0066cc");
+        }
+        // Freezing point is within the visible range
+        else {
+            // Deep red/orange for warm temperatures (top of chart)
+            gradientStops.push({offset: "0%", color: "#ff6600"});
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", "#ff6600");
 
-        // Deep red/orange for warm temperatures
-        gradientStops.push({offset: "100%", color: "#ff6600"});
-        gradient.append("stop")
-            .attr("offset", "100%")
-            .attr("stop-color", "#ff6600");
+            // Transition to orange approaching freezing from above
+            if (clampedFreezingPercent > 10) {
+                const offset = `${Math.max(0, clampedFreezingPercent - 10)}%`;
+                gradientStops.push({offset, color: "#ff9933"});
+                gradient.append("stop")
+                    .attr("offset", offset)
+                    .attr("stop-color", "#ff9933");
+            }
+
+            // At freezing point, use a neutral color
+            gradientStops.push({offset: `${clampedFreezingPercent}%`, color: "#66b3ff"});
+            gradient.append("stop")
+                .attr("offset", `${clampedFreezingPercent}%`)
+                .attr("stop-color", "#66b3ff");
+
+            // Transition to lighter blue below freezing
+            if (clampedFreezingPercent < 90) {
+                const offset = `${Math.min(100, clampedFreezingPercent + 10)}%`;
+                gradientStops.push({offset, color: "#4da6ff"});
+                gradient.append("stop")
+                    .attr("offset", offset)
+                    .attr("stop-color", "#4da6ff");
+            }
+
+            // Deep blue for very cold temperatures (bottom of chart)
+            gradientStops.push({offset: "100%", color: "#0066cc"});
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "#0066cc");
+        }
 
         this.card._debugLog(`🎨 Gradient stops created:`, gradientStops);
 

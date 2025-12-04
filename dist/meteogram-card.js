@@ -2901,9 +2901,9 @@ class MeteogramChart {
         const gradient = defs.append("linearGradient")
             .attr("id", gradientId)
             .attr("x1", "0%")
-            .attr("y1", "100%") // Bottom of chart
+            .attr("y1", "0%") // Top of chart (warm)
             .attr("x2", "0%")
-            .attr("y2", "0%"); // Top of chart
+            .attr("y2", "100%"); // Bottom of chart (cold)
         // Get the temperature domain
         const tempDomain = yTemp.domain(); // [min, max] in temperature units
         this.card._debugLog(`🎨 Temperature domain: [${tempDomain[0]}°, ${tempDomain[1]}°]`);
@@ -2916,37 +2916,64 @@ class MeteogramChart {
         this.card._debugLog(`🎨 Freezing point position (after clamp): ${clampedFreezingPercent.toFixed(1)}%`);
         // Create gradient stops
         const gradientStops = [];
-        // Deep blue for very cold temperatures
-        gradientStops.push({ offset: "0%", color: "#0066cc" });
-        gradient.append("stop")
-            .attr("offset", "0%")
-            .attr("stop-color", "#0066cc");
-        // Transition to lighter blue approaching freezing
-        if (clampedFreezingPercent > 10) {
-            const offset = `${Math.max(0, clampedFreezingPercent - 10)}%`;
-            gradientStops.push({ offset, color: "#4da6ff" });
+        // If freezing point is below the visible range (all temps above freezing)
+        if (clampedFreezingPercent === 0) {
+            // All warm colors: deep red at top to lighter orange at bottom
+            gradientStops.push({ offset: "0%", color: "#ff6600" });
             gradient.append("stop")
-                .attr("offset", offset)
-                .attr("stop-color", "#4da6ff");
-        }
-        // At freezing point, use a neutral blue
-        gradientStops.push({ offset: `${clampedFreezingPercent}%`, color: "#66b3ff" });
-        gradient.append("stop")
-            .attr("offset", `${clampedFreezingPercent}%`)
-            .attr("stop-color", "#66b3ff");
-        // Transition to orange/red above freezing
-        if (clampedFreezingPercent < 90) {
-            const offset = `${Math.min(100, clampedFreezingPercent + 10)}%`;
-            gradientStops.push({ offset, color: "#ff9933" });
+                .attr("offset", "0%")
+                .attr("stop-color", "#ff6600");
+            gradientStops.push({ offset: "100%", color: "#ff9933" });
             gradient.append("stop")
-                .attr("offset", offset)
+                .attr("offset", "100%")
                 .attr("stop-color", "#ff9933");
         }
-        // Deep red/orange for warm temperatures
-        gradientStops.push({ offset: "100%", color: "#ff6600" });
-        gradient.append("stop")
-            .attr("offset", "100%")
-            .attr("stop-color", "#ff6600");
+        // If freezing point is above the visible range (all temps below freezing)
+        else if (clampedFreezingPercent === 100) {
+            // All cold colors: lighter blue at top to deep blue at bottom
+            gradientStops.push({ offset: "0%", color: "#4da6ff" });
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", "#4da6ff");
+            gradientStops.push({ offset: "100%", color: "#0066cc" });
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "#0066cc");
+        }
+        // Freezing point is within the visible range
+        else {
+            // Deep red/orange for warm temperatures (top of chart)
+            gradientStops.push({ offset: "0%", color: "#ff6600" });
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", "#ff6600");
+            // Transition to orange approaching freezing from above
+            if (clampedFreezingPercent > 10) {
+                const offset = `${Math.max(0, clampedFreezingPercent - 10)}%`;
+                gradientStops.push({ offset, color: "#ff9933" });
+                gradient.append("stop")
+                    .attr("offset", offset)
+                    .attr("stop-color", "#ff9933");
+            }
+            // At freezing point, use a neutral color
+            gradientStops.push({ offset: `${clampedFreezingPercent}%`, color: "#66b3ff" });
+            gradient.append("stop")
+                .attr("offset", `${clampedFreezingPercent}%`)
+                .attr("stop-color", "#66b3ff");
+            // Transition to lighter blue below freezing
+            if (clampedFreezingPercent < 90) {
+                const offset = `${Math.min(100, clampedFreezingPercent + 10)}%`;
+                gradientStops.push({ offset, color: "#4da6ff" });
+                gradient.append("stop")
+                    .attr("offset", offset)
+                    .attr("stop-color", "#4da6ff");
+            }
+            // Deep blue for very cold temperatures (bottom of chart)
+            gradientStops.push({ offset: "100%", color: "#0066cc" });
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "#0066cc");
+        }
         this.card._debugLog(`🎨 Gradient stops created:`, gradientStops);
         const line = d3.line()
             .defined((d) => d !== null)
@@ -3447,7 +3474,7 @@ class MeteogramChart {
 }
 
 var MeteogramCard_1;
-let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
+let MeteogramCard = MeteogramCard_1 = class MeteogramCard extends i {
     // Getter for precipitation display (replaces showRain)
     get showPrecipitation() {
         // Prefer config property if present, else default to true
@@ -3620,30 +3647,30 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     }
     // Debug helper method for console access
     debugMeteogram() {
-        console.log('=== METEOGRAM CARD DEBUG ===');
-        console.log('Entity ID:', this.entityId);
-        console.log('Weather Entity API Instance:', !!this._weatherEntityApiInstance);
-        console.log('Weather API Instance:', !!this._weatherApiInstance);
-        console.log('Card Configuration:', {
+        console.log("=== METEOGRAM CARD DEBUG ===");
+        console.log("Entity ID:", this.entityId);
+        console.log("Weather Entity API Instance:", !!this._weatherEntityApiInstance);
+        console.log("Weather API Instance:", !!this._weatherApiInstance);
+        console.log("Card Configuration:", {
             entityId: this.entityId,
             latitude: this.latitude,
             longitude: this.longitude,
             diagnostics: this.diagnostics,
-            usingEntity: !!this.entityId && this.entityId !== 'none',
-            usingDirectAPI: !!(this.latitude && this.longitude)
+            usingEntity: !!this.entityId && this.entityId !== "none",
+            usingDirectAPI: !!(this.latitude && this.longitude),
         });
         if (this._weatherEntityApiInstance) {
-            console.log('Weather Entity API available - use: card.weatherEntityAPI.getFreshnessSummary()');
+            console.log("Weather Entity API available - use: card.weatherEntityAPI.getFreshnessSummary()");
             return this._weatherEntityApiInstance.getFreshnessSummary();
         }
         else if (this._weatherApiInstance) {
-            console.log('Using Met.no API directly - Entity API not available');
-            console.log('API Instance:', this._weatherApiInstance);
-            return 'Using Met.no API directly - no entity debugging available';
+            console.log("Using Met.no API directly - Entity API not available");
+            console.log("API Instance:", this._weatherApiInstance);
+            return "Using Met.no API directly - no entity debugging available";
         }
         else {
-            console.log('No weather instances available - card may not be initialized');
-            return 'Card not fully initialized';
+            console.log("No weather instances available - card may not be initialized");
+            return "Card not fully initialized";
         }
     }
     // Debug helper method for conditional logging
@@ -4043,7 +4070,8 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         const isVisible = this._isElementVisible();
         if (isVisible) {
             // Element became visible - ensure subscription is active
-            if (this._weatherEntityApiInstance && !this._weatherEntityApiInstance.isSubscriptionActive()) {
+            if (this._weatherEntityApiInstance &&
+                !this._weatherEntityApiInstance.isSubscriptionActive()) {
                 this._debugLog(`[${CARD_NAME}] Element became visible, resuming subscription`);
                 this._resumeWeatherSubscription("element visible");
             }
@@ -4167,14 +4195,16 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     }
     // Pause weather entity subscription when tab becomes hidden
     _pauseWeatherSubscription(from) {
-        if (this._weatherEntityApiInstance && this._weatherEntityApiInstance.isSubscriptionActive()) {
+        if (this._weatherEntityApiInstance &&
+            this._weatherEntityApiInstance.isSubscriptionActive()) {
             this._debugLog(`[${CARD_NAME}] Pausing weather subscription from: ${from}`);
             this._weatherEntityApiInstance.pause(from);
         }
     }
     // Resume weather entity subscription when tab becomes visible
     async _resumeWeatherSubscription(from) {
-        if (this._weatherEntityApiInstance && !this._weatherEntityApiInstance.isSubscriptionActive()) {
+        if (this._weatherEntityApiInstance &&
+            !this._weatherEntityApiInstance.isSubscriptionActive()) {
             this._debugLog(`[${CARD_NAME}] Resuming weather subscription from: ${from}`);
             try {
                 await this._weatherEntityApiInstance.resume(from);
@@ -4426,7 +4456,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             const entityData = this._weatherEntityApiInstance.getForecastData();
             // Update status fields for entity data (similar to API data)
             const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
-            if (diag.inMemoryData.lastFetchFormatted !== 'not yet fetched') {
+            if (diag.inMemoryData.lastFetchFormatted !== "not yet fetched") {
                 // Use pre-formatted version to avoid double formatting
                 this._statusLastFetch = diag.inMemoryData.lastFetchFormatted;
             }
@@ -4564,7 +4594,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                     errorStack: error === null || error === void 0 ? void 0 : error.stack,
                     weatherApiLastError: weatherApi.lastError,
                     weatherApiStatusCode: weatherApi.lastStatusCode,
-                    weatherApiExpiresAt: weatherApi.expiresAt
+                    weatherApiExpiresAt: weatherApi.expiresAt,
                 });
                 this._statusApiSuccess = false;
                 let diag = weatherApi.getDiagnosticText();
@@ -4606,21 +4636,29 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
      */
     updateDataAvailability(data) {
         // Check if arrays exist and have valid (non-null) data
-        this._dataAvailability.temperature = Array.isArray(data.temperature) &&
-            data.temperature.some(val => val !== null && typeof val === 'number');
-        this._dataAvailability.wind = Array.isArray(data.windSpeed) &&
-            data.windSpeed.some(val => val !== null && typeof val === 'number');
-        this._dataAvailability.pressure = Array.isArray(data.pressure) &&
-            data.pressure.some(val => val !== null && typeof val === 'number');
-        this._dataAvailability.cloudCover = Array.isArray(data.cloudCover) &&
-            data.cloudCover.some(val => val !== null && typeof val === 'number');
-        this._dataAvailability.precipitation = Array.isArray(data.rain) &&
-            data.rain.some(val => val !== null && typeof val === 'number');
+        this._dataAvailability.temperature =
+            Array.isArray(data.temperature) &&
+                data.temperature.some((val) => val !== null && typeof val === "number");
+        this._dataAvailability.wind =
+            Array.isArray(data.windSpeed) &&
+                data.windSpeed.some((val) => val !== null && typeof val === "number");
+        this._dataAvailability.pressure =
+            Array.isArray(data.pressure) &&
+                data.pressure.some((val) => val !== null && typeof val === "number");
+        this._dataAvailability.cloudCover =
+            Array.isArray(data.cloudCover) &&
+                data.cloudCover.some((val) => val !== null && typeof val === "number");
+        this._dataAvailability.precipitation =
+            Array.isArray(data.rain) &&
+                data.rain.some((val) => val !== null && typeof val === "number");
         this._dataAvailability.precipitationMinMax =
-            (Array.isArray(data.rainMin) && data.rainMin.some(val => val !== null && typeof val === 'number')) ||
-                (Array.isArray(data.rainMax) && data.rainMax.some(val => val !== null && typeof val === 'number'));
-        this._dataAvailability.windGust = Array.isArray(data.windGust) &&
-            data.windGust.some(val => val !== null && typeof val === 'number');
+            (Array.isArray(data.rainMin) &&
+                data.rainMin.some((val) => val !== null && typeof val === "number")) ||
+                (Array.isArray(data.rainMax) &&
+                    data.rainMax.some((val) => val !== null && typeof val === "number"));
+        this._dataAvailability.windGust =
+            Array.isArray(data.windGust) &&
+                data.windGust.some((val) => val !== null && typeof val === "number");
     }
     /**
      * Checks which forecast keys are missing from the provided data and updates _missingForecastKeys.
@@ -4861,8 +4899,20 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 return arr.slice(0, Math.min(hours, arr.length) + 1);
             };
             // Debug: Check which properties might be undefined
-            const dataProperties = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
-            const undefinedProps = dataProperties.filter(prop => !data[prop] || !Array.isArray(data[prop]));
+            const dataProperties = [
+                "time",
+                "temperature",
+                "rain",
+                "rainMin",
+                "rainMax",
+                "cloudCover",
+                "windSpeed",
+                "windGust",
+                "windDirection",
+                "symbolCode",
+                "pressure",
+            ];
+            const undefinedProps = dataProperties.filter((prop) => !data[prop] || !Array.isArray(data[prop]));
             if (undefinedProps.length > 0) {
                 console.warn(`[${CARD_NAME}] ForecastData has undefined/non-array properties:`, undefinedProps);
             }
@@ -4910,7 +4960,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 error: err,
                 message: err === null || err === void 0 ? void 0 : err.message,
                 stack: err === null || err === void 0 ? void 0 : err.stack,
-                name: err === null || err === void 0 ? void 0 : err.name
+                name: err === null || err === void 0 ? void 0 : err.name,
             });
             // If error is due to unavailable entity, show waiting message
             if (err.message &&
@@ -4929,7 +4979,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                     errorMessage: err === null || err === void 0 ? void 0 : err.message,
                     hasExistingMeteogramError: !!this.meteogramError,
                     existingError: this.meteogramError,
-                    containsApiError: (_a = this.meteogramError) === null || _a === void 0 ? void 0 : _a.includes("API Error")
+                    containsApiError: (_a = this.meteogramError) === null || _a === void 0 ? void 0 : _a.includes("API Error"),
                 });
                 // If a diagnostic error is already present, append the retry message
                 if (this.meteogramError &&
@@ -4967,7 +5017,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     }
     // Helper to calculate forecast data age
     getForecastDataAge() {
-        if (!this._lastWeatherData || !this._lastWeatherData.time || this._lastWeatherData.time.length === 0) {
+        if (!this._lastWeatherData ||
+            !this._lastWeatherData.time ||
+            this._lastWeatherData.time.length === 0) {
             return "no data";
         }
         const earliestTime = this._lastWeatherData.time[0];
@@ -4996,7 +5048,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     }
     // Centralized method to generate diagnostic information
     generateDiagnosticInfo() {
-        let debugInfo = '';
+        let debugInfo = "";
         let panelInfo = null;
         let expiresInfo = "not available";
         let lastFetchInfo = "not available";
@@ -5004,56 +5056,68 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Calculate forecast data age for both entity and API modes
         const forecastDataAge = this.getForecastDataAge();
         // Show Entity API debug info when using entity
-        if (this.entityId && this.entityId !== "none" && this._weatherEntityApiInstance) {
+        if (this.entityId &&
+            this.entityId !== "none" &&
+            this._weatherEntityApiInstance) {
             const diag = this._weatherEntityApiInstance.getDiagnosticInfo();
-            const expiryColor = diag.inMemoryData.isExpired ? '#f44336' : '#4caf50';
+            const expiryColor = diag.inMemoryData.isExpired ? "#f44336" : "#4caf50";
             // Set expires and lastFetch info for main panel
-            if (diag.inMemoryData.expiresAtFormatted !== 'not set') {
-                expiresInfo = x `<span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted}${diag.inMemoryData.isExpired ? ' (EXPIRED)' : ''}</span>`;
+            if (diag.inMemoryData.expiresAtFormatted !== "not set") {
+                expiresInfo = x `<span style="color:${expiryColor}"
+          >${diag.inMemoryData.expiresAtFormatted}${diag.inMemoryData.isExpired
+                    ? " (EXPIRED)"
+                    : ""}</span
+        >`;
             }
             else {
-                expiresInfo = 'not set';
+                expiresInfo = "not set";
             }
             lastFetchInfo = diag.inMemoryData.lastFetchFormatted;
             // For tooltip - include the Last forecast fetched info you want to see
             debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
-        <b>📱 Entity API:</b> ${diag.entityExists ? '✅' : '❌'} ${diag.entityState || 'unknown'} | <b>Last Updated:</b> ${diag.entityLastUpdated ? new Date(diag.entityLastUpdated).toLocaleString() : 'unknown'}<br>
-        <b>Subscription:</b> ${diag.hasSubscription ? '✅' : '❌'} | <b>Connection:</b> ${diag.hasConnection ? '✅' : '❌'}<br>
+        <b>📱 Entity API:</b> ${diag.entityExists ? "✅" : "❌"} ${diag.entityState || "unknown"} | <b>Last Updated:</b> ${diag.entityLastUpdated
+                ? new Date(diag.entityLastUpdated).toLocaleString()
+                : "unknown"}<br>
+        <b>Subscription:</b> ${diag.hasSubscription ? "✅" : "❌"} | <b>Connection:</b> ${diag.hasConnection ? "✅" : "❌"}<br>
         <b>Last Data Fetch:</b> ${diag.inMemoryData.lastFetchFormatted} | <b>Age:</b> ${diag.inMemoryData.dataAgeMinutes} min<br>
-        <b>Last Forecast Fetched:</b> ${diag.lastForecastFetch || 'never'} ${diag.lastForecastFetchAge ? `(${diag.lastForecastFetchAge})` : ''}<br>
+        <b>Last Forecast Fetched:</b> ${diag.lastForecastFetch || "never"} ${diag.lastForecastFetchAge ? `(${diag.lastForecastFetchAge})` : ""}<br>
         <b>Earliest Forecast:</b> ${forecastDataAge} ago<br>
-        <b>Data Expires:</b> <span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted} ${diag.inMemoryData.isExpired ? '(EXPIRED)' : ''}</span><br>
+        <b>Data Expires:</b> <span style="color:${expiryColor}">${diag.inMemoryData.expiresAtFormatted} ${diag.inMemoryData.isExpired ? "(EXPIRED)" : ""}</span><br>
         <b>Hourly Data:</b> ${diag.hourlyForecastData.status}
       </div>`;
             // For diagnostic panel - remove the detailed info that was getting cut off
             // Keep this null to remove the extra panel section
             panelInfo = null;
         }
-        // Show Weather API debug info when NOT using entity (coordinates mode)  
+        // Show Weather API debug info when NOT using entity (coordinates mode)
         else if (this._weatherApiInstance) {
             try {
                 const apiDiag = this._weatherApiInstance.getDiagnosticInfo();
-                const apiExpiryColor = apiDiag.isExpired ? '#f44336' : '#4caf50';
+                const apiExpiryColor = apiDiag.isExpired ? "#f44336" : "#4caf50";
                 // Set expires and lastFetch info for main panel
                 if (this.apiExpiresAt) {
                     const isExpired = Date.now() > this.apiExpiresAt;
-                    const color = isExpired ? '#f44336' : '#4caf50';
-                    const status = isExpired ? ' (EXPIRED)' : '';
-                    expiresInfo = x `<span style="color:${color}">${new Date(this.apiExpiresAt).toLocaleString()}${status}</span>`;
+                    const color = isExpired ? "#f44336" : "#4caf50";
+                    const status = isExpired ? " (EXPIRED)" : "";
+                    expiresInfo = x `<span style="color:${color}"
+            >${new Date(this.apiExpiresAt).toLocaleString()}${status}</span
+          >`;
                 }
                 lastFetchInfo = this._statusLastFetch
-                    ? (this._statusLastFetch.includes('T') ? new Date(this._statusLastFetch).toLocaleString() : this._statusLastFetch)
+                    ? this._statusLastFetch.includes("T")
+                        ? new Date(this._statusLastFetch).toLocaleString()
+                        : this._statusLastFetch
                     : "not available";
                 debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
-          <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? '✅' : '❌'} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
+          <b>🌤️ ${apiDiag.apiType}:</b> ${apiDiag.hasData ? "✅" : "❌"} Data | <b>Location:</b> ${apiDiag.location.lat.toFixed(2)}, ${apiDiag.location.lon.toFixed(2)}<br>
           <b>Last Data Fetch:</b> ${apiDiag.lastFetchFormatted} | <b>Age:</b> ${apiDiag.dataAgeMinutes} min<br>
           <b>Earliest Forecast:</b> ${forecastDataAge} ago<br>
-          <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? '(EXPIRED)' : ''}</span><br>
+          <b>Data Expires:</b> <span style="color:${apiExpiryColor}">${apiDiag.expiresAtFormatted} ${apiDiag.isExpired ? "(EXPIRED)" : ""}</span><br>
           <b>Hourly Data:</b> ${apiDiag.dataTimeLength} entries
         </div>`;
             }
             catch (error) {
-                console.error('[MeteogramCard] Error getting Weather API diagnostic info:', error);
+                console.error("[MeteogramCard] Error getting Weather API diagnostic info:", error);
                 debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;'>Weather API diagnostic error: ${error}</div>`;
             }
         }
@@ -5065,7 +5129,7 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             panel: panelInfo,
             expires: expiresInfo,
             lastFetch: lastFetchInfo,
-            lastRender: lastRenderInfo
+            lastRender: lastRenderInfo,
         };
     }
     // Add a helper to determine if day or night based on time and location
@@ -5256,13 +5320,15 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Only allocate slots for enabled legends, so they fill left-to-right
         // Skip legends entirely in "core" display mode
         const numLegends = this.displayMode === "core" ? 0 : enabledLegends.length;
-        const legendPositions = this.displayMode === "core" ? [] : enabledLegends.map((_, i) => {
-            const slotWidth = this._chartWidth / numLegends;
-            return {
-                x: i * slotWidth + 2,
-                y: -45,
-            };
-        });
+        const legendPositions = this.displayMode === "core"
+            ? []
+            : enabledLegends.map((_, i) => {
+                const slotWidth = this._chartWidth / numLegends;
+                return {
+                    x: i * slotWidth + 2,
+                    y: -45,
+                };
+            });
         // Alternate shaded background for days
         svg
             .selectAll(".day-bg")
@@ -5306,7 +5372,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Draw cloud cover band with legend
         // Cloud cover band - only if enabled
         if (cloudAvailable) {
-            const cloudLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-cloud"));
+            const cloudLegendIndex = this.displayMode === "core"
+                ? -1
+                : enabledLegends.findIndex((l) => l.class.includes("legend-cloud"));
             if (cloudLegendIndex >= 0 && legendPositions.length > 0) {
                 const legendPos = legendPositions[cloudLegendIndex];
                 this._chartRenderer.drawCloudBand(chart, cloudCover, N, x, legendPos.x, legendPos.y);
@@ -5317,7 +5385,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Draw rain bars with legend
         if (this.showPrecipitation && this._dataAvailability.precipitation) {
-            const rainLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-rain"));
+            const rainLegendIndex = this.displayMode === "core"
+                ? -1
+                : enabledLegends.findIndex((l) => l.class.includes("legend-rain"));
             if (rainLegendIndex >= 0 && legendPositions.length > 0) {
                 const legendPos = legendPositions[rainLegendIndex];
                 this._chartRenderer.drawRainBars(chart, rainConverted, rainMaxConverted, N, x, yPrecip, dx, legendPos.x, legendPos.y);
@@ -5328,7 +5398,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         }
         // Draw pressure line with legend
         if (pressureAvailable && yPressure) {
-            const pressureLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-pressure"));
+            const pressureLegendIndex = this.displayMode === "core"
+                ? -1
+                : enabledLegends.findIndex((l) => l.class.includes("legend-pressure"));
             if (pressureLegendIndex >= 0 && legendPositions.length > 0) {
                 const legendPos = legendPositions[pressureLegendIndex];
                 this._chartRenderer.drawPressureLine(chart, pressure, x, yPressure, legendPos.x, legendPos.y);
@@ -5344,14 +5416,19 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
             let rawWindUnit = (_a = data.units) === null || _a === void 0 ? void 0 : _a.windSpeed;
             if (!rawWindUnit) {
                 // Only use fallbacks if no units were stored (shouldn't happen with proper entity data)
-                rawWindUnit = (!this.entityId || this.entityId === "none") ? "m/s" : this.getSystemWindSpeedUnit();
+                rawWindUnit =
+                    !this.entityId || this.entityId === "none"
+                        ? "m/s"
+                        : this.getSystemWindSpeedUnit();
             }
             this._chartRenderer.drawWindBand(svg, x, windBandHeight, margin, width, N, time, windSpeed, // Use raw wind speeds for barb calculation
             windGust, // Use raw gust speeds for barb calculation
             windDirection, rawWindUnit);
         }
         // Draw temperature line with legend
-        const tempLegendIndex = this.displayMode === "core" ? -1 : enabledLegends.findIndex((l) => l.class.includes("legend-temp"));
+        const tempLegendIndex = this.displayMode === "core"
+            ? -1
+            : enabledLegends.findIndex((l) => l.class.includes("legend-temp"));
         if (tempLegendIndex >= 0 && legendPositions.length > 0) {
             const legendPos = legendPositions[tempLegendIndex];
             this._chartRenderer.drawTemperatureLine(chart, temperatureConverted, x, yTemp, legendPos.x, legendPos.y);
@@ -5809,7 +5886,11 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
         // Wind speed unit
         if ((_j = (_h = (_g = this.hass) === null || _g === void 0 ? void 0 : _g.config) === null || _h === void 0 ? void 0 : _h.unit_system) === null || _j === void 0 ? void 0 : _j.wind_speed) {
             const unit = this.hass.config.unit_system.wind_speed;
-            if (unit === "m/s" || unit === "km/h" || unit === "mph" || unit === "kt" || unit === "kn")
+            if (unit === "m/s" ||
+                unit === "km/h" ||
+                unit === "mph" ||
+                unit === "kt" ||
+                unit === "kn")
                 this._windSpeedUnit = unit === "kn" ? "kt" : unit; // Normalize knots to "kt"
         }
         // Precipitation unit
@@ -5843,20 +5924,32 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
     // Schedule periodic cache cleanup (run once per page load)
     schedulePeriodicCacheCleanup() {
         // Only run cleanup once per browser session to avoid excessive operations
-        const sessionKey = 'meteogram-card-cleanup-done';
+        const sessionKey = "meteogram-card-cleanup-done";
         if (sessionStorage.getItem(sessionKey)) {
             return; // Already cleaned up in this session
         }
         try {
             // Clean up MET.no weather cache
-            const cacheStr = localStorage.getItem('metno-weather-cache');
+            const cacheStr = localStorage.getItem("metno-weather-cache");
             if (cacheStr) {
                 try {
                     const cacheObj = JSON.parse(cacheStr);
                     if (cacheObj["forecast-data"]) {
                         const now = Date.now();
                         const twentyFourHours = 24 * 60 * 60 * 1000;
-                        const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+                        const requiredArrays = [
+                            "time",
+                            "temperature",
+                            "rain",
+                            "rainMin",
+                            "rainMax",
+                            "cloudCover",
+                            "windSpeed",
+                            "windGust",
+                            "windDirection",
+                            "symbolCode",
+                            "pressure",
+                        ];
                         let removedCount = 0;
                         let invalidCount = 0;
                         for (const [key, entry] of Object.entries(cacheObj["forecast-data"])) {
@@ -5868,13 +5961,13 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                                 removedCount++;
                             }
                             // Validate data structure
-                            else if (!entryData.data || typeof entryData.data !== 'object') {
+                            else if (!entryData.data || typeof entryData.data !== "object") {
                                 shouldRemove = true;
                                 invalidCount++;
                             }
                             // Check for missing required arrays
                             else {
-                                const missingArrays = requiredArrays.filter(prop => !Array.isArray(entryData.data[prop]));
+                                const missingArrays = requiredArrays.filter((prop) => !Array.isArray(entryData.data[prop]));
                                 if (missingArrays.length > 0) {
                                     shouldRemove = true;
                                     invalidCount++;
@@ -5885,9 +5978,9 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                             }
                         }
                         if (removedCount > 0 || invalidCount > 0) {
-                            localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+                            localStorage.setItem("metno-weather-cache", JSON.stringify(cacheObj));
                             // Static method - check localStorage for debug flag
-                            if (localStorage.getItem('meteogram-debug') === 'true') {
+                            if (localStorage.getItem("meteogram-debug") === "true") {
                                 console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old and ${invalidCount} invalid MET.no cache entries`);
                             }
                         }
@@ -5895,23 +5988,35 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                 }
                 catch (e) {
                     console.warn(`[${CARD_NAME}] Corrupted MET.no cache during startup cleanup, clearing:`, e);
-                    localStorage.removeItem('metno-weather-cache');
+                    localStorage.removeItem("metno-weather-cache");
                 }
             }
             // Clean up entity cache
-            const entityCacheStr = localStorage.getItem('meteogram-card-entity-weather-cache');
+            const entityCacheStr = localStorage.getItem("meteogram-card-entity-weather-cache");
             if (entityCacheStr) {
                 try {
                     const entityCache = JSON.parse(entityCacheStr);
                     const now = Date.now();
                     const twentyFourHours = 24 * 60 * 60 * 1000;
-                    const requiredArrays = ['time', 'temperature', 'rain', 'rainMin', 'rainMax', 'cloudCover', 'windSpeed', 'windGust', 'windDirection', 'symbolCode', 'pressure'];
+                    const requiredArrays = [
+                        "time",
+                        "temperature",
+                        "rain",
+                        "rainMin",
+                        "rainMax",
+                        "cloudCover",
+                        "windSpeed",
+                        "windGust",
+                        "windDirection",
+                        "symbolCode",
+                        "pressure",
+                    ];
                     let removedCount = 0;
                     let invalidCount = 0;
                     for (const [entityId, entry] of Object.entries(entityCache)) {
                         let shouldRemove = false;
                         // Handle both old format (direct data) and new format (with timestamp)
-                        if (entry && typeof entry === 'object' && 'timestamp' in entry) {
+                        if (entry && typeof entry === "object" && "timestamp" in entry) {
                             const entryData = entry;
                             // Remove entries older than 24h
                             if (now - entryData.timestamp > twentyFourHours) {
@@ -5919,22 +6024,22 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                                 removedCount++;
                             }
                             // Validate data structure
-                            else if (!entryData.data || typeof entryData.data !== 'object') {
+                            else if (!entryData.data || typeof entryData.data !== "object") {
                                 shouldRemove = true;
                                 invalidCount++;
                             }
                             // Check for missing required arrays
                             else {
-                                const missingArrays = requiredArrays.filter(prop => !Array.isArray(entryData.data[prop]));
+                                const missingArrays = requiredArrays.filter((prop) => !Array.isArray(entryData.data[prop]));
                                 if (missingArrays.length > 0) {
                                     shouldRemove = true;
                                     invalidCount++;
                                 }
                             }
                         }
-                        else if (entry && typeof entry === 'object') {
+                        else if (entry && typeof entry === "object") {
                             // Old format - validate structure
-                            const missingArrays = requiredArrays.filter(prop => !Array.isArray(entry[prop]));
+                            const missingArrays = requiredArrays.filter((prop) => !Array.isArray(entry[prop]));
                             if (missingArrays.length > 0) {
                                 shouldRemove = true;
                                 invalidCount++;
@@ -5951,119 +6056,119 @@ let MeteogramCard$1 = MeteogramCard_1 = class MeteogramCard extends i {
                         }
                     }
                     if (removedCount > 0 || invalidCount > 0) {
-                        localStorage.setItem('meteogram-card-entity-weather-cache', JSON.stringify(entityCache));
+                        localStorage.setItem("meteogram-card-entity-weather-cache", JSON.stringify(entityCache));
                         // Static method - check localStorage for debug flag
-                        if (localStorage.getItem('meteogram-debug') === 'true') {
+                        if (localStorage.getItem("meteogram-debug") === "true") {
                             console.debug(`[${CARD_NAME}] Startup cleanup: removed ${removedCount} old and ${invalidCount} invalid entity cache entries`);
                         }
                     }
                 }
                 catch (e) {
                     console.warn(`[${CARD_NAME}] Corrupted entity cache during startup cleanup, clearing:`, e);
-                    localStorage.removeItem('meteogram-card-entity-weather-cache');
+                    localStorage.removeItem("meteogram-card-entity-weather-cache");
                 }
             }
             // Mark cleanup as done for this browser session
-            sessionStorage.setItem(sessionKey, 'true');
+            sessionStorage.setItem(sessionKey, "true");
         }
         catch (e) {
             console.warn(`[${CARD_NAME}] Failed to perform startup cache cleanup:`, e);
         }
     }
 };
-MeteogramCard$1.lastD3RetryTime = 0;
-MeteogramCard$1.meteogramCardVersion = version;
-MeteogramCard$1.styles = meteogramCardStyles;
+MeteogramCard.lastD3RetryTime = 0;
+MeteogramCard.meteogramCardVersion = version;
+MeteogramCard.styles = meteogramCardStyles;
 __decorate([
     n({ type: String })
-], MeteogramCard$1.prototype, "title", void 0);
+], MeteogramCard.prototype, "title", void 0);
 __decorate([
     n({ type: Number })
-], MeteogramCard$1.prototype, "latitude", void 0);
+], MeteogramCard.prototype, "latitude", void 0);
 __decorate([
     n({ type: Number })
-], MeteogramCard$1.prototype, "longitude", void 0);
+], MeteogramCard.prototype, "longitude", void 0);
 __decorate([
     n({ attribute: false })
-], MeteogramCard$1.prototype, "hass", void 0);
+], MeteogramCard.prototype, "hass", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard$1.prototype, "showCloudCover", void 0);
+], MeteogramCard.prototype, "showCloudCover", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard$1.prototype, "showPressure", void 0);
+], MeteogramCard.prototype, "showPressure", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard$1.prototype, "showWeatherIcons", void 0);
+], MeteogramCard.prototype, "showWeatherIcons", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard$1.prototype, "showWind", void 0);
+], MeteogramCard.prototype, "showWind", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard$1.prototype, "denseWeatherIcons", void 0);
+], MeteogramCard.prototype, "denseWeatherIcons", void 0);
 __decorate([
     n({ type: String })
-], MeteogramCard$1.prototype, "meteogramHours", void 0);
+], MeteogramCard.prototype, "meteogramHours", void 0);
 __decorate([
     n({ type: Object })
-], MeteogramCard$1.prototype, "styles", void 0);
+], MeteogramCard.prototype, "styles", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard$1.prototype, "diagnostics", void 0);
+], MeteogramCard.prototype, "diagnostics", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard$1.prototype, "debug", void 0);
+], MeteogramCard.prototype, "debug", void 0);
 __decorate([
     n({ type: String })
-], MeteogramCard$1.prototype, "entityId", void 0);
+], MeteogramCard.prototype, "entityId", void 0);
 __decorate([
     n({ type: Boolean })
-], MeteogramCard$1.prototype, "focussed", void 0);
+], MeteogramCard.prototype, "focussed", void 0);
 __decorate([
     n({ type: String })
-], MeteogramCard$1.prototype, "displayMode", void 0);
+], MeteogramCard.prototype, "displayMode", void 0);
 __decorate([
     n({ type: String })
-], MeteogramCard$1.prototype, "aspectRatio", void 0);
+], MeteogramCard.prototype, "aspectRatio", void 0);
 __decorate([
     n({ type: Number })
-], MeteogramCard$1.prototype, "altitude", void 0);
+], MeteogramCard.prototype, "altitude", void 0);
 __decorate([
     n({ type: String })
-], MeteogramCard$1.prototype, "layoutMode", void 0);
+], MeteogramCard.prototype, "layoutMode", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "chartLoaded", void 0);
+], MeteogramCard.prototype, "chartLoaded", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "meteogramError", void 0);
+], MeteogramCard.prototype, "meteogramError", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "errorCount", void 0);
+], MeteogramCard.prototype, "errorCount", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "lastErrorTime", void 0);
+], MeteogramCard.prototype, "lastErrorTime", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "_statusExpiresAt", void 0);
+], MeteogramCard.prototype, "_statusExpiresAt", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "_statusLastRender", void 0);
+], MeteogramCard.prototype, "_statusLastRender", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "_statusLastFetch", void 0);
+], MeteogramCard.prototype, "_statusLastFetch", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "_statusApiSuccess", void 0);
+], MeteogramCard.prototype, "_statusApiSuccess", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "attributionTooltipOpen", void 0);
+], MeteogramCard.prototype, "attributionTooltipOpen", void 0);
 __decorate([
     r()
-], MeteogramCard$1.prototype, "entityAttribution", void 0);
-MeteogramCard$1 = MeteogramCard_1 = __decorate([
+], MeteogramCard.prototype, "entityAttribution", void 0);
+MeteogramCard = MeteogramCard_1 = __decorate([
     t("meteogram-card")
-], MeteogramCard$1);
+], MeteogramCard);
 
 // Print version info - based on mushroom cards implementation
 const printVersionInfo = () => {
@@ -6074,7 +6179,8 @@ const printVersionInfo = () => {
 printVersionInfo();
 // Tell TypeScript that the class is being used
 // @ts-ignore: Used by customElement decorator
-window.customElements.get('meteogram-card') || customElements.define('meteogram-card', MeteogramCard);
+window.customElements.get("meteogram-card") ||
+    customElements.define("meteogram-card", MeteogramCard);
 // Home Assistant requires this for custom cards
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -6083,6 +6189,6 @@ window.customCards.push({
     description: "A custom card showing a meteogram with wind barbs.",
     version: version,
     preview: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/images/meteogram-card.png",
-    documentationURL: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/README.md"
+    documentationURL: "https://github.com/jm-cook/lovelace-meteogram-card/blob/main/README.md",
 });
 //# sourceMappingURL=meteogram-card.js.map
