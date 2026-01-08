@@ -163,99 +163,162 @@ export class MeteogramChart {
         const d3 = window.d3;
 
         // Create a gradient that transitions from blue (cold/below freezing) to red (warm/above freezing)
+        // Use userSpaceOnUse so we can position gradient stops at exact Y coordinates
         const gradientId = `temp-gradient-${Math.random().toString(36).substr(2, 9)}`;
         this.card._debugLog(`🎨 Creating temperature gradient with ID: ${gradientId}`);
         
         const defs = chart.append("defs");
+        
+        // Get the temperature domain and calculate actual Y positions
+        const tempDomain = yTemp.domain(); // [min, max] in temperature units
+        const minTemp = tempDomain[0];
+        const maxTemp = tempDomain[1];
+        const minTempY = yTemp(minTemp); // Bottom of temperature range
+        const maxTempY = yTemp(maxTemp); // Top of temperature range
+        
+        this.card._debugLog(`🎨 Temperature domain: [${minTemp.toFixed(1)}°, ${maxTemp.toFixed(1)}°]`);
+        this.card._debugLog(`🎨 Temperature Y positions: max temp ${maxTemp.toFixed(1)}° at Y=${maxTempY.toFixed(1)}px, min temp ${minTemp.toFixed(1)}° at Y=${minTempY.toFixed(1)}px`);
+        
         const gradient = defs.append("linearGradient")
             .attr("id", gradientId)
-            .attr("x1", "0%")
-            .attr("y1", "0%")    // Top of chart (warm)
-            .attr("x2", "0%")
-            .attr("y2", "100%"); // Bottom of chart (cold)
+            .attr("gradientUnits", "userSpaceOnUse")  // Use absolute SVG coordinates
+            .attr("x1", 0)
+            .attr("y1", maxTempY)    // Y position of warmest temperature
+            .attr("x2", 0)
+            .attr("y2", minTempY);   // Y position of coldest temperature
 
-        // Get the temperature domain
-        const tempDomain = yTemp.domain(); // [min, max] in temperature units
-        this.card._debugLog(`🎨 Temperature domain: [${tempDomain[0]}°, ${tempDomain[1]}°]`);
-
-        // Calculate the position of 0°C as a percentage
+        // Calculate the Y position of 0°C
         const freezingPoint = 0;
-        const freezingPercent = ((freezingPoint - tempDomain[0]) / (tempDomain[1] - tempDomain[0])) * 100;
-        this.card._debugLog(`🎨 Freezing point position (before clamp): ${freezingPercent.toFixed(1)}%`);
+        const freezingYPos = yTemp(freezingPoint);
+        const gradientRange = minTempY - maxTempY; // Total Y distance of gradient
+        
+        this.card._debugLog(`🎨 Freezing point (0°C) Y position: ${freezingYPos.toFixed(1)}px, gradient range: ${gradientRange.toFixed(1)}px`);
 
-        // Clamp to valid range
-        const clampedFreezingPercent = Math.max(0, Math.min(100, freezingPercent));
-        this.card._debugLog(`🎨 Freezing point position (after clamp): ${clampedFreezingPercent.toFixed(1)}%`);
+        // Helper function to calculate offset percentage within the gradient
+        const calcOffset = (yPos: number): number => {
+            return ((yPos - maxTempY) / gradientRange) * 100;
+        };
 
         // Create gradient stops
-        const gradientStops: Array<{offset: string, color: string}> = [];
+        const gradientStops: Array<{temp: number, offset: number, color: string}> = [];
         
         // If freezing point is below the visible range (all temps above freezing)
-        if (clampedFreezingPercent === 0) {
-            // All warm colors: deep red at top to lighter orange at bottom
-            gradientStops.push({offset: "0%", color: "#ff6600"});
+        if (minTemp > freezingPoint) {
+            this.card._debugLog(`🎨 All temperatures above freezing (min: ${minTemp.toFixed(1)}°C) - using warm colors only`);
+            // Warm colors: orange at coolest (still above 0°C) to deep red at warmest
+            gradientStops.push({temp: maxTemp, offset: 0, color: maxTemp >= 20 ? "#cc0000" : "#ff3300"});
             gradient.append("stop")
                 .attr("offset", "0%")
-                .attr("stop-color", "#ff6600");
+                .attr("stop-color", maxTemp >= 20 ? "#cc0000" : "#ff3300");
             
-            gradientStops.push({offset: "100%", color: "#ff9933"});
+            // Add 20°C transition if in range
+            if (maxTemp > 20 && minTemp < 20) {
+                const temp20Y = yTemp(20);
+                const offset20 = calcOffset(temp20Y);
+                gradientStops.push({temp: 20, offset: offset20, color: "#cc0000"});
+                gradient.append("stop")
+                    .attr("offset", `${offset20.toFixed(1)}%`)
+                    .attr("stop-color", "#cc0000");
+            }
+            
+            gradientStops.push({temp: minTemp, offset: 100, color: "#ff9933"});
             gradient.append("stop")
                 .attr("offset", "100%")
                 .attr("stop-color", "#ff9933");
         }
         // If freezing point is above the visible range (all temps below freezing)
-        else if (clampedFreezingPercent === 100) {
-            // All cold colors: lighter blue at top to deep blue at bottom
-            gradientStops.push({offset: "0%", color: "#4da6ff"});
+        else if (maxTemp < freezingPoint) {
+            this.card._debugLog(`🎨 All temperatures below freezing (max: ${maxTemp.toFixed(1)}°C) - using cold colors only`);
+            // Cold colors: light blue at warmest (still below 0°C) to deep blue at coldest
+            gradientStops.push({temp: maxTemp, offset: 0, color: "#66b3ff"});
             gradient.append("stop")
                 .attr("offset", "0%")
-                .attr("stop-color", "#4da6ff");
-            
-            gradientStops.push({offset: "100%", color: "#0066cc"});
-            gradient.append("stop")
-                .attr("offset", "100%")
-                .attr("stop-color", "#0066cc");
-        }
-        // Freezing point is within the visible range
-        else {
-            // Deep red/orange for warm temperatures (top of chart)
-            gradientStops.push({offset: "0%", color: "#ff6600"});
-            gradient.append("stop")
-                .attr("offset", "0%")
-                .attr("stop-color", "#ff6600");
-
-            // Transition to orange approaching freezing from above
-            if (clampedFreezingPercent > 10) {
-                const offset = `${Math.max(0, clampedFreezingPercent - 10)}%`;
-                gradientStops.push({offset, color: "#ff9933"});
-                gradient.append("stop")
-                    .attr("offset", offset)
-                    .attr("stop-color", "#ff9933");
-            }
-
-            // At freezing point, use a neutral color
-            gradientStops.push({offset: `${clampedFreezingPercent}%`, color: "#66b3ff"});
-            gradient.append("stop")
-                .attr("offset", `${clampedFreezingPercent}%`)
                 .attr("stop-color", "#66b3ff");
-
-            // Transition to lighter blue below freezing
-            if (clampedFreezingPercent < 90) {
-                const offset = `${Math.min(100, clampedFreezingPercent + 10)}%`;
-                gradientStops.push({offset, color: "#4da6ff"});
+            
+            // Add -5°C transition if in range
+            if (maxTemp > -5 && minTemp < -5) {
+                const tempMinus5Y = yTemp(-5);
+                const offsetMinus5 = calcOffset(tempMinus5Y);
+                gradientStops.push({temp: -5, offset: offsetMinus5, color: "#0066cc"});
                 gradient.append("stop")
-                    .attr("offset", offset)
-                    .attr("stop-color", "#4da6ff");
+                    .attr("offset", `${offsetMinus5.toFixed(1)}%`)
+                    .attr("stop-color", "#0066cc");
             }
-
-            // Deep blue for very cold temperatures (bottom of chart)
-            gradientStops.push({offset: "100%", color: "#0066cc"});
+            
+            gradientStops.push({temp: minTemp, offset: 100, color: minTemp <= -5 ? "#003d7a" : "#0066cc"});
             gradient.append("stop")
                 .attr("offset", "100%")
-                .attr("stop-color", "#0066cc");
+                .attr("stop-color", minTemp <= -5 ? "#003d7a" : "#0066cc");
+        }
+        // Freezing point is within the visible range - transition AT 0°C
+        else {
+            this.card._debugLog(`🎨 Freezing point within range - transition at 0°C (Y=${freezingYPos.toFixed(1)}px)`);
+            
+            const freezingOffset = calcOffset(freezingYPos);
+            
+            // Warmest temperature - check if >= 20°C for deep red
+            const warmestColor = maxTemp >= 20 ? "#cc0000" : "#ff3300";
+            gradientStops.push({temp: maxTemp, offset: 0, color: warmestColor});
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", warmestColor);
+
+            // Add 20°C deep red transition if in range
+            if (maxTemp > 20 && 20 > freezingPoint) {
+                const temp20Y = yTemp(20);
+                const offset20 = calcOffset(temp20Y);
+                gradientStops.push({temp: 20, offset: offset20, color: "#cc0000"});
+                gradient.append("stop")
+                    .attr("offset", `${offset20.toFixed(1)}%`)
+                    .attr("stop-color", "#cc0000");
+                this.card._debugLog(`🎨 Deep red transition at 20°C (${offset20.toFixed(1)}%)`);
+            }
+
+            // Add 10°C orange-red transition if in range
+            if (maxTemp > 10 && minTemp < 10 && 10 > freezingPoint) {
+                const temp10Y = yTemp(10);
+                const offset10 = calcOffset(temp10Y);
+                gradientStops.push({temp: 10, offset: offset10, color: "#ff6600"});
+                gradient.append("stop")
+                    .attr("offset", `${offset10.toFixed(1)}%`)
+                    .attr("stop-color", "#ff6600");
+                this.card._debugLog(`🎨 Orange-red transition at 10°C (${offset10.toFixed(1)}%)`);
+            }
+
+            // At freezing point from above: light orange (warm side of transition)
+            gradientStops.push({temp: freezingPoint, offset: freezingOffset, color: "#ff9933"});
+            gradient.append("stop")
+                .attr("offset", `${freezingOffset.toFixed(1)}%`)
+                .attr("stop-color", "#ff9933");
+            this.card._debugLog(`🎨 Freezing point (warm side) at 0°C: light orange at ${freezingOffset.toFixed(1)}%`);
+            
+            // At freezing point from below: light blue (cold side of transition)
+            gradientStops.push({temp: freezingPoint, offset: freezingOffset, color: "#66b3ff"});
+            gradient.append("stop")
+                .attr("offset", `${freezingOffset.toFixed(1)}%`)
+                .attr("stop-color", "#66b3ff");
+            this.card._debugLog(`🎨 Freezing point (cold side) at 0°C: light blue at ${freezingOffset.toFixed(1)}%`);
+
+            // Add -5°C deep blue transition if in range
+            if (minTemp < -5 && maxTemp > -5 && -5 < freezingPoint) {
+                const tempMinus5Y = yTemp(-5);
+                const offsetMinus5 = calcOffset(tempMinus5Y);
+                gradientStops.push({temp: -5, offset: offsetMinus5, color: "#0066cc"});
+                gradient.append("stop")
+                    .attr("offset", `${offsetMinus5.toFixed(1)}%`)
+                    .attr("stop-color", "#0066cc");
+                this.card._debugLog(`🎨 Deep blue transition at -5°C (${offsetMinus5.toFixed(1)}%)`);
+            }
+
+            // Coldest temperature - check if <= -5°C for very deep blue
+            const coldestColor = minTemp <= -5 ? "#003d7a" : "#0066cc";
+            gradientStops.push({temp: minTemp, offset: 100, color: coldestColor});
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", coldestColor);
         }
 
-        this.card._debugLog(`🎨 Gradient stops created:`, gradientStops);
+        this.card._debugLog(`🎨 Gradient stops created (${gradientStops.length} stops):`, gradientStops);
 
         const line = d3.line()
             .defined((d: number | null) => d !== null)
