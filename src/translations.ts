@@ -2,6 +2,7 @@ import enLocale from "./translations/en.json";
 import nbLocale from "./translations/nb.json";
 import esLocale from "./translations/es.json";
 import itLocale from "./translations/it.json";
+import daLocale from "./translations/da.json";
 import deLocale from "./translations/de.json";
 import frLocale from "./translations/fr.json";
 import hrLocale from "./translations/hr.json";
@@ -17,6 +18,7 @@ const locales: Array<{ code: string; data: Record<string, string> }> = [
     { code: "nb", data: nbLocale },
     { code: "es", data: esLocale },
     { code: "it", data: itLocale },
+    { code: "da", data: daLocale },
     { code: "de", data: deLocale },
     { code: "fr", data: frLocale },
     { code: "hr", data: hrLocale },
