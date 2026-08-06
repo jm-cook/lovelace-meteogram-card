@@ -343,7 +343,7 @@ For developers, the Meteogram Card is built with TypeScript and uses modern web 
 - Weather icons from [Met.no Weather Icons](https://github.com/metno/weathericons)
 
 <!-- Badges and links -->
-[hacs-badge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square
+[hacs-badge]: https://img.shields.io/badge/HACS-Default-blue.svg?style=flat-square
 [release-badge]: https://img.shields.io/github/v/release/DTekNO/lovelace-meteogram-card?style=flat-square
 [downloads-badge]: https://img.shields.io/github/downloads/DTekNO/lovelace-meteogram-card/total?style=flat-square
 [hacs-url]: https://github.com/hacs/integration
