@@ -1478,11 +1478,19 @@ export class MeteogramCard extends LitElement {
           "windDirection",
           "symbolCode",
         ];
+        // Copy, do not mutate. `getForecastData()` hands back `this._forecastData` by
+        // reference, so slicing these arrays in place permanently truncated the weather
+        // API's own cache to whatever meteogram_hours happened to be set at the first
+        // render. Two visible consequences: widening the span did nothing, because the
+        // cache no longer held the data; and availableHours collapsed — 237 on first
+        // load, then 49 (48 sliced hours + 1) on every render after.
+        const sliced: any = { ...result };
         arrayKeys.forEach((key) => {
           if (Array.isArray((result as any)[key])) {
-            (result as any)[key] = (result as any)[key].slice(0, dataPoints);
+            sliced[key] = (result as any)[key].slice(0, dataPoints);
           }
         });
+        result = sliced as ForecastData;
         // this._scheduleDrawMeteogram();
 
         // Update _statusLastFetch with weatherApi._lastFetchTime if available
