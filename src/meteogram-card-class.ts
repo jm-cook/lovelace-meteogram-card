@@ -4,7 +4,6 @@ import { customElement, property, state } from "lit/decorators.js";
 import {
   MeteogramCardConfig,
   MeteogramCardEditorElement,
-  DayRange,
 } from "./types";
 import { version } from "../package.json";
 import { getClientName } from "./diagnostics";
@@ -2317,20 +2316,14 @@ export class MeteogramCard extends LitElement {
     // Adjust the actual dx to what's being used by the scale
     dx = x(1) - x(0);
 
-    // Find day boundaries for shaded backgrounds
+    // Index of the first sample of each calendar day, used by the grid and the date
+    // labels.  It no longer drives any background shading — see below.
     const dateLabelY = margin.top - 30;
     const dayStarts: number[] = [];
     for (let i = 0; i < N; i++) {
       if (i === 0 || time[i].getDate() !== time[i - 1].getDate()) {
         dayStarts.push(i);
       }
-    }
-
-    const dayRanges: DayRange[] = [];
-    for (let i = 0; i < dayStarts.length; ++i) {
-      const startIdx = dayStarts[i];
-      const endIdx = i + 1 < dayStarts.length ? dayStarts[i + 1] : N;
-      dayRanges.push({ start: startIdx, end: endIdx });
     }
 
     // Defensive: Check if svg is a D3 selection
@@ -2412,26 +2405,11 @@ export class MeteogramCard extends LitElement {
             };
           });
 
-    // Alternate shaded background for days
-    svg
-      .selectAll(".day-bg")
-      .data(dayRanges)
-      .enter()
-      .append("rect")
-      .attr("class", "day-bg")
-      .attr("x", (d: DayRange) => margin.left + x(d.start))
-      .attr("y", margin.top - 42)
-      // Limit width to only main chart area (do not extend to right axis)
-      .attr("width", (d: DayRange) => {
-        // Defensive: ensure width is never negative
-        const rawWidth = x(Math.max(d.end - 1, d.start)) - x(d.start) + dx;
-        const maxWidth = this._chartWidth - x(d.start);
-        const safeWidth = Math.max(0, Math.min(rawWidth, maxWidth));
-        return safeWidth;
-      })
-      // Limit height to only main chart area (do not extend to lower x axis)
-      .attr("height", this._chartHeight + 42)
-      .attr("opacity", (_: DayRange, i: number) => (i % 2 === 0 ? 0.16 : 0));
+    // The alternating day background used to be drawn here, one rect per calendar day
+    // at opacity 0.16.  It has been invisible for a long time: the stylesheet carried
+    // `.day-bg { fill: transparent !important; opacity: 0 }`, so every render built
+    // rects that could not paint.  Removed rather than revived — day/night is the more
+    // useful thing to show in that space, and it is coming as its own layer.
 
     // Draw chart grid background
     if (!this._chartRenderer) {

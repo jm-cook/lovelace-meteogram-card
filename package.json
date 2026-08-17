@@ -10,7 +10,9 @@
     "watch": "rollup -c --watch --bundleConfigAsCjs",
     "lint": "eslint src",
     "start": "npm run build && serve",
-    "lint:fix": "eslint src --fix"
+    "lint:fix": "eslint src --fix",
+    "snapshot": "node test/snapshot.mjs",
+    "snapshot:capture": "node test/snapshot.mjs --capture"
   },
   "repository": {
     "type": "git",
@@ -42,6 +44,7 @@
     "cross-env": "^7.0.3",
     "eslint": "^10.8.1",
     "globals": "^17.11.0",
+    "playwright": "^1.62.1",
     "rollup": "^4.9.5",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3",

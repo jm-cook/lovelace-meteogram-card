@@ -70,12 +70,6 @@ export interface WeatherDataPoint {
   };
 }
 
-// For day boundary shading
-export interface DayRange {
-  start: number;
-  end: number;
-}
-
 // Define a custom type for inputs that need configValue property
 export interface ConfigurableHTMLElement extends HTMLElement {
   configValue?: string;

@@ -204,12 +204,6 @@ export const meteogramCardStyles = css`
         fill: var(--meteogram-timescale-color, #ffd54f);
     }
 
-    .day-bg {
-        fill: transparent !important;
-        opacity: 0;
-        pointer-events: none;
-    }
-
     .wind-band-bg {
         fill: transparent;
     }
