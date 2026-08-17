@@ -26,6 +26,10 @@ import { extname, join, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "..");
 const FIXTURE = join(ROOT, "test/fixtures/metno-forecast.json");
 const CAPTURE = process.argv.includes("--capture");
+// Extra card config, as JSON, merged over what test.html sets. Needed to snapshot the
+// display modes, which lay out very differently above and below the plot.
+const cfgIdx = process.argv.indexOf("--config");
+const EXTRA_CONFIG = cfgIdx !== -1 ? JSON.parse(process.argv[cfgIdx + 1]) : null;
 
 // test.html's defaults. The fixture is for these coordinates; changing one means
 // recapturing the other.
@@ -145,6 +149,17 @@ async function main() {
   page.on("requestfailed", (r) => failures.push(`${r.url()} ${r.failure()?.errorText}`));
 
   await page.goto(`http://127.0.0.1:${port}/test.html`, { waitUntil: "load" });
+
+  if (EXTRA_CONFIG) {
+    await page.evaluate(async (cfg) => {
+      const card = document.querySelector("meteogram-card");
+      // Re-apply the page's own config with the overrides on top, then let it settle.
+      document.getElementById("updateBtn").click();
+      const current = card._config ?? {};
+      card.setConfig({ ...current, ...cfg });
+    }, EXTRA_CONFIG);
+    await page.waitForTimeout(1500);
+  }
 
   // Wait for a chart with actual content, not merely an empty <svg>. On failure, say
   // what the page actually contained — a bare timeout tells you nothing about whether

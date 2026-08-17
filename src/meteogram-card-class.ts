@@ -28,6 +28,7 @@ import {
 import { meteogramCardStyles } from "./meteogram-card-styles";
 import { MeteogramChart } from "./meteogram-chart";
 import { isDaylightAt } from "./solar";
+import { chartLayout } from "./layout";
 
 type MeteogramStyleModes = {
   dark?: Record<string, string>;
@@ -51,6 +52,8 @@ export class MeteogramCard extends LitElement {
   // Store missing keys for diagnostics/info panel
   private _missingForecastKeys: string[] = [];
   private _availableHours: number | string = "unknown";
+  /** Vertical stack for the current render; see src/layout.ts. */
+  private _layout: ReturnType<typeof chartLayout> | null = null;
   constructor() {
     super();
 
@@ -2299,11 +2302,23 @@ export class MeteogramCard extends LitElement {
         left: 70,
       };
     }
+    // One place decides the vertical stack, in absolute coordinates. See src/layout.ts
+    // for why: the positions used to be computed in four places in two different frames
+    // of reference, and adding a band meant compensating in each of them.
+    const hasLegends = this.displayMode !== "core" && !this.focussed;
+    const layout = chartLayout({
+      height,
+      hasLegends,
+      hasDateLabels: !this.focussed,   // drawDateLabels guards on the same condition
+      windBand: windBandHeight,
+      hourLabelBand,
+      focussed: this.focussed,
+    });
+    this._margin.top = layout.marginTop;
     const margin = this._margin;
+    this._layout = layout;
 
-    this._chartHeight = this.focussed
-      ? height - windBandHeight - hourLabelBand - 10
-      : height - windBandHeight - hourLabelBand - 50 - 10; // Extra space for legends in non-focussed mode
+    this._chartHeight = layout.plotHeight;
     // Cap the chart width to only what's needed for the data
     const maxHourSpacing = 90;
     const baseWidth = Math.min(width, Math.max(300, maxHourSpacing * (N - 1)));
@@ -2325,7 +2340,7 @@ export class MeteogramCard extends LitElement {
 
     // Index of the first sample of each calendar day, used by the grid and the date
     // labels.  It no longer drives any background shading — see below.
-    const dateLabelY = margin.top - 30;
+    const dateLabelY = layout.dateLabelY ?? 0;
     const dayStarts: number[] = [];
     for (let i = 0; i < N; i++) {
       if (i === 0 || time[i].getDate() !== time[i - 1].getDate()) {
@@ -2400,17 +2415,19 @@ export class MeteogramCard extends LitElement {
     // Calculate legend positions
     // Only allocate slots for enabled legends, so they fill left-to-right
     // Skip legends entirely in "core" display mode
-    const numLegends = this.displayMode === "core" ? 0 : enabledLegends.length;
-    const legendPositions =
-      this.displayMode === "core"
-        ? []
-        : enabledLegends.map((_: LegendInfo, i: number) => {
-            const slotWidth = this._chartWidth / numLegends;
-            return {
-              x: i * slotWidth + 2,
-              y: -45,
-            };
-          });
+    const numLegends = hasLegends ? enabledLegends.length : 0;
+    const legendPositions = !hasLegends
+      ? []
+      : enabledLegends.map((_: LegendInfo, i: number) => {
+          const slotWidth = this._chartWidth / numLegends;
+          return {
+            x: i * slotWidth + 2,
+            // The legends are appended inside the group translated by margin.top, so the
+            // layout's absolute y is converted here — the single place that conversion
+            // happens, rather than a bare -45 that silently tracks the plot.
+            y: (layout.legendY as number) - layout.marginTop,
+          };
+        });
 
     // The alternating day background used to be drawn here, one rect per calendar day
     // at opacity 0.16.  It has been invisible for a long time: the stylesheet carried
