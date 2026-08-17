@@ -2916,7 +2916,7 @@ export class MeteogramCard extends LitElement {
                 <div style="${chartContainerStyle}">
                   <div id="chart" style="width:100%;height:100%"></div>
                 </div>
-                ${this.diagnostics
+                ${this.diagnostics || this.debug
                   ? (() => {
                       const diagnosticInfo = this.generateDiagnosticInfo();
                       return html`
