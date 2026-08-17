@@ -475,7 +475,10 @@ export class MeteogramCard extends LitElement {
     const latChanged = configLat !== undefined && configLat !== currentLat;
     const lonChanged = configLon !== undefined && configLon !== currentLon;
 
-    if (config.title) this.title = config.title;
+    // Assign whatever was given, including an empty string. Guarding on truthiness
+    // meant a title could be set but never cleared: blanking it in the editor left
+    // the previous one in place, header and all.
+    this.title = config.title ?? "";
     if (config.latitude !== undefined) this.latitude = configLat;
     if (config.longitude !== undefined) this.longitude = configLon;
     if (Number.isFinite(config.altitude)) {
@@ -2048,6 +2051,22 @@ export class MeteogramCard extends LitElement {
       });
   }
   // Add a helper to get the HA locale string for date formatting
+  /**
+   * Time formatting that respects Home Assistant's own 12/24-hour setting.
+   *
+   * The locale alone is not enough: a Norwegian user running Home Assistant in English
+   * gets `en`, which formats as AM/PM, while their HA is set to 24-hour. That setting
+   * lives in hass.locale.time_format and was never consulted.
+   */
+  private getTimeFormatOptions(): Intl.DateTimeFormatOptions {
+    const base: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit" };
+    const pref = this.hass?.locale?.time_format;
+    if (pref === "24") return { ...base, hour12: false };
+    if (pref === "12") return { ...base, hour12: true };
+    // "language" and "system" both mean: let the locale decide, which is the default.
+    return base;
+  }
+
   private getHaLocale(): string {
     // Use hass.language if available, fallback to "en"
     return this.hass && this.hass.language ? this.hass.language : "en";

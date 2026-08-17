@@ -84,6 +84,7 @@
     </select>
 
     <label><input type="checkbox" id="showWind" checked> Wind band</label>
+    <label><input type="checkbox" id="showSun" checked> Sun strip</label>
     <label><input type="checkbox" id="showPressure" checked> Pressure</label>
     <label><input type="checkbox" id="showPrecipitation" checked> Precipitation</label>
     <label><input type="checkbox" id="showCloudCover" checked> Cloud cover</label>
@@ -106,9 +107,12 @@
         const updateBtn = document.getElementById('updateBtn');
 
         // Mock the Home Assistant object that would normally be provided
+        // Enough of hass to exercise what the card reads. `locale.time_format` is the
+        // 12/24-hour preference; a real Home Assistant always supplies it, and without
+        // it the card falls back to whatever the language implies (en => AM/PM).
         meteogram.hass = {
-            // Add minimal hass functionality if needed
-            language: 'en'
+            language: 'en',
+            locale: { language: 'en', time_format: '24' }
         };
 
         const $ = (id) => document.getElementById(id);
@@ -131,6 +135,7 @@
                 display_mode: $('displayMode').value,
                 meteogram_hours: $('hours').value,
                 show_wind: $('showWind').checked,
+                show_sun: $('showSun').checked,
                 show_pressure: $('showPressure').checked,
                 show_precipitation: $('showPrecipitation').checked,
                 show_cloud_cover: $('showCloudCover').checked,
