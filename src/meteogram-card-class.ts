@@ -27,6 +27,7 @@ import {
 } from "./conversions";
 import { meteogramCardStyles } from "./meteogram-card-styles";
 import { MeteogramChart } from "./meteogram-chart";
+import { isDaylightAt } from "./solar";
 
 type MeteogramStyleModes = {
   dark?: Record<string, string>;
@@ -2152,31 +2153,29 @@ export class MeteogramCard extends LitElement {
   }
   // Add a helper to determine if day or night based on time and location
   private isDaytimeAt(date: Date): boolean {
-    // 1. Try weather entity attributes
-    if (
-      this.entityId &&
-      this.hass &&
-      this.hass.states &&
-      this.hass.states[this.entityId]
-    ) {
-      const attrs = this.hass.states[this.entityId].attributes || {};
-      if (attrs.sunrise && attrs.sunset) {
-        const sunrise = new Date(attrs.sunrise);
-        const sunset = new Date(attrs.sunset);
-        if (date >= sunrise && date < sunset) return true;
-        return false;
-      }
+    // Computed from coordinates, because the question is asked for every hour of a
+    // forecast that runs to ten days and none of the previous sources could answer it:
+    //
+    //   - a weather entity's sunrise/sunset attributes describe today only;
+    //   - sun.sun exposes `elevation` *now*, so asking about Wednesday returned whether
+    //     the sun happens to be up at this moment — every icon past today was decided
+    //     by the time of day the page was loaded;
+    //   - the 06:00-18:00 fallback is wrong by hours at northern latitudes, where this
+    //     card is most used. Bergen in August runs roughly 05:00 to 21:30.
+    //
+    // The altitude is evaluated at the instant asked about, so there is no "which day"
+    // question to get wrong around midnight, and polar day and night need no special
+    // case: the sun is simply above or below the horizon.
+    if (typeof this.latitude === "number" && typeof this.longitude === "number") {
+      return isDaylightAt(date, this.latitude, this.longitude);
     }
-    // 2. Try sun.sun entity
-    if (this.hass && this.hass.states && this.hass.states["sun.sun"]) {
-      const sunAttrs = this.hass.states["sun.sun"].attributes || {};
-      if (typeof sunAttrs.elevation === "number") {
-        return sunAttrs.elevation > 0;
-      }
-    }
-    // 3. Fallback: 6:00-18:00 is day
+    // Coordinates are resolved from config, then Home Assistant's home location, then a
+    // cached default, so reaching this is close to impossible. Keep the old crude rule
+    // rather than guessing, and keep it visible.
+    this._debugLog(
+      `[${CARD_NAME}] isDaytimeAt: no coordinates available, falling back to 06:00-18:00`
+    );
     const hour = date.getHours();
-
     return hour >= 6 && hour < 18;
   }
 
