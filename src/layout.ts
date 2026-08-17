@@ -33,6 +33,9 @@ const DATE_TO_PLOT = 30;
 const BARE_TOP = 10;
 /** Gap between the bottom of the wind band and the hour-label baseline. */
 const WIND_TO_HOUR_LABEL = 15;
+/** The strip's own height. It sits flush on the plot border, so its top edge is this
+ *  far above marginTop and the rest of the reserved band is clear air above it. */
+const SUN_STRIP_ON_BORDER = 10;
 
 /**
  * Height the old code reserved above the plot when computing `_chartHeight`.
@@ -102,7 +105,7 @@ export function chartLayout(input: LayoutInput): Layout {
   const legendY = hasLegends ? LEGEND_BASELINE : null;
   // The strip takes the lane immediately above the plot border, so it reads directly
   // under the day it describes and cannot be reached by a taller label row.
-  const sunStripY = sunBand ? marginTop - sunBand + 4 : null;
+  const sunStripY = sunBand ? marginTop - SUN_STRIP_ON_BORDER : null;
 
   const plotHeight =
     height -

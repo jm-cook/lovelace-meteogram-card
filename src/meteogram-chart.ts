@@ -2,6 +2,7 @@ import * as d3 from 'd3';
 import { trnslt } from "./translations";
 import { mapHaConditionToMetnoSymbol } from "./weather-entity";
 import { convertWindSpeed } from "./conversions";
+import { isDaylightAt, sunEventsBetween } from "./solar";
 // meteogram-chart.ts
 // Handles all SVG/D3 chart rendering for MeteogramCard
 
@@ -88,6 +89,139 @@ export class MeteogramChart {
     async ensureD3Loaded(): Promise<void> {
         // D3 is bundled — no dynamic loading needed.
         return;
+    }
+
+    /**
+     * Day/night strip along the top of the chart.
+     *
+     * Drawn as a continuous band rather than a marker per event. A meteogram can span
+     * ten days, which is around eighteen sunrises and sunsets; as vertical rules those
+     * become a thicket, and they would also be indistinguishable from the day-boundary
+     * lines, which are already dashed. A band shows the whole structure at a glance and
+     * degrades correctly inside the polar circles, where there is no event to mark at
+     * all and the honest answer is a strip that is entirely light or entirely dark.
+     *
+     * It sits between the date labels and the top border, so each day's light and dark
+     * hours read directly beneath the day they belong to.
+     */
+    drawSunStrip(
+        svg: any,
+        time: Date[],
+        x: any,
+        margin: any,
+        chartWidth: number,
+        latitude: number,
+        longitude: number,
+        stripHeight: number,
+        stripY: number,
+        locale: string = "en",
+        timeOptions: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit" }
+    ) {
+        const N = time.length;
+        if (N < 2) return;
+
+        const first = time[0];
+        const last = time[N - 1];
+
+        // Index-to-pixel is not linear in time: met.no is hourly for the first days and
+        // six-hourly after, so an event has to be interpolated within its own bracket.
+        const timeToX = (t: Date): number => {
+            const ms = t.getTime();
+            if (ms <= first.getTime()) return x(0);
+            if (ms >= last.getTime()) return x(N - 1);
+            for (let i = 1; i < N; i++) {
+                const t1 = time[i].getTime();
+                if (t1 >= ms) {
+                    const t0 = time[i - 1].getTime();
+                    const f = t1 === t0 ? 0 : (ms - t0) / (t1 - t0);
+                    return x(i - 1) + f * (x(i) - x(i - 1));
+                }
+            }
+            return x(N - 1);
+        };
+
+        const events = sunEventsBetween(first, last, latitude, longitude);
+
+        // Boundaries of alternating light and dark runs across the whole window.
+        const bounds: Date[] = [first, ...events.map((e) => e.at), last];
+        // Absolute, from the layout. Deriving it from margin.top here is exactly the
+        // second frame of reference that made adding this band painful the first time.
+        const y = stripY;
+
+        const group = svg.append("g").attr("class", "sun-strip");
+
+        for (let i = 0; i < bounds.length - 1; i++) {
+            const a = bounds[i];
+            const b = bounds[i + 1];
+            if (b.getTime() <= a.getTime()) continue;
+            // Classify by the middle of the run, so a boundary landing exactly on an
+            // event cannot flip the answer.
+            const mid = new Date((a.getTime() + b.getTime()) / 2);
+            const daylight = isDaylightAt(mid, latitude, longitude);
+            const x0 = margin.left + timeToX(a);
+            const x1 = margin.left + timeToX(b);
+            const rect = group.append("rect")
+                .attr("class", daylight ? "sun-strip-day" : "sun-strip-night")
+                .attr("x", x0)
+                .attr("y", y)
+                .attr("width", Math.max(0, Math.min(x1, margin.left + chartWidth) - x0))
+                .attr("height", stripHeight);
+
+            // A native <title> rather than a bespoke tooltip: it needs no event
+            // handling, survives being re-rendered, and behaves the way the browser and
+            // the platform's assistive technology already expect.
+            const clock = (d: Date) => d.toLocaleTimeString(locale, timeOptions);
+            // The first and last runs are cut off by the forecast window rather than by
+            // an event, so say so instead of implying the sun did something then.
+            const startsAtEvent = i > 0;
+            const endsAtEvent = i < bounds.length - 2;
+            const what = daylight ? "Daylight" : "Night";
+            let when: string;
+            if (startsAtEvent && endsAtEvent) when = `${clock(a)} \u2013 ${clock(b)}`;
+            else if (endsAtEvent) when = `until ${clock(b)}`;
+            else if (startsAtEvent) when = `from ${clock(a)}`;
+            else when = `${clock(a)} \u2013 ${clock(b)}`;
+            rect.append("title").text(`${what} ${when}`);
+        }
+
+        // Midnight ticks, taking over from the day-boundary overshoot the strip
+        // displaced. Drawn inside the strip rather than above it, so the band stays one
+        // object rather than growing spines.
+        // Local midnight, which is what a reader means by "midnight". Date.UTC put the
+        // tick at 00:00 UTC — two hours late in Norwegian summer time, and wrong by the
+        // offset everywhere else. Stepping a whole day at a time would also drift across
+        // a daylight-saving boundary, so each day is constructed from its own date parts.
+        const midnightsFrom = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+        for (let d = new Date(midnightsFrom); d <= last; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+            const midnight = d;
+            if (midnight < first || midnight > last) continue;
+            const mx = margin.left + timeToX(midnight);
+            group.append("line")
+                .attr("class", "sun-strip-tick")
+                .attr("x1", mx).attr("x2", mx)
+                .attr("y1", y).attr("y2", y + stripHeight);
+        }
+
+        // A glyph per event, but only where there is room. At ten days they would
+        // collide; the strip alone still reads.
+        const spacing = events.length > 1
+            ? (timeToX(events[events.length - 1].at) - timeToX(events[0].at)) / (events.length - 1)
+            : Number.POSITIVE_INFINITY;
+        if (spacing >= 34) {
+            events.forEach((e) => {
+                group.append("text")
+                    .attr("class", "sun-strip-glyph")
+                    .attr("x", margin.left + timeToX(e.at))
+                    .attr("y", y - 2)
+                    .attr("text-anchor", "middle")
+                    .text(e.type === "sunrise" ? "\u2600" : "\u263D")
+                    .append("title")
+                    .text(
+                        `${e.type === "sunrise" ? "Sunrise" : "Sunset"} ` +
+                        e.at.toLocaleTimeString(locale, timeOptions)
+                    );
+            });
+        }
     }
 
     drawGridOutline(chart: any) {
@@ -647,9 +781,11 @@ export class MeteogramChart {
 
     }
 
-    drawChartGrid(svg: any, chart: any, d3: any, x: any, yTemp: any, N: number, margin: any, dayStarts: number[]) {
-        // Day boundary ticks (top short ticks)
-        const tickLength = 12; // Short tick length above the top line
+    drawChartGrid(svg: any, chart: any, d3: any, x: any, yTemp: any, N: number, margin: any, dayStarts: number[], tickOvershoot: number = 12) {
+        // Day boundary ticks. They normally poke 12px above the top line to mark
+        // midnight; with the sun strip enabled that space belongs to the strip, which
+        // marks midnight itself, so the caller passes 0 and the tick stops at the line.
+        const tickLength = tickOvershoot;
         svg.selectAll(".day-tic")
             .data(dayStarts)
             .enter()
@@ -658,10 +794,12 @@ export class MeteogramChart {
             .attr("x1", (d: number) => margin.left + x(d))
             .attr("x2", (d: number) => margin.left + x(d))
             .attr("y1", margin.top - tickLength)
-            .attr("y2", this.card._chartHeight + margin.top)
-            .attr("stroke", "#1a237e")
-            .attr("stroke-width", 3)
-            .attr("opacity", 0.6);
+            .attr("y2", this.card._chartHeight + margin.top);
+        // Stroke, width and opacity come from the stylesheet, which already has a
+        // `.day-tic` rule using --meteogram-grid-color. They used to be set inline here
+        // as #1a237e, and an inline attribute beats the rule — so the variable existed,
+        // was documented, and did nothing.
+
 
         // Always add temperature Y axis (left side)
         chart.append("g")

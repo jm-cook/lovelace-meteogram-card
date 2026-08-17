@@ -10,6 +10,7 @@ export interface MeteogramCardConfig {
     show_precipitation?: boolean; // NEW: Show precipitation (rain & snow)
     show_weather_icons?: boolean;
     show_wind?: boolean;
+    show_sun?: boolean; // Day/night strip with sunrise and sunset, computed from lat/lon
     dense_weather_icons?: boolean; // Add this line
     meteogram_hours?: string | number; // "8h", "12h", "24h", "48h", "54h", "max" | numeric (e.g., 120)
     styles?: MeteogramStyleConfig; // <-- Updated for mode support

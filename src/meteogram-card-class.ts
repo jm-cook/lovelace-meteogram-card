@@ -84,6 +84,7 @@ export class MeteogramCard extends LitElement {
     this.showPressure = true;
     this.showWeatherIcons = true;
     this.showWind = true;
+    this.showSun = true;
     this.denseWeatherIcons = true;
     this.meteogramHours = "48h";
   }
@@ -152,6 +153,7 @@ export class MeteogramCard extends LitElement {
   @property({ type: Boolean }) showPressure = true;
   @property({ type: Boolean }) showWeatherIcons = true;
   @property({ type: Boolean }) showWind = true;
+  @property({ type: Boolean }) showSun = true;
   @property({ type: Boolean }) denseWeatherIcons = true; // NEW: icon density config
   @property({ type: String }) meteogramHours: string | number = "48h"; // Default is now 48h
   @property({ type: Object }) styles: MeteogramStyleConfig = {}; // NEW: styles override
@@ -496,6 +498,7 @@ export class MeteogramCard extends LitElement {
         ? config.show_weather_icons
         : true;
     this.showWind = config.show_wind !== undefined ? config.show_wind : true;
+    this.showSun = config.show_sun !== undefined ? config.show_sun : true;
     this.denseWeatherIcons =
       config.dense_weather_icons !== undefined
         ? config.dense_weather_icons
@@ -2384,6 +2387,12 @@ export class MeteogramCard extends LitElement {
     // for why: the positions used to be computed in four places in two different frames
     // of reference, and adding a band meant compensating in each of them.
     const hasLegends = this.displayMode !== "core" && !this.focussed;
+    // Coordinates are always resolved, but guard anyway: sun times for the wrong place
+    // fail quietly, unlike a wrong forecast.
+    const sunStripEnabled =
+      this.showSun &&
+      typeof this.latitude === "number" &&
+      typeof this.longitude === "number";
     const layout = chartLayout({
       height,
       hasLegends,
@@ -2391,6 +2400,9 @@ export class MeteogramCard extends LitElement {
       windBand: windBandHeight,
       hourLabelBand,
       focussed: this.focussed,
+      // The entire integration. Adding a band used to mean compensating the date
+      // labels, then the legends, then the plot height in three separate places.
+      sunBand: sunStripEnabled ? SUN_STRIP_BAND : 0,
     });
     this._margin.top = layout.marginTop;
     const margin = this._margin;
@@ -2525,7 +2537,10 @@ export class MeteogramCard extends LitElement {
       yTemp,
       N,
       margin,
-      dayStarts
+      dayStarts,
+      // With the strip on, midnight is marked inside it; a tick poking up as well is
+      // two marks for one instant, and they would sit on top of each other.
+      sunStripEnabled ? 0 : 12
     );
     this._chartRenderer.drawGridOutline(chart);
 
@@ -2542,6 +2557,28 @@ export class MeteogramCard extends LitElement {
         x,
         this._chartWidth,
         dateLabelY
+      );
+    }
+
+    // Sun strip, in the lane the layout reserved for it between the date labels and
+    // the plot border.
+    if (
+      sunStripEnabled &&
+      layout.sunStripY !== null &&
+      typeof this._chartRenderer.drawSunStrip === "function"
+    ) {
+      this._chartRenderer.drawSunStrip(
+        svg,
+        time,
+        x,
+        margin,
+        this._chartWidth,
+        this.latitude as number,
+        this.longitude as number,
+        SUN_STRIP_HEIGHT,
+        layout.sunStripY,
+        this.getHaLocale(),
+        this.getTimeFormatOptions()
       );
     }
 

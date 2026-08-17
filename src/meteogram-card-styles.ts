@@ -204,6 +204,44 @@ export const meteogramCardStyles = css`
         fill: var(--meteogram-timescale-color, #ffd54f);
     }
 
+    /* Day/night strip. Deliberately low-contrast: it is an axis annotation sitting
+       beside the date labels, not a data series competing with the chart. */
+    .sun-strip-day {
+        fill: var(--meteogram-sun-day-color, #f6c445);
+        opacity: 0.85;
+    }
+    .sun-strip-night {
+        fill: var(--meteogram-sun-night-color, #4a5b8c);
+        opacity: 0.85;
+    }
+    .sun-strip-glyph {
+        /* Proportional to the label type rather than a fixed pixel size, so the glyphs
+           scale with the rest of the card's text instead of shrinking beside it. */
+        font-size: var(--meteogram-sun-glyph-size, calc(var(--meteogram-label-font-size, 0.875rem) * 1.15));
+        fill: var(--meteogram-timescale-color, currentColor);
+        opacity: 0.85;
+    }
+    /* Midnight, marked inside the strip now that the day-boundary ticks no longer
+       overshoot into this space. One neutral translucent colour rather than a light or
+       a dark one: the tick crosses both the amber daylight and the blue-grey night, and
+       anything tinted disappears against one of them. */
+    .sun-strip-tick {
+        stroke: var(--meteogram-sun-tick-color, rgba(0, 0, 0, 0.45));
+        /* Same weight as the day-boundary tick it replaced, so midnight looks like the
+           same mark whether the strip is on or off. Solid, not dashed: the dash pattern
+           the overshoot uses would render as a single dash over 10px. */
+        stroke-width: 3;
+    }
+    :host([dark]) .sun-strip-tick {
+        stroke: var(--meteogram-sun-tick-color, rgba(255, 255, 255, 0.45));
+    }
+    :host([dark]) .sun-strip-day {
+        fill: var(--meteogram-sun-day-color, #d8a72c);
+    }
+    :host([dark]) .sun-strip-night {
+        fill: var(--meteogram-sun-night-color, #2b3557);
+    }
+
     .wind-band-bg {
         fill: transparent;
     }
