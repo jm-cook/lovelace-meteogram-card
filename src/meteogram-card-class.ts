@@ -1505,7 +1505,7 @@ export class MeteogramCard extends LitElement {
           weatherApiExpiresAt: weatherApi.expiresAt,
         });
         this._statusApiSuccess = false;
-        let diag = weatherApi.getDiagnosticText();
+        const diag = weatherApi.getDiagnosticText();
         this._debugLog(`[${CARD_NAME}] WeatherAPI diagnostic:`, diag);
         
         // Check if WeatherAPI has cached data from localStorage that we can use
@@ -1729,17 +1729,17 @@ export class MeteogramCard extends LitElement {
 
     // Responsive sizing based on parent
     const parent = chartDiv.parentElement;
-    let availableWidth = parent
+    const availableWidth = parent
       ? parent.clientWidth
       : (chartDiv as HTMLElement).offsetWidth || 350;
-    let availableHeight = parent
+    const availableHeight = parent
       ? parent.clientHeight
       : (chartDiv as HTMLElement).offsetHeight || 180;
 
     // --- Aspect Ratio Logic ---
     let width: number, height: number;
     // Use aspectRatio only if not in sections layout
-    let useAspectRatio = this.aspectRatio && this.layoutMode !== "sections";
+    const useAspectRatio = this.aspectRatio && this.layoutMode !== "sections";
     if (useAspectRatio && typeof this.aspectRatio === "string") {
       // Parse aspect ratio string, e.g. "16:9"
       const [w, h] = this.aspectRatio.split(":").map(Number);
@@ -2033,7 +2033,7 @@ export class MeteogramCard extends LitElement {
     let panelInfo = null;
     let expiresInfo: any = "not available";
     let lastFetchInfo = "not available";
-    let lastRenderInfo = this._statusLastRender || "unknown";
+    const lastRenderInfo = this._statusLastRender || "unknown";
 
     // Calculate forecast data age for both entity and API modes
     const forecastDataAge = this.getForecastDataAge();
@@ -2636,7 +2636,7 @@ export class MeteogramCard extends LitElement {
 
     // Build mergedStyles from styles property, supporting styles.modes.dark (and future modes)
     // Accept both '--meteogram-foo' and 'meteogram-foo' as keys in styles
-    let mergedStylesRaw = { ...(this.styles || {}) };
+    const mergedStylesRaw = { ...(this.styles || {}) };
     // Normalize keys: add '--' if missing
     let mergedStyles: Record<string, string | any> = {};
     for (const [k, v] of Object.entries(mergedStylesRaw)) {

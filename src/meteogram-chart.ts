@@ -1210,11 +1210,11 @@ export class MeteogramChart {
         let v = speed, wy = y0, step = 7;
         
         // Calculate pennants (50 knots each), then full feathers (10 knots), then half feathers (5 knots)
-        let n50 = Math.floor(v / 50);
+        const n50 = Math.floor(v / 50);
         v -= n50 * 50;
-        let n10 = Math.floor(v / 10);
+        const n10 = Math.floor(v / 10);
         v -= n10 * 10;
-        let n5 = Math.floor(v / 5);
+        const n5 = Math.floor(v / 5);
         v -= n5 * 5;
 
         // Draw pennants (triangles) for 50 knot increments
@@ -1255,11 +1255,11 @@ export class MeteogramChart {
             const gustStep = 7;
             
             // Calculate gust pennants, feathers, and half-feathers (showing absolute gust speed)
-            let gustN50 = Math.floor(gustV / 50);
+            const gustN50 = Math.floor(gustV / 50);
             gustV -= gustN50 * 50;
-            let gustN10 = Math.floor(gustV / 10);
+            const gustN10 = Math.floor(gustV / 10);
             gustV -= gustN10 * 10;
-            let gustN5 = Math.floor(gustV / 5);
+            const gustN5 = Math.floor(gustV / 5);
             
             // Draw gust pennants on the left side for 50 knot increments
             for (let i = 0; i < gustN50; i++, gustWy += gustStep * 1.5) {

@@ -341,8 +341,8 @@ export class WeatherAPI {
         if (Number.isFinite(this.altitude)) {
             url += `&altitude=${this.altitude}`;
         }
-        let dedicatedForecastUrl = url;
-        let urlToUse = dedicatedForecastUrl;
+        const dedicatedForecastUrl = url;
+        const urlToUse = dedicatedForecastUrl;
         let headers: Record<string, string> = {};
         this.lastStatusCode = null;
         this.lastError = null;
