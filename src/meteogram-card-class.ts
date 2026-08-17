@@ -1102,21 +1102,33 @@ export class MeteogramCard extends LitElement {
       this._initializeUnits();
     }
 
-    // Only redraw if coordinates, hass, or relevant config options change, or it's the first render
-    const needsRedraw =
-      changedProps.has("latitude") ||
-      changedProps.has("longitude") ||
-      // changedProps.has('hass') ||
-      changedProps.has("showCloudCover") ||
-      changedProps.has("showPressure") ||
-      changedProps.has("show_precipitation") ||
-      changedProps.has("showWeatherIcons") ||
-      changedProps.has("showWind") ||
-      changedProps.has("denseWeatherIcons") ||
-      changedProps.has("meteogramHours");
+    // Redraw when anything the chart is drawn from has changed.
+    //
+    // This used to be a hand-written list of changedProps.has("...") names, and the list
+    // had drifted badly:
+    //
+    //   - display_mode was missing, so switching full/core/focussed never redrew. The
+    //     chart kept whatever it drew first, which is why core showed full's legends and
+    //     why they never came back after a visit to focussed;
+    //   - focussed, aspect_ratio, layout_mode, altitude and entity_id were missing too;
+    //   - it watched "show_precipitation", which is not a property at all — it is a
+    //     getter over an undeclared field, so that entry could never fire.
+    //
+    // Comparing a signature of the actual values cannot drift the same way: a new option
+    // is one entry here, and a renamed one is a compile error rather than silence.
+    const signature = JSON.stringify([
+      this.latitude, this.longitude, this.altitude, this.entityId,
+      this.displayMode, this.focussed, this.aspectRatio, this.layoutMode,
+      this.showCloudCover, this.showPressure, this.showPrecipitation,
+      this.showWeatherIcons, this.showWind, this.showSun,
+      this.denseWeatherIcons, this.meteogramHours,
+    ]);
+    const configChanged = signature !== this._renderSignature;
+    this._renderSignature = signature;
 
-    if (needsRedraw) {
-    }
+    // hass is deliberately excluded: it updates constantly and would redraw the chart on
+    // every state change in the house.
+    const needsRedraw = configChanged;
 
     if (!needsRedraw) {
       this._debugLog(
