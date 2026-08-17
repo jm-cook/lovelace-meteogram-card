@@ -29,6 +29,19 @@ import { meteogramCardStyles } from "./meteogram-card-styles";
 import { MeteogramChart } from "./meteogram-chart";
 import { isDaylightAt } from "./solar";
 import { chartLayout } from "./layout";
+import { WEATHER_ICONS } from "./weather-icons.generated";
+
+/** How long to stop fetching remote icons after the host throttles us. */
+const ICON_COOLDOWN_MS = 5 * 60 * 1000;
+
+/** Height of the day/night strip itself. Thin on purpose: it annotates the time axis,
+ *  it is not a data series. */
+const SUN_STRIP_HEIGHT = 10;
+/** Vertical space it reserves: itself plus clear air *above* only, because it sits
+ *  directly on the plot's top border. Nothing separates it from the chart, and the
+ *  clearance above keeps a taller date-label row — another language, a user font — from
+ *  ever reaching it. */
+const SUN_STRIP_BAND = SUN_STRIP_HEIGHT + 5;
 
 type MeteogramStyleModes = {
   dark?: Record<string, string>;
@@ -52,6 +65,10 @@ export class MeteogramCard extends LitElement {
   // Store missing keys for diagnostics/info panel
   private _missingForecastKeys: string[] = [];
   private _availableHours: number | string = "unknown";
+  /** Epoch ms until which remote icon fetching is paused after a throttle response. */
+  private _iconCooldownUntil = 0;
+  /** Values the chart is drawn from, to detect a config change in updated(). */
+  private _renderSignature = "";
   /** Vertical stack for the current render; see src/layout.ts. */
   private _layout: ReturnType<typeof chartLayout> | null = null;
   constructor() {
@@ -293,6 +310,20 @@ export class MeteogramCard extends LitElement {
       return this.iconCache.get(iconName)!;
     }
 
+    // Bundled first. The whole met.no set ships with the card, so the normal path
+    // touches no network at all: no rate limit, no corporate proxy, works offline.
+    const bundled = WEATHER_ICONS[iconName];
+    if (bundled) {
+      this.iconCache.set(iconName, bundled);
+      return bundled;
+    }
+
+    // Only reachable for a name absent from the bundled set, which would mean met.no
+    // has added an icon since this build. Back off if the host has already said no.
+    if (Date.now() < this._iconCooldownUntil) {
+      return "";
+    }
+
     try {
       // Add a console log to debug the URL
       const iconUrl = `${this.iconBasePath}${iconName}.svg`;
@@ -300,9 +331,25 @@ export class MeteogramCard extends LitElement {
       // Fetch from GitHub
       const response = await fetch(iconUrl);
 
+      // 429 and 5xx mean "not now", not "not here". The day/night fallback below used
+      // to fire on any failure, so a throttled render made two requests per icon rather
+      // than one — the worst possible answer to being asked to slow down.
+      if (response.status === 429 || response.status >= 500) {
+        this._iconCooldownUntil = Date.now() + ICON_COOLDOWN_MS;
+        console.warn(
+          `[${CARD_NAME}] Weather icon fetch throttled (HTTP ${response.status}); ` +
+            `pausing for ${Math.round(ICON_COOLDOWN_MS / 60000)} minutes.`
+        );
+        return "";
+      }
+
       if (!response.ok) {
-        // Fallback: if iconName ends with _day or _night, try base icon
-        if (iconName.endsWith("_day") || iconName.endsWith("_night")) {
+        // Fallback only for a genuinely absent variant: some conditions have no
+        // _day/_night form, and 404 is how that shows up.
+        if (
+          response.status === 404 &&
+          (iconName.endsWith("_day") || iconName.endsWith("_night"))
+        ) {
           const baseIcon = iconName.replace(/_(day|night)$/, "");
           const fallbackUrl = `${this.iconBasePath}${baseIcon}.svg`;
           const fallbackResponse = await fetch(fallbackUrl);
