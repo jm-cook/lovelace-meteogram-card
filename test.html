@@ -56,12 +56,41 @@
     <label for="title">Title:</label>
     <input type="text" id="title" value="Arendal Weather">
 
+    <!-- Height is applied to the container, not passed as config: the card has no
+         `height` option and never has, so the old control silently did nothing. -->
     <label for="height">Height (px):</label>
     <input type="number" id="height" value="500">
 
-    <label>
-        <input type="checkbox" id="disableDebug"> Disable Debug Logging
-    </label>
+    <label for="displayMode">Display mode:</label>
+    <select id="displayMode">
+        <option value="full" selected>full</option>
+        <option value="core">core</option>
+        <option value="focussed">focussed</option>
+    </select>
+
+    <!-- Span matters for the sun strip: 8h can contain no sunrise at all (strip wholly
+         light or dark), 24h contains exactly one of each, and max is ~9 days and around
+         18 transitions — the case where per-event markers would clutter and a strip
+         should still read cleanly. -->
+    <label for="hours">Hours:</label>
+    <select id="hours">
+        <option value="8h">8h</option>
+        <option value="12h">12h</option>
+        <option value="24h">24h</option>
+        <option value="48h" selected>48h</option>
+        <option value="72">72h</option>
+        <option value="120">120h</option>
+        <option value="max">max</option>
+    </select>
+
+    <label><input type="checkbox" id="showWind" checked> Wind band</label>
+    <label><input type="checkbox" id="showPressure" checked> Pressure</label>
+    <label><input type="checkbox" id="showPrecipitation" checked> Precipitation</label>
+    <label><input type="checkbox" id="showCloudCover" checked> Cloud cover</label>
+    <label><input type="checkbox" id="showWeatherIcons" checked> Weather icons</label>
+    <label><input type="checkbox" id="darkMode"> Dark mode</label>
+    <!-- `debug`, not `disable_debug` — the old name was never read either. -->
+    <label><input type="checkbox" id="debug"> Debug logging</label>
 
     <button id="updateBtn">Update Meteogram</button>
 </div>
@@ -82,19 +111,31 @@
             language: 'en'
         };
 
+        const $ = (id) => document.getElementById(id);
+        const card = document.querySelector('.card');
+
         function updateCard() {
-            const lat = parseFloat(document.getElementById('latitude').value);
-            const lon = parseFloat(document.getElementById('longitude').value);
-            const title = document.getElementById('title').value;
-            const height = parseInt(document.getElementById('height').value);
-            const disableDebug = document.getElementById('disableDebug').checked;
+            // Height belongs to the container. The card sizes itself to whatever box it
+            // is given (that is how it behaves on a dashboard), so passing `height` as
+            // config was always a no-op — there is no such option.
+            card.style.height = parseInt($('height').value, 10) + 'px';
+
+            // Dark mode is signalled by an attribute on the element; the stylesheet keys
+            // its :host([dark]) rules off it. On a dashboard Home Assistant sets this.
+            meteogram.toggleAttribute('dark', $('darkMode').checked);
 
             meteogram.setConfig({
-                latitude: lat,
-                longitude: lon,
-                title: title,
-                height: height,
-                disable_debug: disableDebug
+                latitude: parseFloat($('latitude').value),
+                longitude: parseFloat($('longitude').value),
+                title: $('title').value,
+                display_mode: $('displayMode').value,
+                meteogram_hours: $('hours').value,
+                show_wind: $('showWind').checked,
+                show_pressure: $('showPressure').checked,
+                show_precipitation: $('showPrecipitation').checked,
+                show_cloud_cover: $('showCloudCover').checked,
+                show_weather_icons: $('showWeatherIcons').checked,
+                debug: $('debug').checked
             });
         }
 
