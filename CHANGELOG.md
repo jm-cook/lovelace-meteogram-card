@@ -21,8 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The diagnostics panel appeared for everyone on a beta build instead of only when asked for.
 - Day/night weather icons were chosen from the sun's position *at page load*, so every hour beyond today could be wrong.
 
-### Changed
-- `dist/` is no longer committed; releases are built by CI and attached as a release asset.
 
 ## [2026.6.2] - 2026.06.19
 
