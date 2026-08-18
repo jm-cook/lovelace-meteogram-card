@@ -56,5 +56,6 @@
   "ui.card.meteogram.sun.night_until": "Notte fino alle {end}",
   "ui.card.meteogram.sun.night_from": "Notte dalle {start}",
   "ui.card.meteogram.sun.sunrise": "Alba {time}",
-  "ui.card.meteogram.sun.sunset": "Tramonto {time}"
+  "ui.card.meteogram.sun.sunset": "Tramonto {time}",
+  "ui.editor.meteogram.attributes.sun": "Mostra alba/tramonto"
 }

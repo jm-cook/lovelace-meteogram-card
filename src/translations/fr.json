@@ -56,5 +56,6 @@
   "ui.card.meteogram.sun.night_until": "Nuit jusqu'à {end}",
   "ui.card.meteogram.sun.night_from": "Nuit à partir de {start}",
   "ui.card.meteogram.sun.sunrise": "Lever du soleil {time}",
-  "ui.card.meteogram.sun.sunset": "Coucher du soleil {time}"
+  "ui.card.meteogram.sun.sunset": "Coucher du soleil {time}",
+  "ui.editor.meteogram.attributes.sun": "Afficher lever/coucher du soleil"
 }

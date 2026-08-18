@@ -45,6 +45,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
       show_precipitation: true, // treat true as default for minimalization
       show_weather_icons: true,
       show_wind: true,
+      show_sun: true,
       dense_weather_icons: true,
       meteogram_hours: '48h',
       styles: undefined,
@@ -112,6 +113,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
   setValue(this._elements.get('show_precipitation'), this._config.show_precipitation !== undefined ? this._config.show_precipitation : true, 'checked');
         setValue(this._elements.get('show_weather_icons'), this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true, 'checked');
         setValue(this._elements.get('show_wind'), this._config.show_wind !== undefined ? this._config.show_wind : true, 'checked');
+        setValue(this._elements.get('show_sun'), this._config.show_sun !== undefined ? this._config.show_sun : true, 'checked');
         setValue(this._elements.get('dense_weather_icons'), this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true, 'checked');
         setValue(this._elements.get('meteogram_hours'), this._config.meteogram_hours || '48h');
         setValue(this._elements.get('diagnostics'), this._config.diagnostics !== undefined ? this._config.diagnostics : false, 'checked');
@@ -142,6 +144,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const showPressure = this._config.show_pressure !== undefined ? this._config.show_pressure : true;
         const showWeatherIcons = this._config.show_weather_icons !== undefined ? this._config.show_weather_icons : true;
         const showWind = this._config.show_wind !== undefined ? this._config.show_wind : true;
+        const showSun = this._config.show_sun !== undefined ? this._config.show_sun : true;
         const denseWeatherIcons = this._config.dense_weather_icons !== undefined ? this._config.dense_weather_icons : true;
         const meteogramHours = this._config.meteogram_hours || "48h";
         const diagnostics = this._config.diagnostics !== undefined ? this._config.diagnostics : false;
@@ -323,6 +326,14 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         </div>
 
         <div class="toggle-row">
+          <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.sun", "Show Sunrise/Sunset Strip")}</div>
+          <ha-switch
+            id="show-sun"
+            .checked="${showSun}"
+          ></ha-switch>
+        </div>
+
+        <div class="toggle-row">
           <div class="toggle-label">${trnslt(hass, "ui.editor.meteogram.attributes.dense_icons", "Dense Weather Icons (every hour)")}</div>
           <ha-switch
             id="dense-weather-icons"
@@ -466,6 +477,13 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
                 this._elements.set('show_wind', windSwitch);
             }
 
+            const sunSwitch = this.querySelector('#show-sun') as ConfigurableHTMLElement;
+            if (sunSwitch) {
+                sunSwitch.configValue = 'show_sun';
+                sunSwitch.addEventListener('change', this._valueChanged.bind(this));
+                this._elements.set('show_sun', sunSwitch);
+            }
+
             const denseWeatherIconsSwitch = this.querySelector('#dense-weather-icons') as ConfigurableHTMLElement;
             if (denseWeatherIconsSwitch) {
                 denseWeatherIconsSwitch.configValue = 'dense_weather_icons';
@@ -584,7 +602,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
     // List of boolean config fields
     const boolFields = [
   'show_cloud_cover', 'show_pressure', 'show_precipitation', 'show_weather_icons',
-      'show_wind', 'dense_weather_icons', 'diagnostics', 'focussed'
+      'show_wind', 'show_sun', 'dense_weather_icons', 'diagnostics', 'focussed'
     ];
 
     // Handle different input types

@@ -56,5 +56,6 @@
   "ui.card.meteogram.sun.night_until": "Night until {end}",
   "ui.card.meteogram.sun.night_from": "Night from {start}",
   "ui.card.meteogram.sun.sunrise": "Sunrise {time}",
-  "ui.card.meteogram.sun.sunset": "Sunset {time}"
+  "ui.card.meteogram.sun.sunset": "Sunset {time}",
+  "ui.editor.meteogram.attributes.sun": "Show Sunrise/Sunset Strip"
 }

@@ -56,5 +56,6 @@
   "ui.card.meteogram.sun.night_until": "Noć do {end}",
   "ui.card.meteogram.sun.night_from": "Noć od {start}",
   "ui.card.meteogram.sun.sunrise": "Izlazak sunca {time}",
-  "ui.card.meteogram.sun.sunset": "Zalazak sunca {time}"
+  "ui.card.meteogram.sun.sunset": "Zalazak sunca {time}",
+  "ui.editor.meteogram.attributes.sun": "Prikaži izlazak/zalazak sunca"
 }

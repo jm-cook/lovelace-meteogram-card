@@ -56,5 +56,6 @@
   "ui.card.meteogram.sun.night_until": "Noche hasta {end}",
   "ui.card.meteogram.sun.night_from": "Noche desde {start}",
   "ui.card.meteogram.sun.sunrise": "Amanecer {time}",
-  "ui.card.meteogram.sun.sunset": "Atardecer {time}"
+  "ui.card.meteogram.sun.sunset": "Atardecer {time}",
+  "ui.editor.meteogram.attributes.sun": "Mostrar amanecer/atardecer"
 }

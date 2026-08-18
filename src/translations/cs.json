@@ -56,5 +56,6 @@
   "ui.card.meteogram.sun.night_until": "Noc do {end}",
   "ui.card.meteogram.sun.night_from": "Noc od {start}",
   "ui.card.meteogram.sun.sunrise": "Východ slunce {time}",
-  "ui.card.meteogram.sun.sunset": "Západ slunce {time}"
+  "ui.card.meteogram.sun.sunset": "Západ slunce {time}",
+  "ui.editor.meteogram.attributes.sun": "Zobrazit východ/západ slunce"
 }

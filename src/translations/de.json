@@ -56,5 +56,6 @@
   "ui.card.meteogram.sun.night_until": "Nacht bis {end}",
   "ui.card.meteogram.sun.night_from": "Nacht ab {start}",
   "ui.card.meteogram.sun.sunrise": "Sonnenaufgang {time}",
-  "ui.card.meteogram.sun.sunset": "Sonnenuntergang {time}"
+  "ui.card.meteogram.sun.sunset": "Sonnenuntergang {time}",
+  "ui.editor.meteogram.attributes.sun": "Sonnenauf-/untergang anzeigen"
 }

@@ -56,5 +56,6 @@
   "ui.card.meteogram.sun.night_until": "Natt fram til {end}",
   "ui.card.meteogram.sun.night_from": "Natt fra {start}",
   "ui.card.meteogram.sun.sunrise": "Soloppgang {time}",
-  "ui.card.meteogram.sun.sunset": "Solnedgang {time}"
+  "ui.card.meteogram.sun.sunset": "Solnedgang {time}",
+  "ui.editor.meteogram.attributes.sun": "Vis soloppgang/solnedgang"
 }
