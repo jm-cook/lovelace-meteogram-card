@@ -35,12 +35,21 @@ jobs:
         run: |
           PKG=$(node -p "require('./package.json').version")
           TAG="${GITHUB_REF_NAME#v}"
-          if [ "$PKG" != "$TAG" ]; then
-            echo "::error::package.json says '$PKG' but the tag is '$TAG'."
-            echo "Bump package.json, commit it, then re-cut the tag."
-            exit 1
-          fi
-          echo "version $PKG matches tag $TAG"
+          # The tag must be the package version, optionally with a prerelease suffix:
+          # package.json 2026.8.1 accepts v2026.8.1, v2026.8.1-beta3 and v2026.8.1-rc1,
+          # so a beta can be cut without a commit each time. It still rejects a
+          # different version, which is the case that matters — a mistyped v2028.8.1
+          # would have shipped an artefact two years ahead that shadowed every real
+          # release after it.
+          case "$TAG" in
+            "$PKG"|"$PKG"-*) echo "tag $TAG matches package.json $PKG" ;;
+            *)
+              echo "::error::package.json says '$PKG' but the tag is '$TAG'."
+              echo "The tag must be '$PKG', or '$PKG' with a prerelease suffix such as '$PKG-beta1'."
+              echo "If the version itself is changing, bump package.json, commit, then re-cut the tag."
+              exit 1
+              ;;
+          esac
 
       - name: Test
         run: npm test
