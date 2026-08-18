@@ -11,33 +11,45 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          # 20 is the floor for vitest and eslint; 22 matches what is used locally.
+          node-version: '22'
           cache: 'npm'
-
-      - name: Extract version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Update version in package.json
-        run: |
-          VERSION=${{ steps.get_version.outputs.VERSION }}
-          # Update version in package.json
-          npm version $VERSION --no-git-tag-version
 
       - name: Install dependencies
         run: npm ci
 
+      # Check the version rather than overwrite it. This step used to be
+      # `npm version $VERSION --no-git-tag-version`, which silently accepted whatever
+      # tag was typed and left package.json in the repo permanently out of date — it
+      # sat at 3.2.1-beta for three release cycles. It also meant a mistyped tag built
+      # cleanly: v2028.8.1-beta2 produced a perfectly good artefact two years in the
+      # future, which would have shadowed every real release from then on.
+      #
+      # package.json is now the source of truth. Bump it, commit, then tag.
+      - name: Version must match the tag
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::package.json says '$PKG' but the tag is '$TAG'."
+            echo "Bump package.json, commit it, then re-cut the tag."
+            exit 1
+          fi
+          echo "version $PKG matches tag $TAG"
+
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
-        
+
       - name: Upload to Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/meteogram-card.js
           tag_name: ${{ github.ref_name }}
