@@ -48,5 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Vis værikoner",
   "ui.editor.meteogram.attributes.wind": "Vis vind",
   "ui.editor.meteogram.attributes.dense_icons": "Tette værikoner (hver time)",
-  "ui.editor.meteogram.attributes.fill_container": "Fyll beholder"
+  "ui.editor.meteogram.attributes.fill_container": "Fyll beholder",
+  "ui.card.meteogram.sun.daylight_range": "Dagslys {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "Dagslys fram til {end}",
+  "ui.card.meteogram.sun.daylight_from": "Dagslys fra {start}",
+  "ui.card.meteogram.sun.night_range": "Natt {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Natt fram til {end}",
+  "ui.card.meteogram.sun.night_from": "Natt fra {start}",
+  "ui.card.meteogram.sun.sunrise": "Soloppgang {time}",
+  "ui.card.meteogram.sun.sunset": "Solnedgang {time}"
 }

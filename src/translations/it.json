@@ -32,7 +32,9 @@
   "ui.editor.meteogram.optional": "Opzionale",
   "ui.editor.meteogram.default": "Predefinito",
   "ui.editor.meteogram.leave_empty": "Lascia vuoto per usare la posizione configurata in Home Assistant",
-  "ui.editor.meteogram.display_options": "Opzioni di visualizzazione",  "ui.editor.meteogram.display_mode": "Modalità di visualizzazione",  "ui.editor.meteogram.meteogram_length": "Durata meteogramma",
+  "ui.editor.meteogram.display_options": "Opzioni di visualizzazione",
+  "ui.editor.meteogram.display_mode": "Modalità di visualizzazione",
+  "ui.editor.meteogram.meteogram_length": "Durata meteogramma",
   "ui.editor.meteogram.hours_8": "8 ore",
   "ui.editor.meteogram.hours_12": "12 ore",
   "ui.editor.meteogram.hours_24": "24 ore",
@@ -46,5 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Mostra icone meteo",
   "ui.editor.meteogram.attributes.wind": "Mostra vento",
   "ui.editor.meteogram.attributes.dense_icons": "Icone meteo dense (ogni ora)",
-  "ui.editor.meteogram.attributes.fill_container": "Riempi contenitore"
+  "ui.editor.meteogram.attributes.fill_container": "Riempi contenitore",
+  "ui.card.meteogram.sun.daylight_range": "Giorno {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "Giorno fino alle {end}",
+  "ui.card.meteogram.sun.daylight_from": "Giorno dalle {start}",
+  "ui.card.meteogram.sun.night_range": "Notte {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Notte fino alle {end}",
+  "ui.card.meteogram.sun.night_from": "Notte dalle {start}",
+  "ui.card.meteogram.sun.sunrise": "Alba {time}",
+  "ui.card.meteogram.sun.sunset": "Tramonto {time}"
 }

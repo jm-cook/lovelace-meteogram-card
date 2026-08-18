@@ -48,5 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Toon weericonen",
   "ui.editor.meteogram.attributes.wind": "Toon wind",
   "ui.editor.meteogram.attributes.dense_icons": "Dichte weericonen (elk uur)",
-  "ui.editor.meteogram.attributes.fill_container": "Vul container"
+  "ui.editor.meteogram.attributes.fill_container": "Vul container",
+  "ui.card.meteogram.sun.daylight_range": "Daglicht {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "Daglicht tot {end}",
+  "ui.card.meteogram.sun.daylight_from": "Daglicht vanaf {start}",
+  "ui.card.meteogram.sun.night_range": "Nacht {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Nacht tot {end}",
+  "ui.card.meteogram.sun.night_from": "Nacht vanaf {start}",
+  "ui.card.meteogram.sun.sunrise": "Zonsopkomst {time}",
+  "ui.card.meteogram.sun.sunset": "Zonsondergang {time}"
 }

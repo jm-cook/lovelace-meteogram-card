@@ -48,5 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Vis vejrikoner",
   "ui.editor.meteogram.attributes.wind": "Vis vind",
   "ui.editor.meteogram.attributes.dense_icons": "Tætte vejrikoner (hver time)",
-  "ui.editor.meteogram.attributes.fill_container": "Udfyld beholderen"
+  "ui.editor.meteogram.attributes.fill_container": "Udfyld beholderen",
+  "ui.card.meteogram.sun.daylight_range": "Dagslys {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "Dagslys indtil {end}",
+  "ui.card.meteogram.sun.daylight_from": "Dagslys fra {start}",
+  "ui.card.meteogram.sun.night_range": "Nat {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Nat indtil {end}",
+  "ui.card.meteogram.sun.night_from": "Nat fra {start}",
+  "ui.card.meteogram.sun.sunrise": "Solopgang {time}",
+  "ui.card.meteogram.sun.sunset": "Solnedgang {time}"
 }

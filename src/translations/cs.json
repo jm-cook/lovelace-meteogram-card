@@ -48,5 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Zobrazit ikony počasí",
   "ui.editor.meteogram.attributes.wind": "Zobrazit vítr",
   "ui.editor.meteogram.attributes.dense_icons": "Husté ikony počasí (každou hodinu)",
-  "ui.editor.meteogram.attributes.fill_container": "Vyplnit kontejner"
+  "ui.editor.meteogram.attributes.fill_container": "Vyplnit kontejner",
+  "ui.card.meteogram.sun.daylight_range": "Den {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "Den do {end}",
+  "ui.card.meteogram.sun.daylight_from": "Den od {start}",
+  "ui.card.meteogram.sun.night_range": "Noc {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Noc do {end}",
+  "ui.card.meteogram.sun.night_from": "Noc od {start}",
+  "ui.card.meteogram.sun.sunrise": "Východ slunce {time}",
+  "ui.card.meteogram.sun.sunset": "Západ slunce {time}"
 }

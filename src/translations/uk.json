@@ -48,5 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Показувати піктограми погоди",
   "ui.editor.meteogram.attributes.wind": "Показувати вітер",
   "ui.editor.meteogram.attributes.dense_icons": "Щільні піктограми погоди (щогодини)",
-  "ui.editor.meteogram.attributes.fill_container": "Заповнити контейнер"
+  "ui.editor.meteogram.attributes.fill_container": "Заповнити контейнер",
+  "ui.card.meteogram.sun.daylight_range": "День {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "День до {end}",
+  "ui.card.meteogram.sun.daylight_from": "День від {start}",
+  "ui.card.meteogram.sun.night_range": "Ніч {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Ніч до {end}",
+  "ui.card.meteogram.sun.night_from": "Ніч від {start}",
+  "ui.card.meteogram.sun.sunrise": "Схід сонця {time}",
+  "ui.card.meteogram.sun.sunset": "Захід сонця {time}"
 }

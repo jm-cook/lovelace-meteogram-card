@@ -48,6 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Prikaži ikone vremena",
   "ui.editor.meteogram.attributes.wind": "Prikaži vjetar",
   "ui.editor.meteogram.attributes.dense_icons": "Guste ikone vremena (svaki sat)",
-  "ui.editor.meteogram.attributes.fill_container": "Ispuni spremnik"
+  "ui.editor.meteogram.attributes.fill_container": "Ispuni spremnik",
+  "ui.card.meteogram.sun.daylight_range": "Dan {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "Dan do {end}",
+  "ui.card.meteogram.sun.daylight_from": "Dan od {start}",
+  "ui.card.meteogram.sun.night_range": "Noć {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Noć do {end}",
+  "ui.card.meteogram.sun.night_from": "Noć od {start}",
+  "ui.card.meteogram.sun.sunrise": "Izlazak sunca {time}",
+  "ui.card.meteogram.sun.sunset": "Zalazak sunca {time}"
 }
-

@@ -48,5 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Visa väderikoner",
   "ui.editor.meteogram.attributes.wind": "Visa vind",
   "ui.editor.meteogram.attributes.dense_icons": "Täta väderikoner (varje timme)",
-  "ui.editor.meteogram.attributes.fill_container": "Fyll behållaren"
+  "ui.editor.meteogram.attributes.fill_container": "Fyll behållaren",
+  "ui.card.meteogram.sun.daylight_range": "Dagsljus {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "Dagsljus fram till {end}",
+  "ui.card.meteogram.sun.daylight_from": "Dagsljus från {start}",
+  "ui.card.meteogram.sun.night_range": "Natt {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Natt fram till {end}",
+  "ui.card.meteogram.sun.night_from": "Natt från {start}",
+  "ui.card.meteogram.sun.sunrise": "Soluppgång {time}",
+  "ui.card.meteogram.sun.sunset": "Solnedgång {time}"
 }

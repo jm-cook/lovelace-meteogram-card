@@ -48,5 +48,13 @@
   "ui.editor.meteogram.attributes.weather_icons": "Pokaż ikony pogody",
   "ui.editor.meteogram.attributes.wind": "Pokaż wiatr",
   "ui.editor.meteogram.attributes.dense_icons": "Gęste ikony pogody (co godzinę)",
-  "ui.editor.meteogram.attributes.fill_container": "Wypełnij kontener"
+  "ui.editor.meteogram.attributes.fill_container": "Wypełnij kontener",
+  "ui.card.meteogram.sun.daylight_range": "Dzień {start} – {end}",
+  "ui.card.meteogram.sun.daylight_until": "Dzień do {end}",
+  "ui.card.meteogram.sun.daylight_from": "Dzień od {start}",
+  "ui.card.meteogram.sun.night_range": "Noc {start} – {end}",
+  "ui.card.meteogram.sun.night_until": "Noc do {end}",
+  "ui.card.meteogram.sun.night_from": "Noc od {start}",
+  "ui.card.meteogram.sun.sunrise": "Wschód słońca {time}",
+  "ui.card.meteogram.sun.sunset": "Zachód słońca {time}"
 }
