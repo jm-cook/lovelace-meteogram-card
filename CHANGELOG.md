@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Weather icons are now bundled with the card** rather than fetched from GitHub on every render. The card no longer needs network access for icons, works offline, and cannot be affected by rate limiting.
 
 ### Fixed
-- **The Title, Latitude and Longitude fields were missing from the visual editor.** Home Assistant loads its form components on demand, and the editor drew them before they were available, so they occupied no space at all while their help text still showed. The editor now waits for those components and redraws once they arrive. Their labels were also coming out blank, which would have left them unlabelled even when they did appear. Setting these options in YAML was never affected.
+- **The Title, Latitude, Longitude and Altitude fields were missing from the visual editor.** They were drawn with a Home Assistant form component that is no longer registered on the card-editor page, so they were present in the page but rendered nothing at all, while the help text beside them showed normally. They are ordinary text fields now and no longer depend on that component. Setting any of these options in YAML was never affected.
 - Widening `meteogram_hours` did nothing — the forecast cache was being truncated in place, so the extra hours were no longer available to show.
 - Switching `display_mode` did not redraw the chart, so `core` could keep showing `full`'s legends, and after `focussed` the legends never came back.
 - Weather icons could silently disappear when GitHub rate-limited the request, and the card then retried twice per icon, making it worse.
