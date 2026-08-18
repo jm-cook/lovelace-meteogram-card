@@ -222,11 +222,11 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
     }
   </style>
   <ha-card>
-    <h3>${hass?.localize ? hass.localize("ui.editor.meteogram.title") : "Meteogram Card Settings"}</h3>
+    <h3>${trnslt(hass, "ui.editor.meteogram.title", "Meteogram Card Settings")}</h3>
     <div class="values">
       <div class="row">
         <ha-textfield
-          label="${hass?.localize ? hass.localize("ui.editor.meteogram.title_label") : "Title"}"
+          label="${trnslt(hass, "ui.editor.meteogram.title_label", "Title")}"
           id="title-input"
           .value="${this._config.title || ''}"
         ></ha-textfield>
@@ -245,7 +245,7 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
       <p class="help-text">${trnslt(hass, "ui.editor.meteogram.choose_weather_entity", "Choose a weather entity for Home Assistant integration, or select 'None' to use coordinates.")}</p>
 
       <div class="info-text">
-        ${hass?.localize ? hass.localize("ui.editor.meteogram.location_info") : "Location coordinates will be used to fetch weather data directly from Met.no API."}
+        ${trnslt(hass, "ui.editor.meteogram.location_info", "Location coordinates will be used to fetch weather data directly from Met.no API.")}
         ${defaultLat ? trnslt(hass, "ui.editor.meteogram.using_ha_location", "Using Home Assistant's location by default.") : ""}
       </div>
 
