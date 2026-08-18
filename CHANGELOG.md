@@ -28,9 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2026.1.2] - 2026.06.19
 
 > **Note on the version number.** This release was cut in June and should have been
-> `2026.6.2`. Because `2026.1.2` sorts below the May and June releases, update ordering
-> was misleading for anyone who installed it. The tag is left in place so existing
-> installations are not disturbed; later releases sort correctly above it.
+> `2026.6.2`; the GitHub release is titled that way. The underlying tag remains
+> `v2026.1.2`, which sorts below the May and June releases, so update ordering was
+> misleading for anyone who installed it at the time. The tag is deliberately left alone
+> — it has real installations behind it, and every later release sorts above it anyway.
 
 ### Added
 - Danish translations
