@@ -5,6 +5,55 @@ All notable changes to the Meteogram Card will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.8.2-beta] - 2026.08.18
+
+### Added
+- **Sunrise/sunset strip**: a day/night band above the chart, amber for daylight and blue-grey for night, with a marker at each sunrise and sunset and a tick at local midnight. Hover any segment for its times. Enabled with `show_sun` (on by default) and available in the visual editor.
+  - Sun times are computed from the card's coordinates, so they are correct for the whole forecast rather than just today, and polar day and night are handled properly.
+  - Tooltips follow Home Assistant's language and its 12/24-hour setting, and are translated into all supported languages.
+- **Weather icons are now bundled with the card** rather than fetched from GitHub on every render. The card no longer needs network access for icons, works offline, and cannot be affected by rate limiting.
+
+### Fixed
+- Widening `meteogram_hours` did nothing — the forecast cache was being truncated in place, so the extra hours were no longer available to show.
+- Switching `display_mode` did not redraw the chart, so `core` could keep showing `full`'s legends, and after `focussed` the legends never came back.
+- Weather icons could silently disappear when GitHub rate-limited the request, and the card then retried twice per icon, making it worse.
+- Home Assistant's 12/24-hour preference was ignored; times followed the language alone.
+- A card title could be set but never cleared.
+- The diagnostics panel appeared for everyone on a beta build instead of only when asked for.
+- Day/night weather icons were chosen from the sun's position *at page load*, so every hour beyond today could be wrong.
+
+### Changed
+- `dist/` is no longer committed; releases are built by CI and attached as a release asset.
+
+## [2026.1.2] - 2026.06.19
+
+> **Note on the version number.** This release was cut in June and should have been
+> `2026.6.2`. Because `2026.1.2` sorts below the May and June releases, update ordering
+> was misleading for anyone who installed it. The tag is left in place so existing
+> installations are not disturbed; later releases sort correctly above it.
+
+### Added
+- Danish translations
+- Minor additions to the card
+
+## [2026.6.1] - 2026.06.16
+
+### Added
+- Swedish translations
+
+## [2026.5.1] - 2026.05.27
+
+> Versioning moved from `3.x` semantic versions to calendar versions (`YYYY.M.patch`)
+> with this release.
+
+### Changed
+- Chart rendering rebuilt on D3.js
+
+## [3.2.7] - 2026.04.24
+
+### Added
+- Ukrainian translations
+
 ## [3.2.6] - 2026.03.02
 
 ### Fixed
