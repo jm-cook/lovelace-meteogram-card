@@ -5,6 +5,21 @@ import { trnslt } from "./translations";
 import { DIAGNOSTICS_DEFAULT } from "./constants";
 import { version } from "../package.json";
 
+/**
+ * Escape a value for interpolation into an HTML attribute.
+ *
+ * The editor builds its markup as a string and assigns it to innerHTML rather than
+ * using a lit template, so nothing escapes for us. A card title containing a quote
+ * would otherwise close the attribute early and swallow the rest of the element.
+ */
+const esc = (v: unknown): string =>
+    String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+
 
 @customElement('meteogram-card-editor')
 export class MeteogramCardEditor extends LitElement implements MeteogramCardEditorElement {
@@ -88,8 +103,8 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         // Home Assistant loads its form components lazily. If they are not registered
         // yet the markup above renders them as unupgraded elements with no shadow
         // content at all — invisible, while the plain <p> and <select> beside them show
-        // normally. That is why the Title, Latitude and Longitude fields appeared to be
-        // missing from the editor while their help text was there.
+        // normally. The Title, Latitude and Longitude fields hit exactly that, and are
+        // native inputs now; this remains for ha-switch, which HA does register.
         void this._ensureHaComponents();
     }
 
@@ -97,11 +112,16 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
      * Make sure Home Assistant has defined the components this editor uses.
      *
      * There is no public API for "load your form elements", but asking the card helpers
-     * for a built-in card's config element pulls in the chunk that defines ha-textfield,
-     * ha-switch and friends. Once they upgrade, re-render so the values are reapplied.
+     * for a built-in card's config element pulls in the chunk that defines ha-switch
+     * and friends. Once they upgrade, re-render so the values are reapplied.
+     *
+     * ha-textfield is deliberately not in this list. It is never registered on the
+     * card-editor page in current Home Assistant, so waiting for it only spent the
+     * full timeout on every editor open and still produced nothing; the text fields
+     * are plain <input> elements now.
      */
     private async _ensureHaComponents(): Promise<void> {
-        const needed = ["ha-textfield", "ha-switch", "ha-card"];
+        const needed = ["ha-switch", "ha-card"];
         if (needed.every((n) => customElements.get(n))) return;
         try {
             const helpers = await (window as any).loadCardHelpers?.();
@@ -200,6 +220,19 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         const selectedEntity = this._config.entity_id ?? 'none';
         const isWeatherEntitySelected = !!(selectedEntity && selectedEntity !== 'none');
 
+        // The text fields are native <input> elements, not ha-textfield.
+        //
+        // ha-textfield is not registered on the card-editor page in current Home
+        // Assistant, so <ha-textfield> renders as an unknown element: present in the
+        // DOM with the right attributes, zero height, nothing drawn. The Title,
+        // Latitude, Longitude and Altitude fields were invisible for exactly that
+        // reason while the help text beside them showed normally.
+        //
+        // There is no documented set of frontend components a custom card may rely on
+        // (see developers.home-assistant.io custom-card docs), so this stays on plain
+        // HTML. The supported alternative is a static getConfigForm() schema, which
+        // hands the whole form to Home Assistant to render; that is a rewrite of every
+        // control here and is worth doing separately.
         div.innerHTML = `
   <style>
     ha-card {
@@ -214,8 +247,33 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
       margin-bottom: 12px;
       align-items: center;
     }
-    ha-textfield {
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
       width: 100%;
+    }
+    .field > label {
+      color: var(--secondary-text-color);
+      font-size: 0.8125rem;
+    }
+    .field > input {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 8px;
+      font: inherit;
+      color: var(--primary-text-color);
+      background: var(--card-background-color, transparent);
+      border: 1px solid var(--divider-color, #ccc);
+      border-radius: 4px;
+    }
+    .field > input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    .field > input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     .side-by-side {
       display: flex;
@@ -262,11 +320,10 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
     <h3>${trnslt(hass, "ui.editor.meteogram.title", "Meteogram Card Settings")}</h3>
     <div class="values">
       <div class="row">
-        <ha-textfield
-          label="${trnslt(hass, "ui.editor.meteogram.title_label", "Title")}"
-          id="title-input"
-          .value="${this._config.title || ''}"
-        ></ha-textfield>
+        <div class="field">
+          <label for="title-input">${trnslt(hass, "ui.editor.meteogram.title_label", "Title")}</label>
+          <input type="text" id="title-input" value="${esc(this._config.title || '')}">
+        </div>
       </div>
       <p class="help-text">${trnslt(hass, "ui.editor.meteogram.title_description", "Card title (optional, shown at the top of the card)")}</p>
 
@@ -287,35 +344,29 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
       </div>
 
       <div class="side-by-side">
-        <ha-textfield
-          label="${trnslt(hass, "ui.editor.meteogram.latitude", "Latitude")}"
-          id="latitude-input"
-          type="number"
-          step="any"
-          .value="${this._config.latitude !== undefined ? this._config.latitude : defaultLat}"
-          placeholder="${defaultLat ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLat}` : ""}"
-          ${isWeatherEntitySelected ? "disabled" : ""}
-        ></ha-textfield>
+        <div class="field">
+          <label for="latitude-input">${trnslt(hass, "ui.editor.meteogram.latitude", "Latitude")}</label>
+          <input type="number" step="any" id="latitude-input"
+            value="${esc(this._config.latitude !== undefined ? this._config.latitude : defaultLat)}"
+            placeholder="${esc(defaultLat ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLat}` : "")}"
+            ${isWeatherEntitySelected ? "disabled" : ""}>
+        </div>
 
-        <ha-textfield
-          label="${trnslt(hass, "ui.editor.meteogram.longitude", "Longitude")}"
-          id="longitude-input"
-          type="number"
-          step="any"
-          .value="${this._config.longitude !== undefined ? this._config.longitude : defaultLon}"
-          placeholder="${defaultLon ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : ""}"
-          ${isWeatherEntitySelected ? "disabled" : ""}
-        ></ha-textfield>
+        <div class="field">
+          <label for="longitude-input">${trnslt(hass, "ui.editor.meteogram.longitude", "Longitude")}</label>
+          <input type="number" step="any" id="longitude-input"
+            value="${esc(this._config.longitude !== undefined ? this._config.longitude : defaultLon)}"
+            placeholder="${esc(defaultLon ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultLon}` : "")}"
+            ${isWeatherEntitySelected ? "disabled" : ""}>
+        </div>
 
-        <ha-textfield
-          label="${trnslt(hass, "ui.editor.meteogram.altitude", "Altitude")}"
-          id="altitude-input"
-          type="number"
-          step="any"
-          .value="${this._config.altitude !== undefined ? this._config.altitude : defaultAlt}"
-          placeholder="${defaultAlt ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultAlt}` : trnslt(hass, "ui.editor.meteogram.optional", "Optional")}" 
-          ${isWeatherEntitySelected ? "disabled" : ""}
-        ></ha-textfield>
+        <div class="field">
+          <label for="altitude-input">${trnslt(hass, "ui.editor.meteogram.altitude", "Altitude")}</label>
+          <input type="number" step="any" id="altitude-input"
+            value="${esc(this._config.altitude !== undefined ? this._config.altitude : defaultAlt)}"
+            placeholder="${esc(defaultAlt ? `${trnslt(hass, "ui.editor.meteogram.default", "Default")}: ${defaultAlt}` : trnslt(hass, "ui.editor.meteogram.optional", "Optional"))}"
+            ${isWeatherEntitySelected ? "disabled" : ""}>
+        </div>
       </div>
       <p class="help-text">${trnslt(hass, "ui.editor.meteogram.leave_empty", "Leave empty to use Home Assistant's configured location")}</p>
 
