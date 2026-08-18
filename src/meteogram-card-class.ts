@@ -1128,6 +1128,11 @@ export class MeteogramCard extends LitElement {
       this.showCloudCover, this.showPressure, this.showPrecipitation,
       this.showWeatherIcons, this.showWind, this.showSun,
       this.denseWeatherIcons, this.meteogramHours,
+      // Not hass itself — that changes constantly — but the two parts of it the chart
+      // renders from. Both change rarely, and without them a user switching Home
+      // Assistant to another language or to a 24-hour clock would keep the old labels
+      // until something unrelated forced a redraw.
+      this.hass?.language, this.hass?.locale?.time_format,
     ]);
     const configChanged = signature !== this._renderSignature;
     this._renderSignature = signature;

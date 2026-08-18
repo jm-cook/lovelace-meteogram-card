@@ -3,6 +3,12 @@ import { trnslt } from "./translations";
 import { mapHaConditionToMetnoSymbol } from "./weather-entity";
 import { convertWindSpeed } from "./conversions";
 import { isDaylightAt, sunEventsBetween } from "./solar";
+
+/** Substitute {name} placeholders; trnslt returns a plain string with no
+ *  interpolation of its own, so the caller fills them in. */
+function fill(template: string, vars: Record<string, string>): string {
+    return template.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+}
 // meteogram-chart.ts
 // Handles all SVG/D3 chart rendering for MeteogramCard
 
@@ -175,13 +181,31 @@ export class MeteogramChart {
             // an event, so say so instead of implying the sun did something then.
             const startsAtEvent = i > 0;
             const endsAtEvent = i < bounds.length - 2;
-            const what = daylight ? "Daylight" : "Night";
-            let when: string;
-            if (startsAtEvent && endsAtEvent) when = `${clock(a)} \u2013 ${clock(b)}`;
-            else if (endsAtEvent) when = `until ${clock(b)}`;
-            else if (startsAtEvent) when = `from ${clock(a)}`;
-            else when = `${clock(a)} \u2013 ${clock(b)}`;
-            rect.append("title").text(`${what} ${when}`);
+            // Whole phrases rather than a noun plus a stitched-on "until"/"from".
+            // Composing those assumes noun-then-phrase word order holds in every
+            // language, which is not a safe bet; a full template lets a translator put
+            // the pieces wherever their language wants them.
+            const kind = daylight ? "daylight" : "night";
+            const shape =
+                startsAtEvent && endsAtEvent ? "range"
+                : endsAtEvent ? "until"
+                : startsAtEvent ? "from"
+                : "range";
+            const english: Record<string, string> = {
+                daylight_range: "Daylight {start} – {end}",
+                daylight_until: "Daylight until {end}",
+                daylight_from: "Daylight from {start}",
+                night_range: "Night {start} – {end}",
+                night_until: "Night until {end}",
+                night_from: "Night from {start}",
+            };
+            const id = `${kind}_${shape}`;
+            rect.append("title").text(
+                fill(
+                    trnslt(this.card.hass, `ui.card.meteogram.sun.${id}`, english[id]),
+                    { start: clock(a), end: clock(b) }
+                )
+            );
         }
 
         // Midnight ticks, taking over from the day-boundary overshoot the strip
@@ -217,8 +241,14 @@ export class MeteogramChart {
                     .text(e.type === "sunrise" ? "\u2600" : "\u263D")
                     .append("title")
                     .text(
-                        `${e.type === "sunrise" ? "Sunrise" : "Sunset"} ` +
-                        e.at.toLocaleTimeString(locale, timeOptions)
+                        fill(
+                            trnslt(
+                                this.card.hass,
+                                `ui.card.meteogram.sun.${e.type}`,
+                                e.type === "sunrise" ? "Sunrise {time}" : "Sunset {time}"
+                            ),
+                            { time: e.at.toLocaleTimeString(locale, timeOptions) }
+                        )
                     );
             });
         }
