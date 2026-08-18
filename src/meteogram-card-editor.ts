@@ -85,6 +85,43 @@ export class MeteogramCardEditor extends LitElement implements MeteogramCardEdit
         this.render();
         this._initialized = true;
         setTimeout(() => this._updateValues(), 0); // Wait for DOM to be ready
+        // Home Assistant loads its form components lazily. If they are not registered
+        // yet the markup above renders them as unupgraded elements with no shadow
+        // content at all — invisible, while the plain <p> and <select> beside them show
+        // normally. That is why the Title, Latitude and Longitude fields appeared to be
+        // missing from the editor while their help text was there.
+        void this._ensureHaComponents();
+    }
+
+    /**
+     * Make sure Home Assistant has defined the components this editor uses.
+     *
+     * There is no public API for "load your form elements", but asking the card helpers
+     * for a built-in card's config element pulls in the chunk that defines ha-textfield,
+     * ha-switch and friends. Once they upgrade, re-render so the values are reapplied.
+     */
+    private async _ensureHaComponents(): Promise<void> {
+        const needed = ["ha-textfield", "ha-switch", "ha-card"];
+        if (needed.every((n) => customElements.get(n))) return;
+        try {
+            const helpers = await (window as any).loadCardHelpers?.();
+            if (helpers?.createCardElement) {
+                const probe = await helpers.createCardElement({ type: "entities", entities: [] });
+                await (probe?.constructor as any)?.getConfigElement?.();
+            }
+            // Whether or not the probe worked, wait for the definitions rather than
+            // assume: a rejected promise here must not leave the editor blank.
+            await Promise.race([
+                Promise.all(needed.map((n) => customElements.whenDefined(n))),
+                new Promise((resolve) => setTimeout(resolve, 3000)),
+            ]);
+        } catch {
+            // Ignore: the fields degrade to unstyled but the editor still functions.
+        }
+        if (this._initialized) {
+            this.render();
+            setTimeout(() => this._updateValues(), 0);
+        }
     }
 
     // Update only the values, not the entire DOM
