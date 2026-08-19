@@ -91,6 +91,16 @@ export const CARD_DEFAULTS: MeteogramCardConfig = {
     layout_mode: "sections",
 };
 
+/**
+ * No assertConfig here, deliberately.
+ *
+ * Home Assistant calls it on every edit and treats a throw as "this config cannot be
+ * edited visually" — it replaces the whole editor with "Visual editor not supported".
+ * A check that latitude and longitude are set together therefore destroys the editor
+ * the moment you type the first of the two, and there is no order in which you could
+ * satisfy it. Ranges are expressed as min/max on the selectors instead, which stops
+ * bad input being entered rather than punishing it afterwards.
+ */
 export function meteogramConfigForm() {
     return {
         schema: [
@@ -100,8 +110,8 @@ export function meteogramConfigForm() {
                 type: "grid",
                 name: "",
                 schema: [
-                    { name: "latitude", selector: { number: { mode: "box", step: "any" } } },
-                    { name: "longitude", selector: { number: { mode: "box", step: "any" } } },
+                    { name: "latitude", selector: { number: { mode: "box", step: "any", min: -90, max: 90 } } },
+                    { name: "longitude", selector: { number: { mode: "box", step: "any", min: -180, max: 180 } } },
                     { name: "altitude", selector: { number: { mode: "box", step: 1, unit_of_measurement: "m" } } },
                 ],
             },
@@ -182,23 +192,5 @@ export function meteogramConfigForm() {
 
         computeLabel: (schema: { name: string }): string | undefined => LABELS[schema.name]?.(),
         computeHelper: (schema: { name: string }): string | undefined => HELPERS[schema.name]?.(),
-
-        /** Rejected rather than silently drawn wrong. */
-        assertConfig: (config: MeteogramCardConfig) => {
-            const hasLat = config.latitude !== undefined && config.latitude !== null;
-            const hasLon = config.longitude !== undefined && config.longitude !== null;
-            if (hasLat !== hasLon) {
-                throw new Error(
-                    "latitude and longitude must be set together. One on its own is ignored, "
-                    + "and the card falls back to Home Assistant's location."
-                );
-            }
-            if (hasLat && Math.abs(Number(config.latitude)) > 90) {
-                throw new Error("latitude must be between -90 and 90.");
-            }
-            if (hasLon && Math.abs(Number(config.longitude)) > 180) {
-                throw new Error("longitude must be between -180 and 180.");
-            }
-        },
     };
 }
