@@ -30,7 +30,16 @@ function serve() {
     try {
       const path = join(ROOT, decodeURIComponent(req.url.split("?")[0]));
       if (!path.startsWith(ROOT)) return res.writeHead(403).end();
-      const body = await readFile(path);
+      let body = await readFile(path);
+      // ?hours=<value> pre-selects a span in the form. The card reads the form once on
+      // load: setting config afterwards updates its properties but does not trigger a
+      // redraw, so switching span at runtime here changes nothing on screen.
+      const want = new URL(req.url, "http://x").searchParams.get("hours");
+      if (want && path.endsWith("test.html")) {
+        body = Buffer.from(String(body)
+          .replace(/(<option value="[^"]*")\s+selected/g, "$1")
+          .replace(new RegExp(`(<option value="${want}")`), "$1 selected"));
+      }
       res.writeHead(200, { "content-type": MIME[extname(path)] ?? "application/octet-stream" });
       res.end(body);
     } catch {
@@ -72,40 +81,66 @@ async function main() {
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
-
-  await page.addInitScript((iso) => {
-    const Real = Date;
-    const fixedMs = new Real(iso).getTime();
-    class Frozen extends Real {
-      constructor(...a) { super(...(a.length ? a : [fixedMs])); }
-      static now() { return fixedMs; }
-    }
-    globalThis.Date = Frozen;
-  }, frozen);
-
-  await page.route((url) => url.hostname.endsWith("met.no"), (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    headers: { expires: new Date(new Date(frozen).getTime() + 3600_000).toUTCString() },
-    body: JSON.stringify(fixture.body),
-  }));
-  await page.route(
-    (url) => url.hostname.includes("githubusercontent") || url.pathname.endsWith(".svg"),
-    (route) => route.fulfill({
-      status: 200, contentType: "image/svg+xml",
-      body: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>`,
-    })
-  );
-
   const errors = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
 
-  await page.goto(`http://127.0.0.1:${port}/test.html`, { waitUntil: "load" });
-  await page.waitForFunction(() => {
-    const svg = document.querySelector("meteogram-card")?.shadowRoot?.querySelector("#chart svg");
-    return svg && svg.querySelectorAll("*").length > 50;
-  }, null, { timeout: 30_000 });
+  /** A page showing the card at one span, rendered and settled. */
+  const openCard = async (hours) => {
+    const pg = await browser.newPage({ viewport: { width: 900, height: 700 } });
+    await pg.addInitScript((iso) => {
+      const Real = Date;
+      const fixedMs = new Real(iso).getTime();
+      class Frozen extends Real {
+        constructor(...a) { super(...(a.length ? a : [fixedMs])); }
+        static now() { return fixedMs; }
+      }
+      globalThis.Date = Frozen;
+    }, frozen);
+    await pg.route((url) => url.hostname.endsWith("met.no"), (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { expires: new Date(new Date(frozen).getTime() + 3600_000).toUTCString() },
+      body: JSON.stringify(fixture.body),
+    }));
+    await pg.route(
+      (url) => url.hostname.includes("githubusercontent") || url.pathname.endsWith(".svg"),
+      (route) => route.fulfill({
+        status: 200, contentType: "image/svg+xml",
+        body: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>`,
+      })
+    );
+    pg.on("pageerror", (e) => errors.push(String(e)));
+    await pg.goto(`http://127.0.0.1:${port}/test.html${hours ? `?hours=${hours}` : ""}`,
+                  { waitUntil: "load" });
+    await pg.waitForFunction(() => {
+      const svg = document.querySelector("meteogram-card")?.shadowRoot?.querySelector("#chart svg");
+      return svg && svg.querySelectorAll("*").length > 50;
+    }, null, { timeout: 30_000 });
+    return pg;
+  };
+
+  /** Every sun-strip mark on a page, with the geometry needed to spot a collision. */
+  const marksOn = (pg) => pg.evaluate(() => {
+    const root = document.querySelector("meteogram-card").shadowRoot;
+    return {
+      runs: root.querySelectorAll(".sun-strip-day, .sun-strip-night").length,
+      marks: [...root.querySelectorAll(".sun-strip-glyph")].map((t) => ({
+        // firstChild, not textContent: the <title> is a child of the same <text>.
+        text: t.firstChild?.nodeValue ?? "",
+        timed: t.getAttribute("class").includes("sun-strip-glyph-timed"),
+        x: +t.getAttribute("x"),
+        width: t.getComputedTextLength(),
+      })),
+    };
+  });
+
+  /** No two lettered labels may share pixels — the invariant behind all the tiers. */
+  const collides = (marks) => {
+    const timed = marks.filter((m) => m.timed).sort((a, b) => a.x - b.x);
+    return timed.some((m, i) =>
+      i > 0 && m.x - m.width / 2 < timed[i - 1].x + timed[i - 1].width / 2);
+  };
+
+  const page = await openCard(null);
 
   const hits = page.locator("meteogram-card .sun-strip-hit");
   const n = await hits.count();
@@ -152,6 +187,50 @@ async function main() {
   await page.locator("meteogram-card #chart svg").first()
     .click({ position: { x: 450, y: 400 }, force: true });
   check("tapping elsewhere dismisses it", !(await tipState(page)).visible);
+
+  // --- inline times -----------------------------------------------------------
+  // The point of the strip on a wall tablet is that it needs no interaction at all, so
+  // wherever there is room the time is printed beside the glyph.
+  const at48 = await marksOn(page);
+  check("glyphs are drawn at 48h", at48.marks.length > 0, `${at48.marks.length} events`);
+  check("times are printed inline at 48h",
+        at48.marks.length > 0 && at48.marks.every((m) => m.timed && /\d{1,2}[:.]\d{2}/.test(m.text)),
+        JSON.stringify(at48.marks.map((m) => m.text)));
+  check("inline labels stay inside the card",
+        at48.marks.every((m) => m.x - m.width / 2 >= -1 && m.x + m.width / 2 <= bounds.w + 1),
+        at48.marks.map((m) => `${(m.x - m.width / 2).toFixed(0)}..${(m.x + m.width / 2).toFixed(0)}`).join(" "));
+  check("no two inline labels overlap at 48h", !collides(at48.marks));
+
+  // 120h is the interesting one. met.no is hourly for the first days and six-hourly
+  // after, and x is by index, so a day at the far end takes a quarter of the width a
+  // day at the near end does. The near end should still be lettered and the far end
+  // should not — which a single average across the window would get wrong.
+  const p120 = await openCard("120");
+  const at120 = await marksOn(p120);
+  check("the 120h span is wider than 48h", at120.runs > at48.runs,
+        `${at120.runs} runs vs ${at48.runs}`);
+  // Events outnumber marks: the compressed far end drops them rather than colliding.
+  check("marks are dropped where the scale compresses",
+        at120.marks.length < at120.runs - 1,
+        `${at120.marks.length} marks for ${at120.runs - 1} events`);
+  // And what survives is the hourly near end, not an arbitrary subset: nothing is
+  // lettered out in the six-hourly tail, where a day is a quarter as wide.
+  check("nothing survives in the compressed tail",
+        at120.marks.length > 0 && at120.marks.every((m) => m.x < bounds.w * 0.75),
+        `marks at ${at120.marks.map((m) => m.x.toFixed(0)).join(" ")} of ${bounds.w}`);
+  check("no two inline labels overlap at 120h", !collides(at120.marks));
+  await p120.close();
+
+  // At the widest span even bare glyphs would collide, and the strip carries it alone.
+  const pMax = await openCard("max");
+  const atMax = await marksOn(pMax);
+  check("the max span is wider still", atMax.runs > at120.runs,
+        `${atMax.runs} runs vs ${at120.runs}`);
+  check("marks are dropped at max too", atMax.marks.length < atMax.runs - 1,
+        `${atMax.marks.length} marks for ${atMax.runs - 1} events`);
+  check("no two inline labels overlap at max", !collides(atMax.marks),
+        `${atMax.marks.filter((m) => m.timed).length} of ${atMax.marks.length} marks lettered`);
+  await pMax.close();
 
   check("no page errors", errors.length === 0, errors.join("; "));
 

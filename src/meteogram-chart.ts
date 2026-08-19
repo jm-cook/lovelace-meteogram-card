@@ -199,6 +199,35 @@ export class MeteogramChart {
             tipText.attr("x", left + padX).attr("y", top + h - 5);
         };
 
+        // Resolved once per draw rather than once per run.
+        //
+        // trnslt tries hass.localize, then a resources lookup, then a linear scan of the
+        // locale table with a fresh toLowerCase on every call. At the widest window that
+        // ran it around forty times for eight distinct strings, all of which are
+        // constant for the whole draw. The clock is the same story: a bare
+        // toLocaleTimeString builds an Intl formatter per call, where one formatter
+        // reused across the strip does not.
+        const clockFmt = new Intl.DateTimeFormat(locale, timeOptions);
+        const clock = (d: Date) => clockFmt.format(d);
+        const t = (key: string, english: string) =>
+            trnslt(this.card.hass, `ui.card.meteogram.sun.${key}`, english);
+        // Whole phrases rather than a noun plus a stitched-on "until"/"from". Composing
+        // those assumes noun-then-phrase word order holds in every language, which is
+        // not a safe bet; a full template lets a translator put the pieces wherever
+        // their language wants them.
+        const runLabel: Record<string, string> = {
+            daylight_range: t("daylight_range", "Daylight {start} – {end}"),
+            daylight_until: t("daylight_until", "Daylight until {end}"),
+            daylight_from: t("daylight_from", "Daylight from {start}"),
+            night_range: t("night_range", "Night {start} – {end}"),
+            night_until: t("night_until", "Night until {end}"),
+            night_from: t("night_from", "Night from {start}"),
+        };
+        const eventLabel: Record<string, string> = {
+            sunrise: t("sunrise", "Sunrise {time}"),
+            sunset: t("sunset", "Sunset {time}"),
+        };
+
         for (let i = 0; i < bounds.length - 1; i++) {
             const a = bounds[i];
             const b = bounds[i + 1];
@@ -219,34 +248,19 @@ export class MeteogramChart {
             // A native <title> rather than a bespoke tooltip: it needs no event
             // handling, survives being re-rendered, and behaves the way the browser and
             // the platform's assistive technology already expect.
-            const clock = (d: Date) => d.toLocaleTimeString(locale, timeOptions);
+            //
             // The first and last runs are cut off by the forecast window rather than by
             // an event, so say so instead of implying the sun did something then.
             const startsAtEvent = i > 0;
             const endsAtEvent = i < bounds.length - 2;
-            // Whole phrases rather than a noun plus a stitched-on "until"/"from".
-            // Composing those assumes noun-then-phrase word order holds in every
-            // language, which is not a safe bet; a full template lets a translator put
-            // the pieces wherever their language wants them.
             const kind = daylight ? "daylight" : "night";
             const shape =
                 startsAtEvent && endsAtEvent ? "range"
                 : endsAtEvent ? "until"
                 : startsAtEvent ? "from"
                 : "range";
-            const english: Record<string, string> = {
-                daylight_range: "Daylight {start} – {end}",
-                daylight_until: "Daylight until {end}",
-                daylight_from: "Daylight from {start}",
-                night_range: "Night {start} – {end}",
-                night_until: "Night until {end}",
-                night_from: "Night from {start}",
-            };
-            const id = `${kind}_${shape}`;
-            const label = fill(
-                trnslt(this.card.hass, `ui.card.meteogram.sun.${id}`, english[id]),
-                { start: clock(a), end: clock(b) }
-            );
+            const label = fill(runLabel[`${kind}_${shape}`],
+                               { start: clock(a), end: clock(b) });
             rect.append("title").text(label);
 
             // A <title> is a hover tooltip, and hover does not exist on the wall tablet
@@ -282,37 +296,75 @@ export class MeteogramChart {
                 .attr("y1", y).attr("y2", y + stripHeight);
         }
 
-        // A glyph per event, but only where there is room. At ten days they would
-        // collide; the strip alone still reads.
-        const spacing = events.length > 1
-            ? (timeToX(events[events.length - 1].at) - timeToX(events[0].at)) / (events.length - 1)
-            : Number.POSITIVE_INFINITY;
-        if (spacing >= 34) {
+        // A mark per event, but only where there is room, and how much is written
+        // depends on how much room there is.
+        //
+        // This card usually lives on a wall tablet, where the reader glances rather than
+        // interacts, so the time is printed beside the glyph whenever it fits: no tap,
+        // no hover, just there. Below that width the glyph alone still marks the event
+        // and the time stays a tap away, and below *that* the strip's own light and dark
+        // runs still read on their own. Three tiers, degrading in that order.
+        // Room is measured per event, against its closest neighbour, not as one average
+        // across the window. The x scale is by index and met.no is hourly for the first
+        // days and six-hourly after, so a day at the far end occupies a quarter of the
+        // width a day at the near end does. An average reports plenty of room while the
+        // far-end labels overlap; the minimum of the two adjacent gaps does not, and it
+        // lets the roomy near end keep its times while the crowded end gives them up.
+        const xs = events.map((e) => timeToX(e.at));
+        const roomAt = (i: number) => Math.min(
+            i > 0 ? xs[i] - xs[i - 1] : Number.POSITIVE_INFINITY,
+            i < xs.length - 1 ? xs[i + 1] - xs[i] : Number.POSITIVE_INFINITY
+        );
+        const GLYPH_SPACING = 34;
+        // Clear air required between two neighbouring labels.
+        const LABEL_GAP = 6;
+        {
             events.forEach((e, gi) => {
+                const room = roomAt(gi);
+                if (room < GLYPH_SPACING) return;
                 const gx = margin.left + timeToX(e.at);
-                const glyphLabel = fill(
-                    trnslt(
-                        this.card.hass,
-                        `ui.card.meteogram.sun.${e.type}`,
-                        e.type === "sunrise" ? "Sunrise {time}" : "Sunset {time}"
-                    ),
-                    { time: e.at.toLocaleTimeString(locale, timeOptions) }
-                );
-                group.append("text")
-                    .attr("class", "sun-strip-glyph")
+                const glyphLabel = fill(eventLabel[e.type], { time: clock(e.at) });
+                const glyph = e.type === "sunrise" ? "\u2600" : "\u263D";
+                // Written with the time, then measured and demoted to the bare glyph if
+                // it does not fit. Measuring beats a pixel threshold guessed from the
+                // English 24-hour form: "5:51 AM" is wider, and a translator cannot be
+                // expected to keep to a width nobody told them about.
+                let withTime = true;
+                const text = group.append("text")
+                    .attr("class", "sun-strip-glyph sun-strip-glyph-timed")
                     .attr("x", gx)
                     .attr("y", y - 2)
                     .attr("text-anchor", "middle")
-                    .text(e.type === "sunrise" ? "\u2600" : "\u263D")
-                    .append("title")
-                    .text(glyphLabel);
-                // Added after the segment targets, so a tap near an event reports the
+                    .text(`${glyph} ${clock(e.at)}`);
+                // Labels are centred on their event, so two neighbours each reach half
+                // their width toward each other: they clear when the gap covers one
+                // whole label plus a margin.
+                if ((text.node() as SVGTextElement).getComputedTextLength() + LABEL_GAP > room) {
+                    withTime = false;
+                    text.attr("class", "sun-strip-glyph").text(glyph);
+                }
+                text.append("title").text(glyphLabel);
+
+                // An event near either end would otherwise have half its label outside
+                // the plot. Nudged inward instead: the run boundary underneath still
+                // marks the exact moment, so the label may drift from it slightly
+                // without misleading anyone.
+                let half = 0;
+                if (withTime) {
+                    half = (text.node() as SVGTextElement).getComputedTextLength() / 2;
+                    const clamped = Math.max(margin.left + half,
+                                             Math.min(gx, margin.left + chartWidth - half));
+                    if (clamped !== gx) text.attr("x", clamped);
+                }
+
+                // Added after the run targets, so a tap near an event reports the
                 // event's own time rather than the run it happens to fall inside.
+                const hitHalf = Math.max(14, half);
                 group.append("rect")
                     .attr("class", "sun-strip-hit")
-                    .attr("x", gx - 14)
+                    .attr("x", gx - hitHalf)
                     .attr("y", y - TAP_ABOVE)
-                    .attr("width", 28)
+                    .attr("width", hitHalf * 2)
                     .attr("height", stripHeight + TAP_ABOVE + TAP_BELOW)
                     .on("click", (event: any) => {
                         event.stopPropagation();

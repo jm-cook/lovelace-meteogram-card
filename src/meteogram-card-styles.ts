@@ -221,6 +221,13 @@ export const meteogramCardStyles = css`
         fill: var(--meteogram-timescale-color, currentColor);
         opacity: 0.85;
     }
+    /* With the time printed alongside, the pair reads as an axis label rather than a
+       symbol, so it drops to the same size as the other labels instead of the 1.15x
+       the bare glyph uses to stay legible on its own. */
+    .sun-strip-glyph-timed {
+        font-size: var(--meteogram-label-font-size, 0.875rem);
+        font-variant-numeric: tabular-nums;
+    }
     /* Midnight, marked inside the strip now that the day-boundary ticks no longer
        overshoot into this space. One neutral translucent colour rather than a light or
        a dark one: the tick crosses both the amber daylight and the blue-grey night, and
