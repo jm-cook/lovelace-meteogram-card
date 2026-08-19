@@ -3516,8 +3516,27 @@ export class MeteogramCard extends LitElement {
  * reload is exactly what destroys the transient behaviour worth logging. This flips it
  * on the live cards, so the next redraw is logged with the reason that caused it.
  */
-(window as any).meteogramDebug = (on: boolean = true): string => {
+const meteogramDebug = (on: boolean = true): string => {
   const cards = (MeteogramCard as any)._live as Set<MeteogramCard>;
   cards.forEach((card) => { card.debug = on; });
   return `meteogram-card: debug ${on ? "on" : "off"} for ${cards.size} card(s) on this page`;
 };
+
+/**
+ * meteogramDebug.dump() prints the state of each card: entity, coordinates, which API
+ * is in use, and the current config.
+ *
+ * debugMeteogram() has always existed for this, but a card sits deep inside Home
+ * Assistant's shadow DOM and cannot be reached from the console by querySelector, so
+ * there was no way to call it.
+ */
+meteogramDebug.dump = (): void => {
+  const cards = (MeteogramCard as any)._live as Set<MeteogramCard>;
+  if (!cards.size) {
+    console.log("meteogram-card: no cards on this page");
+    return;
+  }
+  cards.forEach((card) => card.debugMeteogram());
+};
+
+(window as any).meteogramDebug = meteogramDebug;

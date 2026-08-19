@@ -767,7 +767,6 @@ export class MeteogramChart {
         // Create a gradient that transitions from blue (cold/below freezing) to red (warm/above freezing)
         // Use userSpaceOnUse so we can position gradient stops at exact Y coordinates
         const gradientId = `temp-gradient-${Math.random().toString(36).substr(2, 9)}`;
-        this.card._debugLog(`🎨 Creating temperature gradient with ID: ${gradientId}`);
         
         const defs = chart.append("defs");
         
@@ -778,8 +777,6 @@ export class MeteogramChart {
         const minTempY = yTemp(minTemp); // Bottom of temperature range
         const maxTempY = yTemp(maxTemp); // Top of temperature range
         
-        this.card._debugLog(`🎨 Temperature domain: [${minTemp.toFixed(1)}°, ${maxTemp.toFixed(1)}°]`);
-        this.card._debugLog(`🎨 Temperature Y positions: max temp ${maxTemp.toFixed(1)}° at Y=${maxTempY.toFixed(1)}px, min temp ${minTemp.toFixed(1)}° at Y=${minTempY.toFixed(1)}px`);
         
         const gradient = defs.append("linearGradient")
             .attr("id", gradientId)
@@ -794,7 +791,6 @@ export class MeteogramChart {
         const freezingYPos = yTemp(freezingPoint);
         const gradientRange = minTempY - maxTempY; // Total Y distance of gradient
         
-        this.card._debugLog(`🎨 Freezing point (0°C) Y position: ${freezingYPos.toFixed(1)}px, gradient range: ${gradientRange.toFixed(1)}px`);
 
         // Helper function to calculate offset percentage within the gradient
         const calcOffset = (yPos: number): number => {
@@ -806,7 +802,6 @@ export class MeteogramChart {
         
         // If freezing point is below the visible range (all temps above freezing)
         if (minTemp > freezingPoint) {
-            this.card._debugLog(`🎨 All temperatures above freezing (min: ${minTemp.toFixed(1)}°C) - using warm colors only`);
             // Warm colors: orange at coolest (still above 0°C) to deep red at warmest
             gradientStops.push({temp: maxTemp, offset: 0, color: maxTemp >= 20 ? "#cc0000" : "#ff3300"});
             gradient.append("stop")
@@ -830,7 +825,6 @@ export class MeteogramChart {
         }
         // If freezing point is above the visible range (all temps below freezing)
         else if (maxTemp < freezingPoint) {
-            this.card._debugLog(`🎨 All temperatures below freezing (max: ${maxTemp.toFixed(1)}°C) - using cold colors only`);
             // Cold colors: light blue at warmest (still below 0°C) to deep blue at coldest
             gradientStops.push({temp: maxTemp, offset: 0, color: "#66b3ff"});
             gradient.append("stop")
@@ -854,7 +848,6 @@ export class MeteogramChart {
         }
         // Freezing point is within the visible range - transition AT 0°C
         else {
-            this.card._debugLog(`🎨 Freezing point within range - transition at 0°C (Y=${freezingYPos.toFixed(1)}px)`);
             
             const freezingOffset = calcOffset(freezingYPos);
             
@@ -873,7 +866,6 @@ export class MeteogramChart {
                 gradient.append("stop")
                     .attr("offset", `${offset20.toFixed(1)}%`)
                     .attr("stop-color", "#cc0000");
-                this.card._debugLog(`🎨 Deep red transition at 20°C (${offset20.toFixed(1)}%)`);
             }
 
             // Add 10°C orange-red transition if in range
@@ -884,7 +876,6 @@ export class MeteogramChart {
                 gradient.append("stop")
                     .attr("offset", `${offset10.toFixed(1)}%`)
                     .attr("stop-color", "#ff6600");
-                this.card._debugLog(`🎨 Orange-red transition at 10°C (${offset10.toFixed(1)}%)`);
             }
 
             // At freezing point from above: light orange (warm side of transition)
@@ -892,14 +883,12 @@ export class MeteogramChart {
             gradient.append("stop")
                 .attr("offset", `${freezingOffset.toFixed(1)}%`)
                 .attr("stop-color", "#ff9933");
-            this.card._debugLog(`🎨 Freezing point (warm side) at 0°C: light orange at ${freezingOffset.toFixed(1)}%`);
             
             // At freezing point from below: light blue (cold side of transition)
             gradientStops.push({temp: freezingPoint, offset: freezingOffset, color: "#66b3ff"});
             gradient.append("stop")
                 .attr("offset", `${freezingOffset.toFixed(1)}%`)
                 .attr("stop-color", "#66b3ff");
-            this.card._debugLog(`🎨 Freezing point (cold side) at 0°C: light blue at ${freezingOffset.toFixed(1)}%`);
 
             // Add -5°C deep blue transition if in range
             if (minTemp < -5 && maxTemp > -5 && -5 < freezingPoint) {
@@ -909,7 +898,6 @@ export class MeteogramChart {
                 gradient.append("stop")
                     .attr("offset", `${offsetMinus5.toFixed(1)}%`)
                     .attr("stop-color", "#0066cc");
-                this.card._debugLog(`🎨 Deep blue transition at -5°C (${offsetMinus5.toFixed(1)}%)`);
             }
 
             // Coldest temperature - check if <= -5°C for very deep blue
@@ -920,7 +908,9 @@ export class MeteogramChart {
                 .attr("stop-color", coldestColor);
         }
 
-        this.card._debugLog(`🎨 Gradient stops created (${gradientStops.length} stops):`, gradientStops);
+        this.card._debugLog(
+            `[gradient] ${gradientId}: ${minTemp.toFixed(1)}..${maxTemp.toFixed(1)}\u00B0C, `
+            + `${gradientStops.length} stops`, gradientStops);
 
         const line = d3.line<number | null>()
             .defined((d: number | null) => d !== null)
@@ -928,7 +918,6 @@ export class MeteogramChart {
             .y((_: number | null, i: number) => temperature[i] !== null ? yTemp(temperature[i]) : 0)
             .curve(d3.curveMonotoneX);
 
-        this.card._debugLog(`🎨 Applying gradient to temperature line with stroke: url(#${gradientId})`);
         
         // Check if user has set a custom color that would override the gradient
         const tempLineColorVar = getComputedStyle(this.card).getPropertyValue('--meteogram-temp-line-color');
@@ -937,7 +926,6 @@ export class MeteogramChart {
         if (hasCustomColor) {
             this.card._debugLog(`⚠️ CSS variable --meteogram-temp-line-color is set to "${tempLineColorVar.trim()}" - using custom color instead of gradient`);
         } else {
-            this.card._debugLog(`✅ No custom --meteogram-temp-line-color set, using gradient`);
         }
         
         const tempPath = chart.append("path")
@@ -957,9 +945,7 @@ export class MeteogramChart {
         if (gradientElement.empty()) {
             this.card._debugLog(`⚠️ WARNING: Gradient element #${gradientId} not found in DOM!`);
         } else {
-            this.card._debugLog(`✅ Gradient element #${gradientId} successfully added to DOM`);
             const stops = gradientElement.selectAll('stop');
-            this.card._debugLog(`✅ Gradient has ${stops.size()} stops`);
         }
 
             // Always draw axis label (if not in focussed mode)
