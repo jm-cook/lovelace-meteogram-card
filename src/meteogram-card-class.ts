@@ -1297,48 +1297,20 @@ export class MeteogramCard extends LitElement {
       }
     }
 
-    // If we still don't have location, try to load from localStorage default-location
+    // No coordinates from the config and none from Home Assistant. Previously this
+    // fell back to a cached value from localStorage and then to hardcoded London
+    // coordinates, which drew a plausible-looking forecast for the wrong continent
+    // with nothing on screen to say so. The sun strip made that worse: sunrise and
+    // sunset are computed from these coordinates, so the whole card was quietly wrong.
+    // Say so instead.
     if (this.latitude === undefined || this.longitude === undefined) {
-      const cachedLocation = this._loadDefaultLocationFromStorage();
-      if (cachedLocation) {
-        this.latitude = cachedLocation.latitude;
-        this.longitude = cachedLocation.longitude;
-        if (
-          !this._weatherApiInstance ||
-          this._weatherApiInstance.lat !== this.latitude ||
-          this._weatherApiInstance.lon !== this.longitude ||
-          this._weatherApiInstance.altitude !== this.altitude
-        ) {
-          this._weatherApiInstance = new WeatherAPI(
-            this.latitude,
-            this.longitude,
-            this.altitude,
-            this.debug
-          );
-        }
-        this._debugLog(
-          `[${CARD_NAME}] Using cached default-location: ${this.latitude}, ${this.longitude}`
-        );
-      } else {
-        this.latitude = 51.5074;
-        this.longitude = -0.1278;
-        if (
-          !this._weatherApiInstance ||
-          this._weatherApiInstance.lat !== this.latitude ||
-          this._weatherApiInstance.lon !== this.longitude ||
-          this._weatherApiInstance.altitude !== this.altitude
-        ) {
-          this._weatherApiInstance = new WeatherAPI(
-            this.latitude,
-            this.longitude,
-            this.altitude,
-            this.debug
-          );
-        }
-        this._debugLog(
-          `[${CARD_NAME}] Using default location: ${this.latitude}, ${this.longitude}`
-        );
-      }
+      this.meteogramError = trnslt(
+        this.hass,
+        "ui.card.meteogram.no_location",
+        "No location. Set latitude and longitude on the card, or set Home Assistant's "
+          + "location in Settings."
+      );
+      this._weatherApiInstance = null;
     }
   }
 

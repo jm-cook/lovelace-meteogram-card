@@ -68,5 +68,6 @@
   "ui.editor.meteogram.display_core": "Core",
   "ui.editor.meteogram.display_focussed": "Focussed",
   "ui.editor.meteogram.hours_72": "72 hours",
-  "ui.editor.meteogram.hours_120": "120 hours"
+  "ui.editor.meteogram.hours_120": "120 hours",
+  "ui.card.meteogram.no_location": "No location. Set latitude and longitude on the card, or set Home Assistant's location in Settings."
 }
