@@ -1178,56 +1178,8 @@ export class MeteogramCard extends LitElement {
   }
 
   // Save HA location to localStorage under "meteogram-card-default-location"
-  private _saveDefaultLocationToStorage(latitude: number, longitude: number) {
-    try {
-      const locationObj = {
-        latitude: parseFloat(latitude.toFixed(4)),
-        longitude: parseFloat(longitude.toFixed(4)),
-      };
-      localStorage.setItem(
-        "meteogram-card-default-location",
-        JSON.stringify(locationObj)
-      );
-    } catch (e) {
-      this._debugLog(
-        `[${CARD_NAME}] Failed to save default location to localStorage:`,
-        e
-      );
-    }
-  }
 
   // Load location from localStorage under "meteogram-card-default-location"
-  private _loadDefaultLocationFromStorage(): {
-    latitude: number;
-    longitude: number;
-  } | null {
-    try {
-      const locationStr = localStorage.getItem(
-        "meteogram-card-default-location"
-      );
-      if (locationStr) {
-        try {
-          const locationObj = JSON.parse(locationStr);
-          const latitude = parseFloat(Number(locationObj.latitude).toFixed(4));
-          const longitude = parseFloat(
-            Number(locationObj.longitude).toFixed(4)
-          );
-          if (!isNaN(latitude) && !isNaN(longitude)) {
-            return { latitude, longitude };
-          }
-        } catch {
-          // Ignore parse errors
-        }
-      }
-      return null;
-    } catch (e) {
-      this._debugLog(
-        `[${CARD_NAME}] Failed to load default location from localStorage:`,
-        e
-      );
-      return null;
-    }
-  }
 
   // Check if we need to get location from HA
   private _checkAndUpdateLocation() {
@@ -1265,15 +1217,6 @@ export class MeteogramCard extends LitElement {
         // Truncate to 4 decimals before using
         const haLat = parseFloat(Number(hassConfig.latitude).toFixed(4));
         const haLon = parseFloat(Number(hassConfig.longitude).toFixed(4));
-        // Only update default-location if it is different from cached value
-        const cachedDefault = this._loadDefaultLocationFromStorage();
-        if (
-          !cachedDefault ||
-          cachedDefault.latitude !== haLat ||
-          cachedDefault.longitude !== haLon
-        ) {
-          this._saveDefaultLocationToStorage(haLat, haLon);
-        }
         this.latitude = haLat;
         this.longitude = haLon;
         // Initialize WeatherAPI instance if not already set or if lat/lon changed
