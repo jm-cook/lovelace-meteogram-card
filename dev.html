@@ -34,7 +34,16 @@
     <label>rain <input type="range" id="rainAmp" min="0" max="10" value="3"></label>
     <label>wind <input type="range" id="windAmp" min="0" max="10" value="3"></label>
     <label>pressure <input type="range" id="presAmp" min="0" max="10" value="3"></label>
-    <label><input type="checkbox" id="animate" checked> Animate temperature line</label>
+    <label>span
+        <select id="span">
+            <option value="8h">8h</option>
+            <option value="24h">24h</option>
+            <option value="48h" selected>48h</option>
+            <option value="120h">120h</option>
+            <option value="max">max (~240h)</option>
+        </select>
+    </label>
+    <label><input type="checkbox" id="animate" checked> Animate</label>
     <button id="step">Step now</button>
     <button id="reset" class="off">Reset to fixture</button>
 </div>
@@ -141,15 +150,23 @@
     card.hass = { language: "en", locale: { language: "en", time_format: "24" }, config: {} };
     card.setConfig({
         latitude: 58.4314, longitude: 8.8255, title: "Changing data",
-        display_mode: "full", meteogram_hours: "48h",
+        display_mode: "full", meteogram_hours: $("span").value,
         show_wind: true, show_sun: true, show_pressure: true,
         show_precipitation: true, show_cloud_cover: true, show_weather_icons: true,
         animate: $("animate").checked,
     });
-    // Toggling is the point of the spike: the same step, animated and not, back to back.
-    $("animate").addEventListener("change", () => {
-        card.setConfig({ ...(card._config ?? {}), animate: $("animate").checked });
-    });
+    // Toggling is the point: the same step, animated and not, back to back.
+    const reconfigure = () => {
+        card.setConfig({
+            ...(card._config ?? {}),
+            animate: $("animate").checked,
+            meteogram_hours: $("span").value,
+        });
+        card._weatherApiInstance = null;
+        card._scheduleDrawMeteogram("dev-harness-config", true);
+    };
+    $("animate").addEventListener("change", reconfigure);
+    $("span").addEventListener("change", reconfigure);
 
     let steps = 0;
     function step() {
@@ -171,6 +188,8 @@
             `first hour:  ${t.air_temperature.toFixed(1)}°C   ` +
             `${t.air_pressure_at_sea_level.toFixed(1)} hPa   ` +
             `wind ${t.wind_speed.toFixed(1)}   cloud ${t.cloud_area_fraction.toFixed(0)}%\n` +
+            `span ${$("span").value}   points on screen ${
+                card._lastWeatherData?.time?.length ?? "?"}\n` +
             `window:      ${current.properties.timeseries[0].time.slice(5, 16)} .. ` +
             `${current.properties.timeseries.at(-1).time.slice(5, 16)}\n` +
             `rain (1h):   ${current.properties.timeseries
