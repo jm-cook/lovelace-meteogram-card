@@ -264,9 +264,14 @@ export class MeteogramCard extends LitElement {
   }
 
   // Add these properties for throttling
-  private _redrawScheduled = false;
-  private _lastDrawScheduleTime = 0;
-  private _drawThrottleMs = 200;
+  /** Pending coalesced redraw, if any. */
+  private _drawTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When the oldest un-served redraw request arrived, for the maxWait bound. */
+  private _drawWantedSince = 0;
+  /** Quiet period a burst must settle for before drawing. */
+  private _drawCoalesceMs = 60;
+  /** Longest a redraw may be postponed by a continuing trickle of requests. */
+  private _drawMaxWaitMs = 400;
   private _lastWeatherData: any = null;
 
   // Store the current units for each parameter
@@ -381,6 +386,26 @@ export class MeteogramCard extends LitElement {
   }
 
   // Helper to schedule a meteogram draw if not already scheduled
+  /**
+   * Ask for a redraw. Requests within a short window collapse into one.
+   *
+   * This used to throttle by *dropping* requests: if one arrived while another was
+   * pending, or within 200ms of the last, it returned without drawing and without
+   * recording that anything was still wanted. Two consequences, and the second is the
+   * serious one:
+   *
+   *   - leaving the editor fires connectedCallback, a resize, a visibility change and
+   *     an update in close succession, each far enough apart to survive the throttle,
+   *     so the chart was drawn several times over;
+   *   - updated() assigns _renderSignature *before* scheduling, so a dropped request
+   *     left the signature saying the chart was current when it had never been drawn.
+   *     Nothing would redraw it until an unrelated change came along. The card simply
+   *     kept showing the old chart.
+   *
+   * Coalescing instead of dropping fixes both: the timer is reset by each new request
+   * so a burst produces exactly one draw, and no request is ever discarded. maxWait
+   * bounds the delay so a steady trickle cannot postpone the draw indefinitely.
+   */
   private _scheduleDrawMeteogram(
     source: string = "unknown",
     force: boolean = false
@@ -392,25 +417,19 @@ export class MeteogramCard extends LitElement {
       `[${CARD_NAME}] _scheduleDrawMeteogram called from: ${callerId}`
     );
 
-    // Only skip if not forced
-    if (
-      !force &&
-      (this._redrawScheduled ||
-        now - this._lastDrawScheduleTime < this._drawThrottleMs)
-    ) {
-      this._debugLog(
-        `[${CARD_NAME}] _scheduleDrawMeteogram: redraw already scheduled or throttled, skipping.`
-      );
-      return;
-    }
-    this._redrawScheduled = true;
-    this._lastDrawScheduleTime = now;
+    if (!this._drawWantedSince) this._drawWantedSince = now;
+    if (this._drawTimer !== null) clearTimeout(this._drawTimer);
 
-    setTimeout(() => {
-      this._redrawScheduled = false;
-      this._lastDrawScheduleTime = Date.now();
+    const waited = now - this._drawWantedSince;
+    const delay = force
+      ? 0
+      : Math.max(0, Math.min(this._drawCoalesceMs, this._drawMaxWaitMs - waited));
+
+    this._drawTimer = setTimeout(() => {
+      this._drawTimer = null;
+      this._drawWantedSince = 0;
       this._drawMeteogram(callerId);
-    }, 50);
+    }, delay);
   }
 
   // Status panel properties
@@ -1150,12 +1169,6 @@ export class MeteogramCard extends LitElement {
 
     if (this.chartLoaded && needsRedraw) {
       // Guard: If chart is already rendered and visible, skip scheduling
-      const chartDiv = this.shadowRoot?.querySelector("#chart");
-      const svgExists = chartDiv?.querySelector("svg");
-      const chartIsVisible =
-        chartDiv &&
-        (chartDiv as HTMLElement).offsetWidth > 0 &&
-        (chartDiv as HTMLElement).offsetHeight > 0;
       this._scheduleDrawMeteogram("updated");
     }
 
