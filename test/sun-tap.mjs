@@ -204,6 +204,29 @@ async function main() {
   check("times are printed inline at 48h",
         at48.marks.length > 0 && at48.marks.every((m) => m.timed && /\d{1,2}[:.]\d{2}/.test(m.text)),
         JSON.stringify(at48.marks.map((m) => m.text)));
+  // The two mdi icons differ only by a small arrow, so colour is what actually tells
+  // them apart at this size. If both ever resolve to the same fill, the distinction is
+  // gone and nothing else in the test would notice.
+  const kinds = await page.evaluate(() => {
+    const root = document.querySelector("meteogram-card").shadowRoot;
+    return [...root.querySelectorAll(".sun-strip-glyph")].map((g) => {
+      const icon = g.querySelector("path") ?? g.querySelector("foreignObject");
+      return {
+        kind: g.classList.contains("sun-strip-rise") ? "rise"
+            : g.classList.contains("sun-strip-set") ? "set" : "untyped",
+        fill: icon ? getComputedStyle(icon).fill : null,
+      };
+    });
+  });
+  check("every mark is typed rise or set",
+        kinds.length > 0 && kinds.every((k) => k.kind !== "untyped"),
+        kinds.map((k) => k.kind).join(" "));
+  const riseFill = kinds.find((k) => k.kind === "rise")?.fill;
+  const setFill = kinds.find((k) => k.kind === "set")?.fill;
+  check("sunrise and sunset are different colours",
+        !!riseFill && !!setFill && riseFill !== setFill,
+        `rise ${riseFill} vs set ${setFill}`);
+
   check("marks use the mdi sunset icons",
         at48.marks.every((m) => m.icon === "path-fallback"
                              || /^mdi:weather-sunset-(up|down)$/.test(m.icon)),

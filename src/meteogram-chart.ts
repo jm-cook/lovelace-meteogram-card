@@ -360,7 +360,12 @@ export class MeteogramChart {
 
                 // Icon and time are laid out inside one group, so the pair can be
                 // measured and centred as a unit.
-                const mark = group.append("g").attr("class", "sun-strip-glyph");
+                // Typed on the group so the stylesheet can colour rise and set apart:
+                // the two mdi icons differ only by the direction of a small arrow,
+                // which is not readable at this size.
+                const mark = group.append("g")
+                    .attr("class", "sun-strip-glyph "
+                        + (e.type === "sunrise" ? "sun-strip-rise" : "sun-strip-set"));
                 mark.append("title").text(glyphLabel);
                 if (haIcons) {
                     mark.append("foreignObject")

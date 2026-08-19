@@ -214,17 +214,40 @@ export const meteogramCardStyles = css`
         fill: var(--meteogram-sun-night-color, #4a5b8c);
         opacity: 0.85;
     }
-    /* The sunrise/sunset mark: an mdi icon, optionally followed by the time. Both the
-       path fallback and the ha-icon inside the foreignObject take their colour from
-       here, so the pair matches the timescale whichever route drew it. */
+    /* The sunrise/sunset mark: an mdi icon, optionally followed by the time.
+       weather-sunset-up and weather-sunset-down differ only by the direction of a small
+       arrow, which does not read at 16px, so colour carries the distinction and the
+       arrow confirms it. Each takes the hue of the band it leads into — amber into
+       daylight, blue-grey into night — but a step deeper than the band itself, since
+       the strip's fills are tuned to sit behind a tick and these sit on the card. */
     .sun-strip-glyph {
-        fill: var(--meteogram-timescale-color, currentColor);
-        color: var(--meteogram-timescale-color, currentColor);
-        opacity: 0.85;
+        opacity: 0.9;
+    }
+    .sun-strip-rise path,
+    .sun-strip-rise foreignObject {
+        fill: var(--meteogram-sunrise-color, #d98e04);
+        color: var(--meteogram-sunrise-color, #d98e04);
+    }
+    .sun-strip-set path,
+    .sun-strip-set foreignObject {
+        fill: var(--meteogram-sunset-color, #4a5b8c);
+        color: var(--meteogram-sunset-color, #4a5b8c);
+    }
+    /* On a dark card both need lifting off the ground rather than inverting. */
+    :host([dark]) .sun-strip-rise path,
+    :host([dark]) .sun-strip-rise foreignObject {
+        fill: var(--meteogram-sunrise-color, #f6c445);
+        color: var(--meteogram-sunrise-color, #f6c445);
+    }
+    :host([dark]) .sun-strip-set path,
+    :host([dark]) .sun-strip-set foreignObject {
+        fill: var(--meteogram-sunset-color, #93a4d8);
+        color: var(--meteogram-sunset-color, #93a4d8);
     }
     /* The time beside the icon reads as an axis label, so it takes the same size as
        the card's other labels. */
     .sun-strip-glyph-timed {
+        fill: var(--meteogram-timescale-color, currentColor);
         font-size: var(--meteogram-label-font-size, 0.875rem);
         /* The times sit in a row and change by the minute; lining figures stop the
            column jittering as the digits change width. */
