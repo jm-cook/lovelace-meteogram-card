@@ -282,6 +282,10 @@ export class MeteogramCard extends LitElement {
    */
   private _firstDrawSettleMs = 180;
   private _hasDrawnOnce = false;
+  /** Config signature and size the chart currently on screen was drawn from. */
+  private _lastDrawnKey = "";
+  /** Set when a redraw was requested with force, consumed by the next draw. */
+  private _forceNextDraw = false;
   private _lastWeatherData: any = null;
 
   // Store the current units for each parameter
@@ -427,6 +431,7 @@ export class MeteogramCard extends LitElement {
       `[${CARD_NAME}] _scheduleDrawMeteogram called from: ${callerId}`
     );
 
+    if (force) this._forceNextDraw = true;
     if (!this._drawWantedSince) this._drawWantedSince = now;
     if (this._drawTimer !== null) clearTimeout(this._drawTimer);
 
@@ -1190,9 +1195,6 @@ export class MeteogramCard extends LitElement {
     const needsRedraw = configChanged;
 
     if (!needsRedraw) {
-      this._debugLog(
-        `[${CARD_NAME}] updated(): no redraw needed or chart render in progress, skipping.`
-      );
       return;
     } else {
       this._debugLog(
@@ -1789,6 +1791,25 @@ export class MeteogramCard extends LitElement {
     //
     // Returning early leaves the good chart on screen. The resize observer calls back
     // once the container has a real size.
+    // Nothing has changed since the last draw: same config, same size, chart still on
+    // screen. Entering and leaving the editor fires connectedCallback, a visibility
+    // change and a resize, each far enough apart to survive coalescing, and each drew
+    // an identical chart. A forced redraw — the scheduled refresh after the forecast
+    // expires — always goes through, so new data is never skipped.
+    const drawKey = `${this._renderSignature}|${availableWidth}x${availableHeight}`;
+    if (
+      !this._forceNextDraw &&
+      drawKey === this._lastDrawnKey &&
+      chartDiv.querySelector("svg")
+    ) {
+      this._debugLog(
+        `[${CARD_NAME}] _renderChart: nothing changed since the last draw, skipping.`
+      );
+      this._chartRenderInProgress = false;
+      return;
+    }
+    this._forceNextDraw = false;
+
     const MIN_DRAWABLE_WIDTH = 120;
     const MIN_DRAWABLE_HEIGHT = 40;
     if (availableWidth < MIN_DRAWABLE_WIDTH || availableHeight < MIN_DRAWABLE_HEIGHT) {
@@ -1872,6 +1893,7 @@ export class MeteogramCard extends LitElement {
         // --- Track last rendered chart size for final resize logic ---
         this._lastRenderedWidth = availableWidth;
         this._lastRenderedHeight = availableHeight;
+        this._lastDrawnKey = drawKey;
 
         // Replace the old chart here, one statement before the new one exists, so the
         // card is never left empty across an await.
