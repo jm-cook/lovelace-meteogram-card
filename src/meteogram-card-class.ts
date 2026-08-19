@@ -235,7 +235,8 @@ export class MeteogramCard extends LitElement {
       longitude: this.longitude,
       diagnostics: this.diagnostics,
       usingEntity: !!this.entityId && this.entityId !== "none",
-      usingDirectAPI: !!(this.latitude && this.longitude),
+      usingDirectAPI: MeteogramCard._hasCoord(this.latitude)
+        && MeteogramCard._hasCoord(this.longitude),
     });
 
     if (this._weatherEntityApiInstance) {
@@ -559,6 +560,18 @@ export class MeteogramCard extends LitElement {
         }
       } // else remains null
     }
+  }
+
+  /**
+   * Whether a coordinate is actually set.
+   *
+   * Not a truthiness test: 0 is a real latitude and a real longitude, and the equator
+   * and the prime meridian both run through inhabited places. Testing `!lat` rejected
+   * every location on either line — 0,0 most visibly — and reported it as "location
+   * not available".
+   */
+  private static _hasCoord(v: unknown): v is number {
+    return typeof v === "number" && Number.isFinite(v);
   }
 
   // The visual editor: ha-form driven by the schema in config-form.ts. Not the static
@@ -1363,7 +1376,7 @@ export class MeteogramCard extends LitElement {
     );
 
     // Enhanced location check with better error message
-    if (!lat || !lon) {
+    if (!MeteogramCard._hasCoord(lat) || !MeteogramCard._hasCoord(lon)) {
       this._checkAndUpdateLocation(); // Try harder to get location
 
       const checkedLat =
@@ -1375,7 +1388,7 @@ export class MeteogramCard extends LitElement {
           ? parseFloat(Number(this.longitude).toFixed(4))
           : undefined;
 
-      if (!checkedLat || !checkedLon) {
+      if (!MeteogramCard._hasCoord(checkedLat) || !MeteogramCard._hasCoord(checkedLon)) {
         throw new Error(
           "Could not determine location. Please check your card configuration or Home Assistant settings."
         );
@@ -1640,7 +1653,8 @@ export class MeteogramCard extends LitElement {
     // Make sure we have a location before proceeding
     this._checkAndUpdateLocation();
 
-    if (!this.latitude || !this.longitude) {
+    if (!MeteogramCard._hasCoord(this.latitude)
+        || !MeteogramCard._hasCoord(this.longitude)) {
       this.setError(
         "Location not available. Please check your card configuration or Home Assistant settings."
       );
