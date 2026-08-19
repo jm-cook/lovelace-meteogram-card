@@ -167,6 +167,12 @@ export function meteogramConfigForm() {
             {
                 type: "expandable",
                 name: "layers",
+                // flatten, or every field inside lands under config.layers — which the
+                // card never reads. That produced exactly the symptoms of a dead
+                // editor: toggles showing off because the top-level key was absent,
+                // clicking them changing nothing because the value went into a nested
+                // object, and a stray "layers:" appearing in the YAML.
+                flatten: true,
                 schema: [
                     { name: "show_cloud_cover", selector: { boolean: {} } },
                     { name: "show_pressure", selector: { boolean: {} } },
@@ -180,6 +186,7 @@ export function meteogramConfigForm() {
             {
                 type: "expandable",
                 name: "advanced",
+                flatten: true,
                 schema: [
                     {
                         name: "layout_mode",

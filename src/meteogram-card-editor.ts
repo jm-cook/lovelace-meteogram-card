@@ -89,6 +89,11 @@ export class MeteogramCardEditor extends LitElement {
         for (const key of Object.keys(next)) {
             if (next[key] === undefined || next[key] === "") delete next[key];
         }
+        // Clear out the nested blobs written before the sections were flattened, so a
+        // config edited by the broken build tidies itself on the next change instead of
+        // carrying dead keys the card never reads.
+        delete next.layers;
+        delete next.advanced;
         this.dispatchEvent(new CustomEvent("config-changed", {
             detail: { config: next },
             bubbles: true,
