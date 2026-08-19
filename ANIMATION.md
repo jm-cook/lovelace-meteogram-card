@@ -63,6 +63,10 @@ an animated update from a rebuild.
 - Entering elements append at the end, so document order drifts from data order. Call
   `.order()` on the merged selection, and `.raise()` a set that must paint over another
   sharing its layer.
+- Key a join by the forecast **timestamp**, never the array index. The window slides —
+  an hour later the earliest slot is gone and every remaining hour has shifted down one
+  index — so an index key silently reuses the 14:00 bar as the 15:00 bar. It looks
+  correct against fixed test data and is wrong against real data.
 - Check element identity by data key, not by document position: filtered data means the
   nth element is a different datum once an earlier one exits.
 

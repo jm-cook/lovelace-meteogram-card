@@ -47,12 +47,13 @@ console.log("  after 10+reset :", JSON.stringify(b),
 await page.click("#step"); await page.waitForTimeout(900);
 const identity = await page.evaluate(async () => {
   const r = document.querySelector("meteogram-card").shadowRoot;
-  // By key, not by position: the data is filtered to hours with rain, so when an
-  // earlier bar vanishes the bar at a given position is a different hour entirely.
+  // By forecast hour, not by position and not by index. The data is filtered to hours
+  // with rain, so position is not identity; and the window slides, so the index of a
+  // given hour changes between draws. Only the timestamp identifies the same slot.
   const byKey = (k) => [...r.querySelectorAll(".rain-max-bar")]
-      .find((n) => n.__data__?.index === k);
+      .find((n) => n.__data__?.t === k);
   const sample = [...r.querySelectorAll(".rain-max-bar")][3];
-  const key = sample?.__data__?.index;
+  const key = sample?.__data__?.t;
   const before = sample?.getAttribute("height");
   document.getElementById("step").click();
   await new Promise(x => setTimeout(x, 1200));
@@ -60,7 +61,7 @@ const identity = await page.evaluate(async () => {
   return { key, same: now === sample, present: !!now,
            before, after: sample?.getAttribute("height") };
 });
-console.log(`  bar for hour ${identity.key}: same element after redraw:`, identity.same,
+console.log(`  bar for ${new Date(identity.key).toISOString().slice(11,16)}: same element after redraw:`, identity.same,
             `  height ${Number(identity.before).toFixed(1)} -> ${Number(identity.after).toFixed(1)}`);
 const frames = await page.evaluate(async () => {
   const r = document.querySelector("meteogram-card").shadowRoot;
@@ -75,10 +76,34 @@ const frames = await page.evaluate(async () => {
   return seen.size;
 });
 console.log("  distinct heights during one step:", frames);
+// A forecast window slides: an hour later the earliest slot is gone and every
+// remaining hour has shifted down one index. The element for a given hour must follow
+// the hour, not the slot — keyed by index it would silently be reused for its
+// neighbour, and the chart would morph in place instead of moving.
+const slide = await page.evaluate(async () => {
+  const root = document.querySelector("meteogram-card").shadowRoot;
+  const bars = () => [...root.querySelectorAll(".rain-max-bar")];
+  const sample = bars()[3];
+  const hour = sample?.__data__?.t;
+  const idxBefore = sample?.__data__?.index;
+  document.getElementById("step").click();
+  await new Promise(x => setTimeout(x, 1400));
+  const now = bars().find((n) => n === sample);
+  return {
+    kept: !!now,
+    hourUnchanged: now?.__data__?.t === hour,
+    idxBefore,
+    idxAfter: now?.__data__?.index,
+  };
+});
+console.log(`  across a window slide: same node kept ${slide.kept}, `
+  + `hour unchanged ${slide.hourUnchanged}, index ${slide.idxBefore} -> ${slide.idxAfter}`);
+
 console.log("  page errors:", errors.length ? errors.join("; ") : "none");
 await browser.close(); server.close();
 
 const ok = JSON.stringify(a) === JSON.stringify(b)
-    && identity.same && identity.present && frames > 5 && errors.length === 0;
-console.log(ok ? "\n4/4 passed" : "\nFAILED");
+    && identity.same && identity.present && frames > 5
+    && slide.kept && slide.hourUnchanged && errors.length === 0;
+console.log(ok ? "\n5/5 passed" : "\nFAILED");
 process.exit(ok ? 0 : 1);

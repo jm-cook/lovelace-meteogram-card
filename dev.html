@@ -63,7 +63,27 @@
             wind: +$("windAmp").value, pres: +$("presAmp").value,
         };
         const out = structuredClone(FIXTURE);
-        out.properties.timeseries.forEach((entry, i) => {
+
+        // Slide the window forward one slot per step: drop the earliest entry and grow
+        // a new one at the far end, which is what actually happens as time passes — a
+        // forecast is not the same hours with new numbers, it is a moving window.
+        //
+        // This matters for more than realism. With fixed timestamps the index of a given
+        // hour never changes, so a join keyed by index always matches and looks correct.
+        // Once the window slides, index 3 is a different hour than it was, and only a
+        // key derived from the timestamp still identifies the same forecast slot.
+        const series = out.properties.timeseries;
+        for (let k = 0; k < p; k++) {
+            series.shift();
+            const last = series[series.length - 1];
+            const prev = series[series.length - 2];
+            const stepMs = new Date(last.time) - new Date(prev.time);
+            const grown = structuredClone(last);
+            grown.time = new Date(new Date(last.time).getTime() + stepMs).toISOString().replace(".000", "");
+            series.push(grown);
+        }
+
+        series.forEach((entry, i) => {
             const d = entry.data?.instant?.details;
             if (!d) return;
             const w = (k, f) => Math.sin(p * 0.7 + i * f + k);
@@ -151,6 +171,8 @@
             `first hour:  ${t.air_temperature.toFixed(1)}°C   ` +
             `${t.air_pressure_at_sea_level.toFixed(1)} hPa   ` +
             `wind ${t.wind_speed.toFixed(1)}   cloud ${t.cloud_area_fraction.toFixed(0)}%\n` +
+            `window:      ${current.properties.timeseries[0].time.slice(5, 16)} .. ` +
+            `${current.properties.timeseries.at(-1).time.slice(5, 16)}\n` +
             `rain (1h):   ${current.properties.timeseries
                 .slice(0, 12)
                 .map((e) => (e.data?.next_1_hours?.details?.precipitation_amount ?? 0).toFixed(1))

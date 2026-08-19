@@ -1049,6 +1049,8 @@ export class MeteogramChart {
         rain: (number|null)[],
         rainMax: (number|null)[],
         N: number,
+        /** Forecast times, used as the join key — see joinBars. */
+        time: Date[],
         x: any,
         yPrecip: any,
         dx: number,
@@ -1089,7 +1091,16 @@ export class MeteogramChart {
          * otherwise fail on attribute order alone.
          */
         const joinBars = (cls: string, rows: any[]): any => {
-            const sel = chart.selectAll(`rect.${cls}`).data(rows, (d: any) => d.index);
+            // Keyed by the forecast time, not the array index.
+            //
+            // A forecast is a window that slides: an hour later the earliest slot is
+            // gone and everything has shifted down one index. Keyed by index, the bar
+            // for 14:00 would silently become the bar for 15:00 — the element keeps its
+            // identity while the thing it represents changes underneath it, so values
+            // morph in place instead of the chart moving. Keyed by time, 14:00 stays
+            // 14:00 and slides left, hours that fall off the start exit, and new hours
+            // enter at the far end.
+            const sel = chart.selectAll(`rect.${cls}`).data(rows, (d: any) => d.t);
 
             const leaving = sel.exit();
             if (animate) {
@@ -1128,14 +1139,18 @@ export class MeteogramChart {
         // Only draw rainMax bars if precipitation min/max data is available
         if (this.card._dataAvailability.precipitationMinMax) {
             // Draw the max rain range bars first (only for non-null values)
-            const rainMaxData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+            const rainMaxData = rainMax.slice(0, N - 1)
+                .map((d, i) => ({ value: d, index: i, t: time[i] ? +time[i] : i }))
+                .filter(d => d.value !== null && d.value > 0);
             joinBars("rain-max-bar", rainMaxData);
         } else {
             joinBars("rain-max-bar", []);
         }
 
         // Draw main rain bars (foreground, deeper blue) - filter out null values
-        const rainBarData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
+        const rainBarData = rain.slice(0, N - 1)
+                .map((d, i) => ({ value: d, index: i, t: time[i] ? +time[i] : i }))
+                .filter(d => d.value !== null && d.value > 0);
         
         // Raised over the max bars: the two sets share a layer, and a max bar entering
         // on a later redraw would otherwise be appended after the rain bars and paint

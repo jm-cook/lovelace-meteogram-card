@@ -2713,6 +2713,7 @@ export class MeteogramCard extends LitElement {
           rainConverted,
           rainMaxConverted,
           N,
+          time,
           x,
           yPrecip,
           dx,
@@ -2725,6 +2726,7 @@ export class MeteogramCard extends LitElement {
           rainConverted,
           rainMaxConverted,
           N,
+          time,
           x,
           yPrecip,
           dx
