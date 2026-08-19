@@ -589,6 +589,13 @@ export class MeteogramCard extends LitElement {
    * every location on either line — 0,0 most visibly — and reported it as "location
    * not available".
    */
+  /**
+   * Every card currently in the document, so meteogramDebug() below can find them.
+   * Cards live deep inside Home Assistant's shadow DOM and cannot be reached from the
+   * console by querySelector.
+   */
+  private static _live = new Set<MeteogramCard>();
+
   private static _hasCoord(v: unknown): v is number {
     return typeof v === "number" && Number.isFinite(v);
   }
@@ -635,6 +642,7 @@ export class MeteogramCard extends LitElement {
   // Handle initial setup - now properly setup resize observer
   connectedCallback() {
     super.connectedCallback();
+    MeteogramCard._live.add(this);
     
     // Initialize internal state variables (NOT config properties)
     this.chartLoaded = false;
@@ -685,6 +693,7 @@ export class MeteogramCard extends LitElement {
 
   // Clean up all event listeners
   disconnectedCallback() {
+    MeteogramCard._live.delete(this);
     this._teardownResizeObserver(); // <-- Implemented teardown for resize observer
     this._teardownVisibilityObserver();
     this._teardownMutationObserver();
@@ -3441,3 +3450,19 @@ export class MeteogramCard extends LitElement {
     }
   }
 }
+
+/**
+ * Console hook: turn debug logging on without editing the config.
+ *
+ *   meteogramDebug()        // on for every card on the page
+ *   meteogramDebug(false)   // off again
+ *
+ * `debug: true` in YAML does the same thing, but only from the next reload — and a
+ * reload is exactly what destroys the transient behaviour worth logging. This flips it
+ * on the live cards, so the next redraw is logged with the reason that caused it.
+ */
+(window as any).meteogramDebug = (on: boolean = true): string => {
+  const cards = (MeteogramCard as any)._live as Set<MeteogramCard>;
+  cards.forEach((card) => { card.debug = on; });
+  return `meteogram-card: debug ${on ? "on" : "off"} for ${cards.size} card(s) on this page`;
+};

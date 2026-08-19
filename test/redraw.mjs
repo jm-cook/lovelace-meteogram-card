@@ -113,6 +113,16 @@ async function main() {
   check("a burst of changes draws once", draws === 1, `${draws} draws for 5 changes`);
   const end = await windCount();
   check("the burst lands on the last value", end > 0, `${end} wind elements`);
+  // The console hook exists so a live card can be made to log without a reload — a
+  // reload destroys the transient behaviour worth logging in the first place.
+  const hook = await page.evaluate(() => {
+    const said = window.meteogramDebug?.();
+    const card = document.querySelector("meteogram-card");
+    return { said, on: card.debug === true, off: (window.meteogramDebug?.(false), card.debug) };
+  });
+  check("meteogramDebug() turns debug on", hook.on === true, hook.said);
+  check("meteogramDebug(false) turns it off", hook.off === false);
+
   check("no page errors", errors.length === 0, errors.join("; "));
 
   await browser.close();
