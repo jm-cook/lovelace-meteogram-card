@@ -34,6 +34,7 @@ tractable — a refactor meant to be visually identical can be *proved* so.
       their identity across redraws. Order by value:
       - [x] temperature line (done — spike removed)
       - [x] rain bars — the interesting case, bars appear and vanish (done)
+      - [x] cloud band and pressure line (done — shared persistentPath helper)
       - [ ] wind barbs
       - [ ] weather icons
       - [ ] axes, grid, labels, legends

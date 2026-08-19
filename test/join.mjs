@@ -125,6 +125,32 @@ const temp = await page.evaluate(async () => {
 console.log(`  temperature line: same element ${temp.same}, moved ${temp.moved}, `
   + `${temp.frames} intermediate shapes, ${temp.count} path(s), ${temp.defs} defs`);
 
+// The three single-shape paths all go through persistentPath: same element each draw,
+// exactly one of each in its layer, and an interpolated shape when animating.
+const paths = await page.evaluate(async () => {
+  const r = document.querySelector("meteogram-card").shadowRoot;
+  const classes = ["temp-line", "pressure-line", "cloud-area"];
+  const before = classes.map((c) => r.querySelector(`path.${c}`));
+  const shapes = classes.map(() => new Set());
+  document.getElementById("step").click();
+  for (let i = 0; i < 50; i++) {
+    await new Promise(x => requestAnimationFrame(x));
+    classes.forEach((c, j) => {
+      const d = r.querySelector(`path.${c}`)?.getAttribute("d");
+      if (d) shapes[j].add(d);
+    });
+  }
+  return classes.map((c, j) => ({
+    cls: c,
+    same: r.querySelector(`path.${c}`) === before[j],
+    count: r.querySelectorAll(`path.${c}`).length,
+    frames: shapes[j].size,
+  }));
+});
+paths.forEach((p) => console.log(
+  `  ${p.cls.padEnd(14)} same element ${p.same}, ${p.count} in the chart, ${p.frames} shapes`));
+const pathsOk = paths.every((p) => p.same && p.count === 1 && p.frames > 5);
+
 console.log("  page errors:", errors.length ? errors.join("; ") : "none");
 await browser.close(); server.close();
 
@@ -132,6 +158,7 @@ const ok = JSON.stringify(a) === JSON.stringify(b)
     && identity.same && identity.present && frames > 5
     && slide.kept && slide.hourUnchanged
     && temp.same && temp.moved && temp.frames > 5 && temp.count === 1 && temp.defs === 1
+    && pathsOk
     && errors.length === 0;
-console.log(ok ? "\n6/6 passed" : "\nFAILED");
+console.log(ok ? "\n7/7 passed" : "\nFAILED");
 process.exit(ok ? 0 : 1);

@@ -134,6 +134,44 @@ export class MeteogramChart {
      * It sits between the date labels and the top border, so each day's light and dark
      * hours read directly beneath the day they belong to.
      */
+    /** How long an animated change takes. */
+    private static readonly ANIM_MS = 450;
+
+    /**
+     * A path that survives redraws and interpolates to its new shape.
+     *
+     * The third copy of this was one too many. Each of the temperature line, the
+     * pressure line and the cloud band is a single element whose shape is the whole
+     * content, so all three want exactly this: keep the element, and either move it or
+     * set it outright.
+     *
+     * Interpolation only when the point count matches. d3 interpolates the `d` string,
+     * which is smooth between two paths of the same shape and produces nonsense between
+     * paths of different lengths, so a change of span sets the new shape directly.
+     *
+     * `init` runs only on the first draw, for attributes that never change afterwards.
+     * It runs after `d` is set so the serialised attribute order matches what the
+     * append-only code produced — the snapshot comparison is byte-level.
+     */
+    private persistentPath(parent: any, cls: string, d: string, init?: (sel: any) => void): any {
+        let sel = parent.select(`path.${cls}`);
+        if (sel.empty()) {
+            sel = parent.append("path").attr("class", cls).attr("d", d);
+            init?.(sel);
+            return sel;
+        }
+        const previous = sel.attr("d") ?? "";
+        const sameShape =
+            previous.split("L").length === d.split("L").length && previous !== d;
+        if (this.card.animateChanges && sameShape) {
+            sel.transition().duration(MeteogramChart.ANIM_MS)
+                .ease(d3.easeCubicOut).attr("d", d);
+        } else {
+            sel.attr("d", d);
+        }
+        return sel;
+    }
+
     drawSunStrip(
         svg: any,
         time: Date[],
@@ -938,33 +976,10 @@ export class MeteogramChart {
         } else {
         }
         
-        // The line is one persistent element, so it transitions from wherever it is to
-        // wherever the new forecast puts it. This replaces the spike, which had to
-        // remember the previous path string because the element itself did not survive
-        // a redraw; the element does now, and d3 interpolates straight from the DOM.
-        //
-        // Only when the point count matches. d3 interpolates the `d` string, which is
-        // smooth between two paths of the same shape and produces nonsense between
-        // paths of different lengths — so a change of span snaps, as it should.
-        const newPath = line(temperature) ?? "";
-        let tempPath = chart.select("path.temp-line");
-        if (tempPath.empty()) {
-            tempPath = chart.append("path")
-                .datum(temperature)
-                .attr("class", "temp-line")
-                .attr("d", newPath);
-        } else {
-            const previous = tempPath.attr("d") ?? "";
-            const sameShape =
-                previous.split("L").length === newPath.split("L").length &&
-                previous !== newPath;
-            tempPath.datum(temperature);
-            if (this.card.animateChanges && sameShape) {
-                tempPath.transition().duration(450).ease(d3.easeCubicOut).attr("d", newPath);
-            } else {
-                tempPath.attr("d", newPath);
-            }
-        }
+        // One persistent element, so d3 interpolates from wherever the line currently
+        // is straight out of the DOM.
+        const tempPath = this.persistentPath(chart, "temp-line", line(temperature) ?? "");
+        tempPath.datum(temperature);
         
         // Apply either custom color or gradient
         if (hasCustomColor) {
@@ -1359,12 +1374,12 @@ export class MeteogramChart {
         for (let i = N - 1; i >= 0; i--) {
             cloudBandPoints.push([x(i), bandTop + (bandHeight / 2) * (1 + cloudFiltered[i] / 100)]);
         }
-        chart.append("path")
-            .attr("class", "cloud-area")
-            .attr("d", d3.line()
-                .x((d: [number, number]) => d[0])
-                .y((d: [number, number]) => d[1])
-                .curve(d3.curveLinearClosed)(cloudBandPoints));
+        // Still cleared by hand: the legend below is built fresh each draw.
+        chart.selectAll(":scope > *:not(path.cloud-area)").remove();
+        this.persistentPath(chart, "cloud-area", d3.line()
+            .x((d: [number, number]) => d[0])
+            .y((d: [number, number]) => d[1])
+            .curve(d3.curveLinearClosed)(cloudBandPoints) ?? "");
         // Render legend if legendX and legendY are provided
         if (legendX !== undefined && legendY !== undefined) {
             chart.append("text")
@@ -1382,11 +1397,11 @@ export class MeteogramChart {
             .x((_: number | null, i: number) => x(i))
             .y((d: number | null) => yPressure(d as number));
 
-        chart.append("path")
-            .datum(pressure)
-            .attr("class", "pressure-line")
-            .attr("d", pressureLine)
-            .attr("fill", "none"); // Ensure no area fill, let CSS handle stroke
+        // Still cleared by hand: the axis and legend below are built fresh each draw.
+        chart.selectAll(":scope > *:not(path.pressure-line)").remove();
+        this.persistentPath(chart, "pressure-line", pressureLine(pressure) ?? "",
+            // Ensure no area fill, let CSS handle stroke
+            (sel: any) => sel.attr("fill", "none")).datum(pressure);
 
         // Draw right-side pressure axis
         const pressureDomain = yPressure.domain();

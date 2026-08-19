@@ -2685,7 +2685,7 @@ export class MeteogramCard extends LitElement {
       if (cloudLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[cloudLegendIndex];
         this._chartRenderer.drawCloudBand(
-          this._layer(chart, "cloud"),
+          this._layer(chart, "cloud", false),
           cloudCover,
           N,
           x,
@@ -2693,7 +2693,7 @@ export class MeteogramCard extends LitElement {
           legendPos.y
         );
       } else {
-        this._chartRenderer.drawCloudBand(this._layer(chart, "cloud"), cloudCover, N, x);
+        this._chartRenderer.drawCloudBand(this._layer(chart, "cloud", false), cloudCover, N, x);
       }
     }
     // Draw rain bars with legend
@@ -2743,7 +2743,7 @@ export class MeteogramCard extends LitElement {
       if (pressureLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[pressureLegendIndex];
         this._chartRenderer.drawPressureLine(
-          this._layer(chart, "pressure"),
+          this._layer(chart, "pressure", false),
           pressure,
           x,
           yPressure,
@@ -2751,7 +2751,7 @@ export class MeteogramCard extends LitElement {
           legendPos.y
         );
       } else {
-        this._chartRenderer.drawPressureLine(this._layer(chart, "pressure"), pressure, x, yPressure);
+        this._chartRenderer.drawPressureLine(this._layer(chart, "pressure", false), pressure, x, yPressure);
       }
     }
 
