@@ -67,6 +67,30 @@ const HELPERS: Record<string, () => string> = {
     aspect_ratio: () => t("aspect_ratio_helper", "Pick a ratio or type your own, such as 1.6 or 5:3."),
 };
 
+/**
+ * What the card does when a key is absent, mirrored from setConfig.
+ *
+ * The form needs these because Home Assistant renders from the stored config: a key
+ * that is not in the YAML arrives as undefined and a boolean selector draws that as
+ * off. Every layer toggle therefore showed the opposite of what the card was doing,
+ * and the first click on a wrongly-unchecked box wrote the value it already had, so
+ * nothing appeared to happen. The schema has no `default` key to express this, which
+ * is why the editor merges them into the data it hands the form.
+ */
+export const CARD_DEFAULTS: MeteogramCardConfig = {
+    show_cloud_cover: true,
+    show_pressure: true,
+    show_precipitation: true,
+    show_weather_icons: true,
+    dense_weather_icons: true,
+    show_wind: true,
+    show_sun: true,
+    display_mode: "full",
+    meteogram_hours: "48h",
+    aspect_ratio: "16:9",
+    layout_mode: "sections",
+};
+
 export function meteogramConfigForm() {
     return {
         schema: [

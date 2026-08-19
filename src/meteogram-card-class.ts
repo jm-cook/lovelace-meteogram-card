@@ -12,7 +12,6 @@ import {
   mapHaConditionToMetnoSymbol,
 } from "./weather-entity";
 import { trnslt } from "./translations";
-import { meteogramConfigForm } from "./config-form";
 import {
   CARD_NAME,
   METEOGRAM_CARD_STARTUP_TIME,
@@ -562,11 +561,10 @@ export class MeteogramCard extends LitElement {
     }
   }
 
-  // The visual editor. A schema Home Assistant renders with its own components, rather
-  // than an element of ours that depends on those components already being registered.
-  // See config-form.ts.
-  public static getConfigForm() {
-    return meteogramConfigForm();
+  // The visual editor: ha-form driven by the schema in config-form.ts. Not the static
+  // getConfigForm, which cannot show this card's defaults — see meteogram-card-editor.ts.
+  public static getConfigElement(): HTMLElement {
+    return document.createElement("meteogram-card-editor");
   }
 
   // Define card configuration type

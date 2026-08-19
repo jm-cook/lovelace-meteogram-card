@@ -1,6 +1,7 @@
 import { CARD_NAME } from "./constants";
 import { version } from "../package.json";
 import { MeteogramCard } from "./meteogram-card-class";
+import "./meteogram-card-editor";
 // import './troubleshoot-message-card';
 
 // Add TypeScript declarations for window extensions
