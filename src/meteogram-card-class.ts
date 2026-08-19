@@ -1689,8 +1689,10 @@ export class MeteogramCard extends LitElement {
     // Use the _logDomState method to log diagnostic info
     this._logDomState();
 
-    // Clean up any existing chart before proceeding
-    this.cleanupChart();
+    // The old chart is deliberately left alone here. Clearing it at this point emptied
+    // the card and then waited — 10ms, then a whole fetch — before anything replaced
+    // it, so every redraw flashed blank. It is replaced at the moment the new one is
+    // built instead, further down.
 
     // Ensure we have a clean update cycle before accessing the DOM again
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -1811,9 +1813,8 @@ export class MeteogramCard extends LitElement {
           : availableHeight;
     }
 
-    // Clean up previous chart
-    chartDiv.innerHTML = "";
-    // Fetch weather data and render
+    // Fetch weather data and render. The previous chart stays up while this runs and is
+    // swapped out only once there is something to put in its place.
     this.fetchWeatherData()
       .then((data: ForecastData) => {
         this._lastWeatherData = data;
@@ -1848,6 +1849,10 @@ export class MeteogramCard extends LitElement {
         this._lastRenderedWidth = availableWidth;
         this._lastRenderedHeight = availableHeight;
 
+        // Replace the old chart here, one statement before the new one exists, so the
+        // card is never left empty across an await.
+        if (this.svg && typeof this.svg.remove === "function") this.svg.remove();
+        chartDiv.innerHTML = "";
         this.svg = d3
           .select(chartDiv)
           .append("svg")

@@ -113,6 +113,59 @@ async function main() {
   check("a burst of changes draws once", draws === 1, `${draws} draws for 5 changes`);
   const end = await windCount();
   check("the burst lands on the last value", end > 0, `${end} wind elements`);
+  // The card must never be seen empty. Clearing the chart and rebuilding it is fine as
+  // long as both happen in the same frame; what showed as a flash was clearing, then
+  // awaiting a sleep and a fetch, and only then drawing. Sample every animation frame
+  // across a redraw and assert the chart is never observed with nothing in it.
+  await page.evaluate(() => {
+    const root = document.querySelector("meteogram-card").shadowRoot;
+    window.__minNodes = Infinity;
+    window.__samples = 0;
+    const sample = () => {
+      const n = root.querySelector("#chart")?.childElementCount ?? 0;
+      window.__minNodes = Math.min(window.__minNodes, n);
+      window.__samples++;
+      if (window.__sampling) requestAnimationFrame(sample);
+    };
+    window.__sampling = true;
+    requestAnimationFrame(sample);
+  });
+  await page.evaluate(() => {
+    const c = document.querySelector("meteogram-card");
+    c.setConfig({ ...(c._config ?? {}), show_pressure: false });
+  });
+  await page.waitForTimeout(1500);
+  const frames = await page.evaluate(() => {
+    window.__sampling = false;
+    return { min: window.__minNodes, samples: window.__samples };
+  });
+  check("the chart is never empty during a redraw", frames.min > 0,
+        `lowest child count ${frames.min} over ${frames.samples} frames`);
+
+  // A container collapsed to nothing is a real state — the card being attached or the
+  // editor opening. Drawing at that moment gave every rect a negative width, which the
+  // browser rejects, and cleared the good chart to draw a broken one: the blink.
+  const svgErrors = [];
+  page.on("console", (m) => {
+    if (m.type() === "error" && /negative value/i.test(m.text())) svgErrors.push(m.text());
+  });
+  const rectsBefore = await page.evaluate(() =>
+    document.querySelector("meteogram-card").shadowRoot.querySelectorAll("rect").length);
+  await page.evaluate(() => { document.querySelector(".card").style.width = "0px"; });
+  await page.waitForTimeout(900);
+  const negative = await page.evaluate(() =>
+    [...document.querySelector("meteogram-card").shadowRoot.querySelectorAll("rect")]
+      .filter((r) => parseFloat(r.getAttribute("width")) < 0).length);
+  const rectsAfter = await page.evaluate(() =>
+    document.querySelector("meteogram-card").shadowRoot.querySelectorAll("rect").length);
+  check("no negative rect widths when the container collapses", negative === 0, `${negative} found`);
+  check("the browser logged no negative-width errors", svgErrors.length === 0,
+        svgErrors.slice(0, 1).join(""));
+  check("the existing chart is kept rather than wiped", rectsAfter >= rectsBefore,
+        `${rectsBefore} rects before, ${rectsAfter} after`);
+  await page.evaluate(() => { document.querySelector(".card").style.width = ""; });
+  await page.waitForTimeout(600);
+
   // The console hook exists so a live card can be made to log without a reload — a
   // reload destroys the transient behaviour worth logging in the first place.
   const hook = await page.evaluate(() => {
