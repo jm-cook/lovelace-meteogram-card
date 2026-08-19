@@ -25,7 +25,12 @@ function serve() {
     try {
       const path = join(ROOT, decodeURIComponent(req.url.split("?")[0]));
       if (!path.startsWith(ROOT)) return res.writeHead(403).end();
-      const body = await readFile(path);
+      let body = await readFile(path);
+      const params = new URL(req.url, "http://x").searchParams;
+      if (params.get("debug") === "1" && path.endsWith("test.html")) {
+        body = Buffer.from(String(body)
+          .replace('<input type="checkbox" id="debug">', '<input type="checkbox" id="debug" checked>'));
+      }
       res.writeHead(200, { "content-type": MIME[extname(path)] ?? "application/octet-stream" });
       res.end(body);
     } catch { res.writeHead(404).end("not found"); }
@@ -177,6 +182,41 @@ async function main() {
   check("meteogramDebug(false) turns it off", hook.off === false);
 
   check("no page errors", errors.length === 0, errors.join("; "));
+
+  // One draw per load. The draw used to resolve the location itself and assign
+  // latitude/longitude — reactive properties inside the render signature — so the act
+  // of drawing scheduled another draw. Every load drew twice.
+  const loadPage = await browser.newPage({ viewport: { width: 900, height: 700 } });
+  const loadDraws = [];
+  loadPage.on("console", (m) => {
+    if (/ENTER: _drawMeteogram/.test(m.text())) loadDraws.push(m.text());
+  });
+  await loadPage.addInitScript((iso) => {
+    const Real = Date;
+    const fixedMs = new Real(iso).getTime();
+    class Frozen extends Real {
+      constructor(...a) { super(...(a.length ? a : [fixedMs])); }
+      static now() { return fixedMs; }
+    }
+    globalThis.Date = Frozen;
+  }, frozen);
+  await loadPage.route((u) => u.hostname.endsWith("met.no"), (r) => r.fulfill({
+    status: 200, contentType: "application/json",
+    headers: { expires: new Date(new Date(frozen).getTime() + 3600_000).toUTCString() },
+    body: JSON.stringify(fixture.body),
+  }));
+  await loadPage.route((u) => u.hostname.includes("githubusercontent") || u.pathname.endsWith(".svg"),
+    (r) => r.fulfill({ status: 200, contentType: "image/svg+xml",
+      body: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>` }));
+  await loadPage.goto(`http://127.0.0.1:${port}/test.html?debug=1`, { waitUntil: "load" });
+  await loadPage.waitForFunction(() => {
+    const s = document.querySelector("meteogram-card")?.shadowRoot?.querySelector("#chart svg");
+    return s && s.querySelectorAll("*").length > 50;
+  }, null, { timeout: 30_000 });
+  await loadPage.waitForTimeout(1500);
+  check("a page load draws the chart once", loadDraws.length === 1,
+        `${loadDraws.length}: ` + loadDraws.map((d) => (d.match(/caller: \S+/) ?? [d])[0]).join(" | "));
+  await loadPage.close();
 
   await browser.close();
   server.close();

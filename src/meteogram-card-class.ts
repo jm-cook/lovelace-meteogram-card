@@ -272,6 +272,16 @@ export class MeteogramCard extends LitElement {
   private _drawCoalesceMs = 60;
   /** Longest a redraw may be postponed by a continuing trickle of requests. */
   private _drawMaxWaitMs = 400;
+  /**
+   * Longer settle for the very first draw.
+   *
+   * On a cold load the card is asked to draw before the layout has settled, and the
+   * resize observer then reports the real size a moment later — far enough after the
+   * 60ms window to count as a second, separate draw. Waiting a little longer the first
+   * time lets the initial size land in the same window, so a load draws once.
+   */
+  private _firstDrawSettleMs = 180;
+  private _hasDrawnOnce = false;
   private _lastWeatherData: any = null;
 
   // Store the current units for each parameter
@@ -421,13 +431,15 @@ export class MeteogramCard extends LitElement {
     if (this._drawTimer !== null) clearTimeout(this._drawTimer);
 
     const waited = now - this._drawWantedSince;
+    const settle = this._hasDrawnOnce ? this._drawCoalesceMs : this._firstDrawSettleMs;
     const delay = force
       ? 0
-      : Math.max(0, Math.min(this._drawCoalesceMs, this._drawMaxWaitMs - waited));
+      : Math.max(0, Math.min(settle, this._drawMaxWaitMs - waited));
 
     this._drawTimer = setTimeout(() => {
       this._drawTimer = null;
       this._drawWantedSince = 0;
+      this._hasDrawnOnce = true;
       this._drawMeteogram(callerId);
     }, delay);
   }
@@ -1132,6 +1144,18 @@ export class MeteogramCard extends LitElement {
       this._initializeUnits();
     }
 
+    // Resolve the location before the signature is taken, not during the draw.
+    //
+    // _drawMeteogram used to do this, and latitude and longitude are reactive
+    // properties inside the signature — so the draw's own act of filling them in from
+    // Home Assistant changed the signature and scheduled a second draw. Every load drew
+    // the chart twice: once to discover where it is, once to use it. The debug log
+    // showed the pair plainly, the second always attributed to "updated".
+    //
+    // Resolving here means the values are settled before anything is compared, so the
+    // draw no longer writes to what triggers it.
+    this._checkAndUpdateLocation();
+
     // Redraw when anything the chart is drawn from has changed.
     //
     // This used to be a hand-written list of changedProps.has("...") names, and the list
@@ -1672,8 +1696,8 @@ export class MeteogramCard extends LitElement {
 
     this.meteogramError = "";
 
-    // Make sure we have a location before proceeding
-    this._checkAndUpdateLocation();
+    // Location is resolved in updated(), before the render signature is taken — doing
+    // it here made the draw change the properties that trigger drawing.
 
     if (!MeteogramCard._hasCoord(this.latitude)
         || !MeteogramCard._hasCoord(this.longitude)) {
