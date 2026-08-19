@@ -185,6 +185,39 @@ console.log(`  wind: ${wind.bands} band group, ${wind.before}->${wind.after} bar
 const windOk = wind.bands === 1 && wind.kept && wind.hourUnchanged
   && wind.moved && wind.frames > 5 && wind.hasGlyph;
 
+// Weather icons: the fetch is asynchronous and appends a div, so an element that now
+// survives a redraw would stack one on every draw unless the rendered name is checked.
+const icons = await page.evaluate(async () => {
+  const r = document.querySelector("meteogram-card").shadowRoot;
+  const all = () => [...r.querySelectorAll("foreignObject.weather-icon")];
+  const visible = () => all().filter((n) => n.getAttribute("opacity") === "1");
+  const sample = visible()[2];
+  const hour = sample?.__data__?.t;
+  const x0 = sample?.getAttribute("x");
+  const seen = new Set();
+  document.getElementById("step").click();
+  for (let i = 0; i < 50; i++) {
+    await new Promise(x => requestAnimationFrame(x));
+    const xn = sample?.getAttribute("x");
+    if (xn) seen.add(xn);
+  }
+  await new Promise(x => setTimeout(x, 400));
+  const divs = all().map((n) => n.childElementCount);
+  return {
+    count: all().length,
+    kept: all().includes(sample),
+    hourUnchanged: sample?.__data__?.t === hour,
+    moved: x0 !== sample?.getAttribute("x"),
+    frames: seen.size,
+    maxDivs: Math.max(...divs),
+  };
+});
+console.log(`  icons: ${icons.count} boxes, sample kept ${icons.kept}, `
+  + `hour unchanged ${icons.hourUnchanged}, ${icons.frames} positions, `
+  + `max children per box ${icons.maxDivs}`);
+const iconsOk = icons.kept && icons.hourUnchanged && icons.moved
+  && icons.frames > 5 && icons.maxDivs <= 1;
+
 console.log("  page errors:", errors.length ? errors.join("; ") : "none");
 await browser.close(); server.close();
 
@@ -192,7 +225,7 @@ const ok = JSON.stringify(a) === JSON.stringify(b)
     && identity.same && identity.present && frames > 5
     && slide.kept && slide.hourUnchanged
     && temp.same && temp.moved && temp.frames > 5 && temp.count === 1 && temp.defs === 1
-    && pathsOk && windOk
+    && pathsOk && windOk && iconsOk
     && errors.length === 0;
-console.log(ok ? "\n8/8 passed" : "\nFAILED");
+console.log(ok ? "\n9/9 passed" : "\nFAILED");
 process.exit(ok ? 0 : 1);

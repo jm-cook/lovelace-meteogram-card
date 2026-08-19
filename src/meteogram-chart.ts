@@ -63,50 +63,92 @@ export class MeteogramChart {
             ? 1
             : Math.max(1, Math.ceil(N / maxIcons));
 
-        chart.selectAll(".weather-icon")
-            .data(symbolCode)
-            .enter()
-            .append("foreignObject")
+        // Keyed by forecast time, so an icon follows its hour as the window advances
+        // rather than being rebuilt at whatever slot it lands in.
+        const rows = symbolCode.map((code, i) => ({
+            code, idx: i, t: data.time?.[i] ? +data.time[i] : i,
+        }));
+
+        /** The met.no symbol this slot should show, after the entity mapping. */
+        const iconFor = (d: any): string => {
+            let name = d.code;
+            if (!name) return "";
+            if (this.card.entityId && this.card.entityId !== 'none' && this.card._weatherEntityApiInstance) {
+                const forecastTime = data.time[d.idx];
+                const isDay = this.card.isDaytimeAt(forecastTime);
+                name = window.mapHaConditionToMetnoSymbol
+                    ? window.mapHaConditionToMetnoSymbol(d.code, forecastTime, isDay)
+                    : d.code;
+            }
+            return name
+                .replace(/^lightssleet/, 'lightsleet')
+                .replace(/^lightssnow/, 'lightsnow')
+                .replace(/^lightrainshowers$/, 'lightrainshowersday')
+                .replace(/^rainshowers$/, 'rainshowersday')
+                .replace(/^heavyrainshowers$/, 'heavyrainshowersday');
+        };
+
+        /**
+         * Put the icon into its box, but only when it is not already there.
+         *
+         * The fetch is asynchronous and appends a div. Now that the element survives a
+         * redraw, calling this unconditionally would stack a fresh div on every draw —
+         * so the name currently rendered is recorded on the node and compared first.
+         */
+        const paint = (node: any, d: any, visible: boolean) => {
+            if (!visible) {
+                node.textContent = "";
+                node.__icon = null;
+                return;
+            }
+            const name = iconFor(d);
+            if (!name || node.__icon === name) return;
+            node.__icon = name;
+            if (!this.card.getIconSVG) return;
+            this.card.getIconSVG(name).then((svgContent: string) => {
+                if (!svgContent || node.__icon !== name) return;
+                node.textContent = "";
+                const div = document.createElement('div');
+                div.style.width = '40px';
+                div.style.height = '40px';
+                div.innerHTML = svgContent;
+                node.appendChild(div);
+            });
+        };
+
+        const iconX = (d: any) => x(d.idx) - 20;
+        const iconY = (d: any) => {
+            const temp = temperatureConverted[d.idx];
+            return temp !== null ? yTemp(temp) - 40 : -999;
+        };
+        const iconVisible = (d: any) =>
+            temperatureConverted[d.idx] !== null && d.idx % iconInterval === 0;
+
+        const icons = chart.selectAll("foreignObject.weather-icon")
+            .data(rows, (d: any) => d.t);
+        icons.exit().remove();
+
+        const enteredIcons = icons.enter().append("foreignObject")
             .attr("class", "weather-icon")
-            .attr("x", (_: string, i: number) => x(i) - 20)
-            .attr("y", (_: string, i: number) => {
-                const temp = temperatureConverted[i];
-                return temp !== null ? yTemp(temp) - 40 : -999;
-            })
+            .attr("x", iconX)
+            .attr("y", iconY)
             .attr("width", 40)
             .attr("height", 40)
-            .attr("opacity", (_: string, i: number) =>
-                (temperatureConverted[i] !== null && i % iconInterval === 0) ? 1 : 0)
-            .each((d: string, i: number, nodes: any) => {
-                if (i % iconInterval !== 0) return;
-                const node = nodes[i];
-                if (!d) return;
-                let iconName = d;
-                if (this.card.entityId && this.card.entityId !== 'none' && this.card._weatherEntityApiInstance) {
-                    const forecastTime = data.time[i];
-                    const isDay = this.card.isDaytimeAt(forecastTime);
-                    iconName = window.mapHaConditionToMetnoSymbol
-                        ? window.mapHaConditionToMetnoSymbol(d, forecastTime, isDay)
-                        : d;
-                }
-                iconName = iconName
-                    .replace(/^lightssleet/, 'lightsleet')
-                    .replace(/^lightssnow/, 'lightsnow')
-                    .replace(/^lightrainshowers$/, 'lightrainshowersday')
-                    .replace(/^rainshowers$/, 'rainshowersday')
-                    .replace(/^heavyrainshowers$/, 'heavyrainshowersday');
-                if (this.card.getIconSVG) {
-                    this.card.getIconSVG(iconName).then((svgContent: string) => {
-                        if (svgContent) {
-                            const div = document.createElement('div');
-                            div.style.width = '40px';
-                            div.style.height = '40px';
-                            div.innerHTML = svgContent;
-                            node.appendChild(div);
-                        }
-                    });
-                }
-            });
+            .attr("opacity", (d: any) => iconVisible(d) ? 1 : 0);
+
+        const allIcons = enteredIcons.merge(icons);
+        // Opacity is set outright rather than transitioned: which slots carry an icon is
+        // decided by index against the spacing interval, so it flips as the window
+        // slides, and fading that in and out would draw the eye to bookkeeping.
+        allIcons.attr("opacity", (d: any) => iconVisible(d) ? 1 : 0);
+        if (this.card.animateChanges) {
+            icons.transition().duration(MeteogramChart.ANIM_MS)
+                .ease(d3.easeCubicOut).attr("x", iconX).attr("y", iconY);
+        } else {
+            icons.attr("x", iconX).attr("y", iconY);
+        }
+        allIcons.each((d: any, i: number, nodes: any) => paint(nodes[i], d, iconVisible(d)));
+        allIcons.order();
     }
     private card: any;
     constructor(cardInstance: any) {

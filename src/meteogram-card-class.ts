@@ -2811,7 +2811,7 @@ export class MeteogramCard extends LitElement {
     // Draw weather icons
     if (this.showWeatherIcons) {
       this._chartRenderer.drawWeatherIcons(
-        this._layer(chart, "icons"),
+        this._layer(chart, "icons", false),
         symbolCode,
         temperatureConverted,
         x,
