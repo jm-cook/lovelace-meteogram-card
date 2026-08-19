@@ -8,13 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2026.8.1] - 2026.08.18
 
 ### Added
-- **Sunrise/sunset strip**: a day/night band above the chart, amber for daylight and blue-grey for night, with a marker at each sunrise and sunset and a tick at local midnight. Hover any segment for its times. Enabled with `show_sun` (on by default) and available in the visual editor.
+- **Sunrise/sunset strip**: a day/night band above the chart, amber for daylight and blue-grey for night, with an mdi sunrise/sunset icon at each event and a tick at local midnight. The times are printed beside the icons wherever there is room, and any run can be hovered or tapped for its own times. Enabled with `show_sun` (on by default) and available in the visual editor.
   - Sun times are computed from the card's coordinates, so they are correct for the whole forecast rather than just today, and polar day and night are handled properly.
   - Tooltips follow Home Assistant's language and its 12/24-hour setting, and are translated into all supported languages.
 - **Weather icons are now bundled with the card** rather than fetched from GitHub on every render. The card no longer needs network access for icons, works offline, and cannot be affected by rate limiting.
 
+### Changed
+- **The visual editor has been rebuilt.** It is now a schema that Home Assistant renders with its own components, rather than a custom element of ours that assumed those components were already loaded — the assumption that made the fields above invisible. It cannot break that way again. Three practical differences:
+  - **Latitude and longitude are always editable.** They used to grey out whenever a weather entity was selected. That became wrong when the sun strip arrived: sunrise and sunset are computed from these coordinates no matter what supplies the forecast, so a weather entity for another location drew the wrong sun times with no way to correct them.
+  - **The forecast length and aspect ratio each became a single field** that accepts a listed value or one you type, replacing the old dropdown plus separate "custom" box.
+  - **Invalid settings are now rejected rather than quietly ignored** — a latitude with no longitude, or coordinates out of range.
+- `layout_mode` is now available in the editor instead of YAML only.
+
 ### Fixed
-- **The Title, Latitude, Longitude and Altitude fields were missing from the visual editor.** They were drawn with a Home Assistant form component that is no longer registered on the card-editor page, so they were present in the page but rendered nothing at all, while the help text beside them showed normally. They are ordinary text fields now and no longer depend on that component. Setting any of these options in YAML was never affected.
+- **The `show_precipitation` option never worked.** The card read it from a property that was never set, so precipitation was drawn for everyone whatever the setting said, and had been since the option was introduced. It is honoured now. **If you switched precipitation off, saw no change and left it off, it will now actually be hidden** — switch it back on if you want it.
+- **The Title, Latitude, Longitude and Altitude fields were missing from the visual editor.** They were drawn with a Home Assistant form component that is no longer registered on the card-editor page, so they were present in the page but rendered nothing at all. See *Changed* below — the editor has been rebuilt so this cannot recur. Setting any of these options in YAML was never affected.
 - Widening `meteogram_hours` did nothing — the forecast cache was being truncated in place, so the extra hours were no longer available to show.
 - Switching `display_mode` did not redraw the chart, so `core` could keep showing `full`'s legends, and after `focussed` the legends never came back.
 - Weather icons could silently disappear when GitHub rate-limited the request, and the card then retried twice per icon, making it worse.

@@ -1,6 +1,5 @@
 import { CARD_NAME } from "./constants";
 import { version } from "../package.json";
-import "./meteogram-card-editor";
 import { MeteogramCard } from "./meteogram-card-class";
 // import './troubleshoot-message-card';
 

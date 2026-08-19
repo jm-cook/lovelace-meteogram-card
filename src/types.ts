@@ -80,11 +80,6 @@ export interface ConfigurableHTMLElement extends HTMLElement {
 }
 
 // // Define editor interface with required methods
-export interface MeteogramCardEditorElement extends HTMLElement {
-  setConfig(config: MeteogramCardConfig): void;
-  hass?: any;
-  config?: MeteogramCardConfig;
-}
 
 // Extend styles to support modes (e.g., dark)
 export type MeteogramStyleModes = {

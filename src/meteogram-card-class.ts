@@ -3,7 +3,6 @@ import * as d3 from 'd3';
 import { customElement, property, state } from "lit/decorators.js";
 import {
   MeteogramCardConfig,
-  MeteogramCardEditorElement,
 } from "./types";
 import { version } from "../package.json";
 import { getClientName } from "./diagnostics";
@@ -13,6 +12,7 @@ import {
   mapHaConditionToMetnoSymbol,
 } from "./weather-entity";
 import { trnslt } from "./translations";
+import { meteogramConfigForm } from "./config-form";
 import {
   CARD_NAME,
   METEOGRAM_CARD_STARTUP_TIME,
@@ -562,25 +562,11 @@ export class MeteogramCard extends LitElement {
     }
   }
 
-  // Required for HA visual editor support
-  public static getConfigElement() {
-    // Pre-initialize the editor component for faster display
-    const editor = document.createElement(
-      "meteogram-card-editor"
-    ) as MeteogramCardEditorElement;
-    // Create a basic config to start with
-    editor.setConfig({
-      show_cloud_cover: true,
-      show_pressure: true,
-      show_precipitation: true, // Use new option
-      show_weather_icons: true,
-      show_wind: true,
-      dense_weather_icons: true,
-      meteogram_hours: "48h",
-      diagnostics: DIAGNOSTICS_DEFAULT, // Default to DIAGNOSTICS_DEFAULT
-      debug: false, // Debug logging (undocumented)
-    });
-    return editor;
+  // The visual editor. A schema Home Assistant renders with its own components, rather
+  // than an element of ours that depends on those components already being registered.
+  // See config-form.ts.
+  public static getConfigForm() {
+    return meteogramConfigForm();
   }
 
   // Define card configuration type

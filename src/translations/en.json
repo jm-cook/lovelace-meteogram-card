@@ -57,5 +57,16 @@
   "ui.card.meteogram.sun.night_from": "Night from {start}",
   "ui.card.meteogram.sun.sunrise": "Sunrise {time}",
   "ui.card.meteogram.sun.sunset": "Sunset {time}",
-  "ui.editor.meteogram.attributes.sun": "Show Sunrise/Sunset Strip"
+  "ui.editor.meteogram.attributes.sun": "Show Sunrise/Sunset Strip",
+  "ui.editor.meteogram.aspect_ratio": "Aspect ratio",
+  "ui.editor.meteogram.aspect_ratio_helper": "Pick a ratio or type your own, such as 1.6 or 5:3.",
+  "ui.editor.meteogram.layout_mode": "Layout mode",
+  "ui.editor.meteogram.diagnostics": "Diagnostics",
+  "ui.editor.meteogram.advanced": "Advanced",
+  "ui.editor.meteogram.coordinates_helper": "Used for sunrise and sunset, and for the forecast when no weather entity is set. Defaults to Home Assistant's location.",
+  "ui.editor.meteogram.display_full": "Full",
+  "ui.editor.meteogram.display_core": "Core",
+  "ui.editor.meteogram.display_focussed": "Focussed",
+  "ui.editor.meteogram.hours_72": "72 hours",
+  "ui.editor.meteogram.hours_120": "120 hours"
 }
