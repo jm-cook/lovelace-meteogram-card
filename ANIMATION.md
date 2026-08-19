@@ -27,7 +27,7 @@ tractable — a refactor meant to be visually identical can be *proved* so.
 
 - [x] **1. Persistent svg.** (done) Reuse the existing `<svg>` when the size is unchanged
       instead of clearing `#chart` and appending a new one. No visual change.
-- [ ] **2. Per-drawer layers.** A `layer(parent, class)` helper that selects-or-appends
+- [x] **2. Per-drawer layers.** (done — 12 layers) A `layer(parent, class)` helper that selects-or-appends
       a `<g>`. Every drawer targets its own layer and clears only that layer. Still no
       visual change, but each drawer can then be converted independently.
 - [ ] **3. Keyed joins, drawer by drawer.** `.data(d, keyFn).join(...)` so elements keep
@@ -54,6 +54,12 @@ node test/compare.mjs /tmp/before.svg /tmp/after.svg
 an animated update from a rebuild.
 
 ## Watch out for
+
+- A drawer is handed its *layer*, not the root svg. Anything that must apply to the
+  whole chart — the sun strip's tap-to-dismiss, for one — has to reach the root via
+  `node().ownerSVGElement`, or it silently stops working.
+- The byte-level snapshot compare will fail on a stage that adds wrappers even when
+  nothing moves. `test/geometry.mjs` is the check that still means something there.
 
 - `animate` cannot be a property name: it collides with `HTMLElement.animate()`. The
   property is `animateChanges`; the config key is `animate`.

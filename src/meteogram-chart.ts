@@ -424,7 +424,12 @@ export class MeteogramChart {
         // Drawn last so the panel is never hidden behind a segment or glyph added after
         // it. Namespaced so it cannot clobber another handler on the same svg.
         tip.raise();
-        svg.on("click.sunstrip", hideTip);
+        // The root svg, not the group this drawer was handed. Since each drawer got its
+        // own layer, `svg` here is that layer — attaching the dismissal to it meant a
+        // tap anywhere else on the chart no longer closed the panel, because it never
+        // reached this element.
+        const rootNode = svg.node()?.ownerSVGElement ?? svg.node();
+        d3.select(rootNode).on("click.sunstrip", hideTip);
     }
 
     drawGridOutline(chart: any) {

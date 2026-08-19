@@ -627,6 +627,27 @@ export class MeteogramCard extends LitElement {
    */
   private static _live = new Set<MeteogramCard>();
 
+  /**
+   * A stable <g> for one drawer, cleared and handed back.
+   *
+   * Stage 2 of animating updates. Every drawer used to append straight into the shared
+   * svg, which therefore had to be wiped wholesale between draws — so no element could
+   * outlive a redraw and nothing could be transitioned. Each drawer owns a named group
+   * now: the group persists, only its contents are replaced, and a drawer can be
+   * converted to a keyed join one at a time without disturbing the others.
+   *
+   * Direct-child selector: a descendant match would find a nested group of the same
+   * name inside another layer.
+   */
+  private _layer(parent: any, name: string): any {
+    let g = parent.select(`:scope > g.layer-${name}`);
+    if (g.empty()) {
+      g = parent.append("g").attr("class", `layer layer-${name}`);
+    }
+    g.selectAll("*").remove();
+    return g;
+  }
+
   private static _hasCoord(v: unknown): v is number {
     return typeof v === "number" && Number.isFinite(v);
   }
@@ -1927,8 +1948,10 @@ export class MeteogramCard extends LitElement {
           existing.attr("preserveAspectRatio") === preserve;
 
         if (reusable) {
+          // Not cleared. Every drawer owns a named layer and clears only its own, so
+          // the groups survive the redraw — which is the whole point: an element that
+          // outlives a draw is an element that can be transitioned into its new shape.
           this.svg = existing;
-          this.svg.selectAll("*").remove();
         } else {
           // Replace the old chart here, one statement before the new one exists, so the
           // card is never left empty across an await.
@@ -2496,9 +2519,13 @@ export class MeteogramCard extends LitElement {
       );
     }
 
-    const chart = svg
-      .append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
+    // Stable too, and deliberately not cleared: its children are the layers below,
+    // each of which clears itself.
+    let chart = svg.select(":scope > g.chart-root");
+    if (chart.empty()) {
+      chart = svg.append("g").attr("class", "chart-root");
+    }
+    chart.attr("transform", `translate(${margin.left},${margin.top})`);
 
     // Defensive: Check if chart is a D3 selection
     if (
@@ -2576,8 +2603,8 @@ export class MeteogramCard extends LitElement {
       this._chartRenderer = new MeteogramChart(this);
     }
     this._chartRenderer.drawChartGrid(
-      svg,
-      chart,
+      this._layer(svg, "grid-axis"),
+      this._layer(chart, "grid"),
       d3,
       x,
       yTemp,
@@ -2588,7 +2615,7 @@ export class MeteogramCard extends LitElement {
       // two marks for one instant, and they would sit on top of each other.
       sunStripEnabled ? 0 : 12
     );
-    this._chartRenderer.drawGridOutline(chart);
+    this._chartRenderer.drawGridOutline(this._layer(chart, "outline"));
 
     // Draw date labels at top
     if (
@@ -2596,7 +2623,7 @@ export class MeteogramCard extends LitElement {
       typeof this._chartRenderer.drawDateLabels === "function"
     ) {
       this._chartRenderer.drawDateLabels(
-        svg,
+        this._layer(svg, "date-labels"),
         time,
         dayStarts,
         margin,
@@ -2614,7 +2641,7 @@ export class MeteogramCard extends LitElement {
       typeof this._chartRenderer.drawSunStrip === "function"
     ) {
       this._chartRenderer.drawSunStrip(
-        svg,
+        this._layer(svg, "sun"),
         time,
         x,
         margin,
@@ -2630,7 +2657,7 @@ export class MeteogramCard extends LitElement {
 
     // Draw bottom hour labels using helper
     this._chartRenderer.drawBottomHourLabels(
-      svg,
+      this._layer(svg, "hour-labels"),
       data.time,
       margin,
       x,
@@ -2658,7 +2685,7 @@ export class MeteogramCard extends LitElement {
       if (cloudLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[cloudLegendIndex];
         this._chartRenderer.drawCloudBand(
-          chart,
+          this._layer(chart, "cloud"),
           cloudCover,
           N,
           x,
@@ -2666,7 +2693,7 @@ export class MeteogramCard extends LitElement {
           legendPos.y
         );
       } else {
-        this._chartRenderer.drawCloudBand(chart, cloudCover, N, x);
+        this._chartRenderer.drawCloudBand(this._layer(chart, "cloud"), cloudCover, N, x);
       }
     }
     // Draw rain bars with legend
@@ -2680,7 +2707,7 @@ export class MeteogramCard extends LitElement {
       if (rainLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[rainLegendIndex];
         this._chartRenderer.drawRainBars(
-          chart,
+          this._layer(chart, "rain"),
           rainConverted,
           rainMaxConverted,
           N,
@@ -2692,7 +2719,7 @@ export class MeteogramCard extends LitElement {
         );
       } else {
         this._chartRenderer.drawRainBars(
-          chart,
+          this._layer(chart, "rain"),
           rainConverted,
           rainMaxConverted,
           N,
@@ -2714,7 +2741,7 @@ export class MeteogramCard extends LitElement {
       if (pressureLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[pressureLegendIndex];
         this._chartRenderer.drawPressureLine(
-          chart,
+          this._layer(chart, "pressure"),
           pressure,
           x,
           yPressure,
@@ -2722,7 +2749,7 @@ export class MeteogramCard extends LitElement {
           legendPos.y
         );
       } else {
-        this._chartRenderer.drawPressureLine(chart, pressure, x, yPressure);
+        this._chartRenderer.drawPressureLine(this._layer(chart, "pressure"), pressure, x, yPressure);
       }
     }
 
@@ -2739,7 +2766,7 @@ export class MeteogramCard extends LitElement {
             : this.getSystemWindSpeedUnit();
       }
       this._chartRenderer.drawWindBand(
-        svg,
+        this._layer(svg, "wind"),
         x,
         windBandHeight,
         margin,
@@ -2763,7 +2790,7 @@ export class MeteogramCard extends LitElement {
     if (tempLegendIndex >= 0 && legendPositions.length > 0) {
       const legendPos = legendPositions[tempLegendIndex];
       this._chartRenderer.drawTemperatureLine(
-        chart,
+        this._layer(chart, "temperature"),
         temperatureConverted,
         x,
         yTemp,
@@ -2772,7 +2799,7 @@ export class MeteogramCard extends LitElement {
       );
     } else {
       this._chartRenderer.drawTemperatureLine(
-        chart,
+        this._layer(chart, "temperature"),
         temperatureConverted,
         x,
         yTemp
@@ -2782,7 +2809,7 @@ export class MeteogramCard extends LitElement {
     // Draw weather icons
     if (this.showWeatherIcons) {
       this._chartRenderer.drawWeatherIcons(
-        chart,
+        this._layer(chart, "icons"),
         symbolCode,
         temperatureConverted,
         x,
