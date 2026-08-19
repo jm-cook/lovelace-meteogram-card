@@ -25,7 +25,7 @@ Each stage is snapshot-provable as a no-op against `test/snapshot.mjs` +
 `test/compare.mjs`, except where noted. That is the safety net that makes this
 tractable — a refactor meant to be visually identical can be *proved* so.
 
-- [ ] **1. Persistent svg.** Reuse the existing `<svg>` when the size is unchanged
+- [x] **1. Persistent svg.** (done) Reuse the existing `<svg>` when the size is unchanged
       instead of clearing `#chart` and appending a new one. No visual change.
 - [ ] **2. Per-drawer layers.** A `layer(parent, class)` helper that selects-or-appends
       a `<g>`. Every drawer targets its own layer and clears only that layer. Still no

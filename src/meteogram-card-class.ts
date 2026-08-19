@@ -1900,20 +1900,39 @@ export class MeteogramCard extends LitElement {
         this._lastRenderedHeight = availableHeight;
         this._lastDrawnKey = drawKey;
 
-        // Replace the old chart here, one statement before the new one exists, so the
-        // card is never left empty across an await.
-        if (this.svg && typeof this.svg.remove === "function") this.svg.remove();
-        chartDiv.innerHTML = "";
-        this.svg = d3
-          .select(chartDiv)
-          .append("svg")
-          .attr("width", width)
-          .attr("height", height)
-          .attr("viewBox", `0 0 ${width} ${height}`)
-          .attr(
-            "preserveAspectRatio",
-            useAspectRatio ? "xMidYMid meet" : "none"
-          ); // Fill container, no aspect ratio
+        // Stage 1 of animating updates: the <svg> element itself survives a redraw.
+        //
+        // It used to be thrown away and rebuilt every time, which is why nothing could
+        // ever animate — there was no previous element for a new one to move from. Its
+        // contents are still cleared and rebuilt below; replacing that with keyed joins
+        // is the next stage, and it needs this one first.
+        //
+        // Reused only when the geometry matches. A different size means every scale has
+        // changed, so there is nothing to preserve and a clean start is cheaper.
+        const existing = d3.select(chartDiv).select<SVGSVGElement>("svg");
+        const preserve = useAspectRatio ? "xMidYMid meet" : "none";
+        const reusable =
+          !existing.empty() &&
+          existing.attr("width") === String(width) &&
+          existing.attr("height") === String(height) &&
+          existing.attr("preserveAspectRatio") === preserve;
+
+        if (reusable) {
+          this.svg = existing;
+          this.svg.selectAll("*").remove();
+        } else {
+          // Replace the old chart here, one statement before the new one exists, so the
+          // card is never left empty across an await.
+          if (this.svg && typeof this.svg.remove === "function") this.svg.remove();
+          chartDiv.innerHTML = "";
+          this.svg = d3
+            .select(chartDiv)
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", `0 0 ${width} ${height}`)
+            .attr("preserveAspectRatio", preserve); // Fill container, no aspect ratio
+        }
 
         const targetHours = this.parseHoursConfig(this.meteogramHours);
         const dataPoints = this.getDataPointsForHours(targetHours, data.time);
