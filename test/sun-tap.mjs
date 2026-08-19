@@ -232,6 +232,27 @@ async function main() {
         `${atMax.marks.filter((m) => m.timed).length} of ${atMax.marks.length} marks lettered`);
   await pMax.close();
 
+  // --- hover must survive ------------------------------------------------------
+  // The tap targets sit on top of the coloured runs. If they do not carry a title of
+  // their own, they swallow the pointer and the native hover tooltip — which is still
+  // how this reads on a desktop and to assistive technology — silently stops working.
+  const hover = await page.evaluate(() => {
+    const card = document.querySelector("meteogram-card");
+    const root = card.shadowRoot;
+    const run = root.querySelector(".sun-strip-day, .sun-strip-night");
+    const box = run.getBoundingClientRect();
+    const el = root.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    // Walk up: a <title> anywhere on the hit path is what the browser shows.
+    let node = el, title = null;
+    while (node && !title) {
+      title = [...(node.children ?? [])].find((c) => c.tagName === "title")?.textContent ?? null;
+      node = node.parentElement;
+    }
+    return { tag: el?.tagName, cls: el?.getAttribute?.("class"), title };
+  });
+  check("hovering a run still reveals its times", !!hover.title,
+        `topmost is ${hover.cls}, title ${JSON.stringify(hover.title)}`);
+
   check("no page errors", errors.length === 0, errors.join("; "));
 
   await browser.close();

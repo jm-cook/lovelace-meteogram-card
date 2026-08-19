@@ -266,7 +266,7 @@ export class MeteogramChart {
             // A <title> is a hover tooltip, and hover does not exist on the wall tablet
             // this card usually lives on. The same text is reachable by tapping.
             const xEnd = Math.min(x1, margin.left + chartWidth);
-            group.append("rect")
+            const hit = group.append("rect")
                 .attr("class", "sun-strip-hit")
                 .attr("x", x0)
                 .attr("y", y - TAP_ABOVE)
@@ -276,6 +276,10 @@ export class MeteogramChart {
                     event.stopPropagation();
                     showTip(`seg${i}`, label, (x0 + xEnd) / 2);
                 });
+            // The target covers the run it belongs to, so it has to carry the same
+            // title. Without this it swallows the pointer and the hover tooltip stops
+            // working — the run underneath is never the topmost element any more.
+            hit.append("title").text(label);
         }
 
         // Midnight ticks, taking over from the day-boundary overshoot the strip
@@ -369,7 +373,8 @@ export class MeteogramChart {
                     .on("click", (event: any) => {
                         event.stopPropagation();
                         showTip(`evt${gi}`, glyphLabel, gx);
-                    });
+                    })
+                    .append("title").text(glyphLabel);
             });
         }
 
