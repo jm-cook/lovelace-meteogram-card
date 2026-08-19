@@ -32,14 +32,14 @@ tractable — a refactor meant to be visually identical can be *proved* so.
       visual change, but each drawer can then be converted independently.
 - [ ] **3. Keyed joins, drawer by drawer.** `.data(d, keyFn).join(...)` so elements keep
       their identity across redraws. Order by value:
-      - [ ] temperature line (replaces the spike hack)
+      - [x] temperature line (done — spike removed)
       - [x] rain bars — the interesting case, bars appear and vanish (done)
       - [ ] wind barbs
       - [ ] weather icons
       - [ ] axes, grid, labels, legends
 - [ ] **4. Transitions** on the joined attributes, gated behind `animate` (already
       wired, default off).
-- [ ] **5. Remove the spike** in `drawTemperatureLine` once its line is a real join.
+- [x] **5. Remove the spike** (done with the line) in `drawTemperatureLine` once its line is a real join.
 
 ## Verifying
 

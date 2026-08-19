@@ -99,11 +99,39 @@ const slide = await page.evaluate(async () => {
 console.log(`  across a window slide: same node kept ${slide.kept}, `
   + `hour unchanged ${slide.hourUnchanged}, index ${slide.idxBefore} -> ${slide.idxAfter}`);
 
+// The temperature line is one persistent path: the same element must survive a redraw
+// and interpolate its shape, rather than being replaced. It also must not accumulate —
+// its layer no longer clears itself.
+const temp = await page.evaluate(async () => {
+  const r = document.querySelector("meteogram-card").shadowRoot;
+  const path = () => r.querySelector("path.temp-line");
+  const first = path();
+  const before = first?.getAttribute("d")?.slice(0, 40);
+  document.getElementById("step").click();
+  const seen = new Set();
+  for (let i = 0; i < 50; i++) {
+    await new Promise(x => requestAnimationFrame(x));
+    const d = path()?.getAttribute("d");
+    if (d) seen.add(d);
+  }
+  return {
+    same: path() === first,
+    count: r.querySelectorAll("path.temp-line").length,
+    defs: r.querySelectorAll(".layer-temperature defs").length,
+    moved: before !== path()?.getAttribute("d")?.slice(0, 40),
+    frames: seen.size,
+  };
+});
+console.log(`  temperature line: same element ${temp.same}, moved ${temp.moved}, `
+  + `${temp.frames} intermediate shapes, ${temp.count} path(s), ${temp.defs} defs`);
+
 console.log("  page errors:", errors.length ? errors.join("; ") : "none");
 await browser.close(); server.close();
 
 const ok = JSON.stringify(a) === JSON.stringify(b)
     && identity.same && identity.present && frames > 5
-    && slide.kept && slide.hourUnchanged && errors.length === 0;
-console.log(ok ? "\n5/5 passed" : "\nFAILED");
+    && slide.kept && slide.hourUnchanged
+    && temp.same && temp.moved && temp.frames > 5 && temp.count === 1 && temp.defs === 1
+    && errors.length === 0;
+console.log(ok ? "\n6/6 passed" : "\nFAILED");
 process.exit(ok ? 0 : 1);

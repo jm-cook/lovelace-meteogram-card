@@ -771,6 +771,11 @@ export class MeteogramChart {
 
         // Create a gradient that transitions from blue (cold/below freezing) to red (warm/above freezing)
         // Use userSpaceOnUse so we can position gradient stops at exact Y coordinates
+        // The layer is no longer cleared for us — the path has to survive for the
+        // transition below to have anywhere to start from. Everything else in here is
+        // still rebuilt each draw, so it is removed by hand until it too is converted.
+        chart.selectAll(":scope > *:not(path.temp-line)").remove();
+
         const gradientId = `temp-gradient-${Math.random().toString(36).substr(2, 9)}`;
         
         const defs = chart.append("defs");
@@ -933,32 +938,33 @@ export class MeteogramChart {
         } else {
         }
         
-        // SPIKE: animate the temperature line rather than snapping to the new shape.
-        //
-        // The svg is rebuilt from scratch on every draw, so the previous path is gone by
-        // the time this runs — there is nothing to transition *from* in the DOM. The
-        // card therefore remembers the last path it drew, and this starts the new one
-        // there before transitioning to where it belongs.
+        // The line is one persistent element, so it transitions from wherever it is to
+        // wherever the new forecast puts it. This replaces the spike, which had to
+        // remember the previous path string because the element itself did not survive
+        // a redraw; the element does now, and d3 interpolates straight from the DOM.
         //
         // Only when the point count matches. d3 interpolates the `d` string, which is
-        // smooth between two paths of the same shape and produces nonsense between paths
-        // of different lengths — so a change of span snaps, as it should.
+        // smooth between two paths of the same shape and produces nonsense between
+        // paths of different lengths — so a change of span snaps, as it should.
         const newPath = line(temperature) ?? "";
-        const previous = this.card._previousTempPath;
-        const sameShape =
-            !!previous &&
-            previous.split("L").length === newPath.split("L").length &&
-            previous !== newPath;
-        const willAnimate = this.card.animateChanges && sameShape;
-
-        const tempPath = chart.append("path")
-            .datum(temperature)
-            .attr("class", "temp-line")
-            .attr("d", willAnimate ? previous! : newPath);
-        if (willAnimate) {
-            tempPath.transition().duration(450).ease(d3.easeCubicOut).attr("d", newPath);
+        let tempPath = chart.select("path.temp-line");
+        if (tempPath.empty()) {
+            tempPath = chart.append("path")
+                .datum(temperature)
+                .attr("class", "temp-line")
+                .attr("d", newPath);
+        } else {
+            const previous = tempPath.attr("d") ?? "";
+            const sameShape =
+                previous.split("L").length === newPath.split("L").length &&
+                previous !== newPath;
+            tempPath.datum(temperature);
+            if (this.card.animateChanges && sameShape) {
+                tempPath.transition().duration(450).ease(d3.easeCubicOut).attr("d", newPath);
+            } else {
+                tempPath.attr("d", newPath);
+            }
         }
-        this.card._previousTempPath = newPath;
         
         // Apply either custom color or gradient
         if (hasCustomColor) {

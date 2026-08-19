@@ -149,8 +149,6 @@ export class MeteogramCard extends LitElement {
   @property({ type: Boolean }) showPrecipitation = true;
   /** SPIKE: animate changes rather than redrawing them cold. */
   @property({ type: Boolean }) animateChanges = false;
-  /** Last temperature path drawn, so the next draw can transition from it. */
-  _previousTempPath: string | null = null;
   @property({ type: Boolean }) denseWeatherIcons = true; // NEW: icon density config
   @property({ type: String }) meteogramHours: string | number = "48h"; // Default is now 48h
   @property({ type: Object }) styles: MeteogramStyleConfig = {}; // NEW: styles override
@@ -2794,7 +2792,7 @@ export class MeteogramCard extends LitElement {
     if (tempLegendIndex >= 0 && legendPositions.length > 0) {
       const legendPos = legendPositions[tempLegendIndex];
       this._chartRenderer.drawTemperatureLine(
-        this._layer(chart, "temperature"),
+        this._layer(chart, "temperature", false),
         temperatureConverted,
         x,
         yTemp,
@@ -2803,7 +2801,7 @@ export class MeteogramCard extends LitElement {
       );
     } else {
       this._chartRenderer.drawTemperatureLine(
-        this._layer(chart, "temperature"),
+        this._layer(chart, "temperature", false),
         temperatureConverted,
         x,
         yTemp
