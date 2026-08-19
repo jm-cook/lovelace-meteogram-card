@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Meteogram Card — changing data</title>
+    <script type="module" src="./dist/meteogram-card.js"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 20px auto; }
+        .card { border: 1px solid #ddd; border-radius: 8px; padding: 10px;
+                box-shadow: 0 2px 5px rgba(0,0,0,.1); height: 460px; margin-bottom: 16px; }
+        .panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+                 gap: 10px 18px; align-items: center; margin-bottom: 14px; }
+        .panel label { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+        .panel input[type=range] { flex: 1; }
+        button { padding: 7px 14px; background: #03a9f4; color: #fff; border: 0;
+                 border-radius: 4px; cursor: pointer; }
+        button.off { background: #78909c; }
+        #status { font: 12px/1.5 monospace; color: #444; background: #f5f5f5;
+                  padding: 8px 10px; border-radius: 4px; white-space: pre; }
+    </style>
+</head>
+<body>
+<h1>Meteogram Card — changing data</h1>
+<p>
+    The forecast is the recorded met.no fixture with its values moved on each step, so the
+    card is redrawn with data that differs a little each time. That is what makes a
+    re-render visible: against static data an animated update and a rebuild look the same.
+</p>
+
+<div class="panel">
+    <label><input type="checkbox" id="auto" checked> Auto step</label>
+    <label>every <input type="range" id="period" min="1" max="15" value="3"> <span id="periodLabel">3s</span></label>
+    <label>temperature swing <input type="range" id="tempAmp" min="0" max="10" value="4"></label>
+    <label>rain <input type="range" id="rainAmp" min="0" max="10" value="3"></label>
+    <label>wind <input type="range" id="windAmp" min="0" max="10" value="3"></label>
+    <label>pressure <input type="range" id="presAmp" min="0" max="10" value="3"></label>
+    <button id="step">Step now</button>
+    <button id="reset" class="off">Reset to fixture</button>
+</div>
+
+<div class="card"><meteogram-card id="card"></meteogram-card></div>
+<div id="status">loading fixture…</div>
+
+<script type="module">
+    const $ = (id) => document.getElementById(id);
+    const base = await (await fetch("./test/fixtures/metno-forecast.json")).json();
+    const FIXTURE = base.body;
+
+    let phase = 0;
+
+    /**
+     * A copy of the fixture with its values displaced.
+     *
+     * Smooth in both time and phase — each series is a sine over the forecast index,
+     * shifted a little each step — so successive frames differ by a believable amount
+     * rather than jumping randomly. A jump looks like noise whichever way it is drawn;
+     * a drift is where a rebuild and an animated update actually look different.
+     */
+    function shaped(p) {
+        const amp = {
+            temp: +$("tempAmp").value, rain: +$("rainAmp").value,
+            wind: +$("windAmp").value, pres: +$("presAmp").value,
+        };
+        const out = structuredClone(FIXTURE);
+        out.properties.timeseries.forEach((entry, i) => {
+            const d = entry.data?.instant?.details;
+            if (!d) return;
+            const w = (k, f) => Math.sin(p * 0.7 + i * f + k);
+            if (d.air_temperature !== undefined) {
+                d.air_temperature = +(d.air_temperature + amp.temp * 0.5 * w(0, 0.18)).toFixed(1);
+            }
+            if (d.air_pressure_at_sea_level !== undefined) {
+                d.air_pressure_at_sea_level = +(d.air_pressure_at_sea_level + amp.pres * 1.5 * w(1, 0.11)).toFixed(1);
+            }
+            if (d.wind_speed !== undefined) {
+                d.wind_speed = Math.max(0, +(d.wind_speed + amp.wind * 0.6 * w(2, 0.23)).toFixed(1));
+                if (d.wind_speed_of_gust !== undefined) {
+                    d.wind_speed_of_gust = +(d.wind_speed * 1.6).toFixed(1);
+                }
+                if (d.wind_from_direction !== undefined) {
+                    d.wind_from_direction = (d.wind_from_direction + p * 11 + i * 3) % 360;
+                }
+            }
+            if (d.cloud_area_fraction !== undefined) {
+                d.cloud_area_fraction = Math.min(100, Math.max(0,
+                    +(d.cloud_area_fraction + 25 * w(3, 0.14)).toFixed(1)));
+            }
+            // Precipitation is the series worth watching: bars appear and vanish rather
+            // than merely moving, which is the case a keyed join has to get right.
+            for (const span of ["next_1_hours", "next_6_hours"]) {
+                const det = entry.data?.[span]?.details;
+                if (!det) continue;
+                const burst = Math.max(0, w(4, 0.27)) ** 2 * amp.rain * 0.9;
+                if (det.precipitation_amount !== undefined) det.precipitation_amount = +burst.toFixed(1);
+                if (det.precipitation_amount_min !== undefined) det.precipitation_amount_min = +(burst * 0.4).toFixed(1);
+                if (det.precipitation_amount_max !== undefined) det.precipitation_amount_max = +(burst * 1.8).toFixed(1);
+            }
+        });
+        return out;
+    }
+
+    let current = structuredClone(FIXTURE);
+
+    // Serve the card's met.no request from memory, already expired so the next forced
+    // redraw fetches again rather than reusing the cached forecast.
+    const realFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+        const url = typeof input === "string" ? input : input?.url ?? "";
+        if (url.includes("met.no")) {
+            return new Response(JSON.stringify(current), {
+                status: 200,
+                headers: { "content-type": "application/json", expires: new Date(Date.now() - 1000).toUTCString() },
+            });
+        }
+        return realFetch(input, init);
+    };
+
+    await customElements.whenDefined("meteogram-card");
+    const card = $("card");
+    card.hass = { language: "en", locale: { language: "en", time_format: "24" }, config: {} };
+    card.setConfig({
+        latitude: 58.4314, longitude: 8.8255, title: "Changing data",
+        display_mode: "full", meteogram_hours: "48h",
+        show_wind: true, show_sun: true, show_pressure: true,
+        show_precipitation: true, show_cloud_cover: true, show_weather_icons: true,
+    });
+
+    let steps = 0;
+    function step() {
+        phase += 1;
+        steps += 1;
+        current = shaped(phase);
+        // WeatherAPI refuses to fetch twice inside 60 seconds, which is right in
+        // production and useless here — the harness steps every few seconds. Dropping
+        // the instance gives the next draw a fresh one with no fetch history, so the
+        // new data actually reaches the chart.
+        card._weatherApiInstance = null;
+        // Private, deliberately: the card's own redraw path, forced. Reachable here
+        // because the card sits in this page's light DOM rather than inside Home
+        // Assistant's shadow tree.
+        card._scheduleDrawMeteogram("dev-harness", true);
+        const t = current.properties.timeseries[0].data.instant.details;
+        $("status").textContent =
+            `step ${steps}   phase ${phase}\n` +
+            `first hour:  ${t.air_temperature.toFixed(1)}°C   ` +
+            `${t.air_pressure_at_sea_level.toFixed(1)} hPa   ` +
+            `wind ${t.wind_speed.toFixed(1)}   cloud ${t.cloud_area_fraction.toFixed(0)}%\n` +
+            `rain (1h):   ${current.properties.timeseries
+                .slice(0, 12)
+                .map((e) => (e.data?.next_1_hours?.details?.precipitation_amount ?? 0).toFixed(1))
+                .join(" ")}`;
+    }
+
+    let timer = null;
+    function arm() {
+        if (timer) clearInterval(timer);
+        $("periodLabel").textContent = `${$("period").value}s`;
+        if ($("auto").checked) timer = setInterval(step, $("period").value * 1000);
+    }
+    $("auto").addEventListener("change", arm);
+    $("period").addEventListener("input", arm);
+    $("step").addEventListener("click", step);
+    $("reset").addEventListener("click", () => {
+        phase = 0;
+        current = structuredClone(FIXTURE);
+        card._weatherApiInstance = null;
+        card._scheduleDrawMeteogram("dev-harness-reset", true);
+        $("status").textContent = "reset to the recorded fixture";
+    });
+    arm();
+    step();
+</script>
+</body>
+</html>
