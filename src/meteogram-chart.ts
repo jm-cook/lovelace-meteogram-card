@@ -4,6 +4,30 @@ import { mapHaConditionToMetnoSymbol } from "./weather-entity";
 import { convertWindSpeed } from "./conversions";
 import { isDaylightAt, sunEventsBetween } from "./solar";
 
+/**
+ * Sunrise and sunset marks for the day/night strip.
+ *
+ * Home Assistant ships Material Design Icons, so the strip asks for mdi:weather-sunset-up
+ * and mdi:weather-sunset-down through ha-icon and inherits the theme's icon styling.
+ *
+ * These paths are the same two icons (Apache-2.0, github.com/Templarian/MaterialDesign)
+ * inlined for the case where ha-icon is not registered on the page. That is not a
+ * hypothetical: ha-textfield is missing from the card-editor page in current Home
+ * Assistant, which is what left the editor's text fields invisible, and there is no
+ * documented set of components a custom card may rely on. 1.2 KB is cheap insurance
+ * against the mark silently not drawing.
+ *
+ * Both replace the \u2600 and \u263D characters the strip used to draw. Those name the
+ * sun and the moon, where what the mark means is the moment one rises or sets: a
+ * horizon with an arrow through it says that, and a crescent does not.
+ *
+ * Both are on the standard 24x24 MDI viewBox and are scaled at draw time.
+ */
+const MDI_VIEWBOX = 24;
+const MDI_SUNRISE = "M3,12H7A5,5 0 0,1 12,7A5,5 0 0,1 17,12H21A1,1 0 0,1 22,13A1,1 0 0,1 21,14H3A1,1 0 0,1 2,13A1,1 0 0,1 3,12M15,12A3,3 0 0,0 12,9A3,3 0 0,0 9,12H15M12,2L14.39,5.42C13.65,5.15 12.84,5 12,5C11.16,5 10.35,5.15 9.61,5.42L12,2M3.34,7L7.5,6.65C6.9,7.16 6.36,7.78 5.94,8.5C5.5,9.24 5.25,10 5.11,10.79L3.34,7M20.65,7L18.88,10.79C18.74,10 18.47,9.23 18.05,8.5C17.63,7.78 17.1,7.15 16.5,6.64L20.65,7M12.71,16.3L15.82,19.41C16.21,19.8 16.21,20.43 15.82,20.82C15.43,21.21 14.8,21.21 14.41,20.82L12,18.41L9.59,20.82C9.2,21.21 8.57,21.21 8.18,20.82C7.79,20.43 7.79,19.8 8.18,19.41L11.29,16.3C11.5,16.1 11.74,16 12,16C12.26,16 12.5,16.1 12.71,16.3Z";
+const MDI_SUNSET = "M3,12H7A5,5 0 0,1 12,7A5,5 0 0,1 17,12H21A1,1 0 0,1 22,13A1,1 0 0,1 21,14H3A1,1 0 0,1 2,13A1,1 0 0,1 3,12M15,12A3,3 0 0,0 12,9A3,3 0 0,0 9,12H15M12,2L14.39,5.42C13.65,5.15 12.84,5 12,5C11.16,5 10.35,5.15 9.61,5.42L12,2M3.34,7L7.5,6.65C6.9,7.16 6.36,7.78 5.94,8.5C5.5,9.24 5.25,10 5.11,10.79L3.34,7M20.65,7L18.88,10.79C18.74,10 18.47,9.23 18.05,8.5C17.63,7.78 17.1,7.15 16.5,6.64L20.65,7M12.71,20.71L15.82,17.6C16.21,17.21 16.21,16.57 15.82,16.18C15.43,15.79 14.8,15.79 14.41,16.18L12,18.59L9.59,16.18C9.2,15.79 8.57,15.79 8.18,16.18C7.79,16.57 7.79,17.21 8.18,17.6L11.29,20.71C11.5,20.9 11.74,21 12,21C12.26,21 12.5,20.9 12.71,20.71Z";
+
+
 /** Substitute {name} placeholders; trnslt returns a plain string with no
  *  interpolation of its own, so the caller fills them in. */
 function fill(template: string, vars: Record<string, string>): string {
@@ -320,46 +344,60 @@ export class MeteogramChart {
             i < xs.length - 1 ? xs[i + 1] - xs[i] : Number.POSITIVE_INFINITY
         );
         const GLYPH_SPACING = 34;
-        // Clear air required between two neighbouring labels.
+        // Clear air required between two neighbouring marks.
         const LABEL_GAP = 6;
+        const ICON = 16;
+        const ICON_GAP = 2;
+        // Resolved once: an unregistered ha-icon renders nothing at all, so the strip
+        // falls back to drawing the same two icons as plain paths.
+        const haIcons = typeof customElements !== "undefined" && !!customElements.get("ha-icon");
         {
             events.forEach((e, gi) => {
                 const room = roomAt(gi);
                 if (room < GLYPH_SPACING) return;
                 const gx = margin.left + timeToX(e.at);
                 const glyphLabel = fill(eventLabel[e.type], { time: clock(e.at) });
-                const glyph = e.type === "sunrise" ? "\u2600" : "\u263D";
-                // Written with the time, then measured and demoted to the bare glyph if
-                // it does not fit. Measuring beats a pixel threshold guessed from the
-                // English 24-hour form: "5:51 AM" is wider, and a translator cannot be
-                // expected to keep to a width nobody told them about.
-                let withTime = true;
-                const text = group.append("text")
-                    .attr("class", "sun-strip-glyph sun-strip-glyph-timed")
-                    .attr("x", gx)
-                    .attr("y", y - 2)
-                    .attr("text-anchor", "middle")
-                    .text(`${glyph} ${clock(e.at)}`);
-                // Labels are centred on their event, so two neighbours each reach half
-                // their width toward each other: they clear when the gap covers one
-                // whole label plus a margin.
-                if ((text.node() as SVGTextElement).getComputedTextLength() + LABEL_GAP > room) {
-                    withTime = false;
-                    text.attr("class", "sun-strip-glyph").text(glyph);
-                }
-                text.append("title").text(glyphLabel);
 
-                // An event near either end would otherwise have half its label outside
-                // the plot. Nudged inward instead: the run boundary underneath still
-                // marks the exact moment, so the label may drift from it slightly
-                // without misleading anyone.
-                let half = 0;
-                if (withTime) {
-                    half = (text.node() as SVGTextElement).getComputedTextLength() / 2;
-                    const clamped = Math.max(margin.left + half,
-                                             Math.min(gx, margin.left + chartWidth - half));
-                    if (clamped !== gx) text.attr("x", clamped);
+                // Icon and time are laid out inside one group, so the pair can be
+                // measured and centred as a unit.
+                const mark = group.append("g").attr("class", "sun-strip-glyph");
+                mark.append("title").text(glyphLabel);
+                if (haIcons) {
+                    mark.append("foreignObject")
+                        .attr("width", ICON).attr("height", ICON)
+                        .html(`<ha-icon icon="mdi:weather-sunset-${e.type === "sunrise" ? "up" : "down"}" `
+                            + `style="display:block;width:${ICON}px;height:${ICON}px;--mdc-icon-size:${ICON}px"></ha-icon>`);
+                } else {
+                    mark.append("path")
+                        .attr("d", e.type === "sunrise" ? MDI_SUNRISE : MDI_SUNSET)
+                        .attr("transform", `scale(${ICON / MDI_VIEWBOX})`);
                 }
+
+                // Written with the time, then measured and dropped back to the icon
+                // alone if the pair does not fit. Measuring beats a pixel threshold
+                // guessed from the English 24-hour form: "5:51 AM" is wider, and a
+                // translator cannot be expected to keep to a width nobody told them of.
+                const text = mark.append("text")
+                    .attr("class", "sun-strip-glyph-timed")
+                    .attr("x", ICON + ICON_GAP)
+                    .attr("y", ICON * 0.78)
+                    .text(clock(e.at));
+                const textW = (text.node() as SVGTextElement).getComputedTextLength();
+                // Marks are centred on their event, so two neighbours each reach half
+                // their width toward each other: they clear when the gap covers one
+                // whole mark plus a margin.
+                const withTime = ICON + ICON_GAP + textW + LABEL_GAP <= room;
+                if (!withTime) text.remove();
+                const total = withTime ? ICON + ICON_GAP + textW : ICON;
+
+                // An event near either end would otherwise have half its mark outside
+                // the plot. Nudged inward instead: the run boundary underneath still
+                // marks the exact moment, so the mark may drift from it slightly
+                // without misleading anyone.
+                const half = total / 2;
+                const cx = Math.max(margin.left + half,
+                                    Math.min(gx, margin.left + chartWidth - half));
+                mark.attr("transform", `translate(${cx - half},${y - 2 - ICON})`);
 
                 // Added after the run targets, so a tap near an event reports the
                 // event's own time rather than the run it happens to fall inside.

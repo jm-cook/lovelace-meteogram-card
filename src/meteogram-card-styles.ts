@@ -214,18 +214,20 @@ export const meteogramCardStyles = css`
         fill: var(--meteogram-sun-night-color, #4a5b8c);
         opacity: 0.85;
     }
+    /* The sunrise/sunset mark: an mdi icon, optionally followed by the time. Both the
+       path fallback and the ha-icon inside the foreignObject take their colour from
+       here, so the pair matches the timescale whichever route drew it. */
     .sun-strip-glyph {
-        /* Proportional to the label type rather than a fixed pixel size, so the glyphs
-           scale with the rest of the card's text instead of shrinking beside it. */
-        font-size: var(--meteogram-sun-glyph-size, calc(var(--meteogram-label-font-size, 0.875rem) * 1.15));
         fill: var(--meteogram-timescale-color, currentColor);
+        color: var(--meteogram-timescale-color, currentColor);
         opacity: 0.85;
     }
-    /* With the time printed alongside, the pair reads as an axis label rather than a
-       symbol, so it drops to the same size as the other labels instead of the 1.15x
-       the bare glyph uses to stay legible on its own. */
+    /* The time beside the icon reads as an axis label, so it takes the same size as
+       the card's other labels. */
     .sun-strip-glyph-timed {
         font-size: var(--meteogram-label-font-size, 0.875rem);
+        /* The times sit in a row and change by the minute; lining figures stop the
+           column jittering as the digits change width. */
         font-variant-numeric: tabular-nums;
     }
     /* Midnight, marked inside the strip now that the day-boundary ticks no longer

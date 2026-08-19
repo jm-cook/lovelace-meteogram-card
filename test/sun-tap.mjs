@@ -121,23 +121,31 @@ async function main() {
   /** Every sun-strip mark on a page, with the geometry needed to spot a collision. */
   const marksOn = (pg) => pg.evaluate(() => {
     const root = document.querySelector("meteogram-card").shadowRoot;
+    const svgRect = root.querySelector("#chart svg").getBoundingClientRect();
     return {
+      svg: { left: svgRect.left, width: svgRect.width },
       runs: root.querySelectorAll(".sun-strip-day, .sun-strip-night").length,
-      marks: [...root.querySelectorAll(".sun-strip-glyph")].map((t) => ({
-        // firstChild, not textContent: the <title> is a child of the same <text>.
-        text: t.firstChild?.nodeValue ?? "",
-        timed: t.getAttribute("class").includes("sun-strip-glyph-timed"),
-        x: +t.getAttribute("x"),
-        width: t.getComputedTextLength(),
-      })),
+      // Each mark is a <g> holding an icon and, where it fits, a <text> of the time.
+      // Client rects, not getBBox: getBBox on a <g> reports the local frame, before the
+      // group's own translate, so every mark comes back at the same x.
+      marks: [...root.querySelectorAll(".sun-strip-glyph")].map((g) => {
+        const r = g.getBoundingClientRect();
+        const time = g.querySelector(".sun-strip-glyph-timed");
+        return {
+          text: time?.textContent ?? "",
+          timed: !!time,
+          icon: g.querySelector("ha-icon")?.getAttribute("icon")
+             ?? (g.querySelector("path") ? "path-fallback" : null),
+          left: r.left, right: r.right, x: r.left + r.width / 2, width: r.width,
+        };
+      }),
     };
   });
 
   /** No two lettered labels may share pixels — the invariant behind all the tiers. */
   const collides = (marks) => {
-    const timed = marks.filter((m) => m.timed).sort((a, b) => a.x - b.x);
-    return timed.some((m, i) =>
-      i > 0 && m.x - m.width / 2 < timed[i - 1].x + timed[i - 1].width / 2);
+    const sorted = [...marks].sort((a, b) => a.left - b.left);
+    return sorted.some((m, i) => i > 0 && m.left < sorted[i - 1].right);
   };
 
   const page = await openCard(null);
@@ -196,9 +204,15 @@ async function main() {
   check("times are printed inline at 48h",
         at48.marks.length > 0 && at48.marks.every((m) => m.timed && /\d{1,2}[:.]\d{2}/.test(m.text)),
         JSON.stringify(at48.marks.map((m) => m.text)));
+  check("marks use the mdi sunset icons",
+        at48.marks.every((m) => m.icon === "path-fallback"
+                             || /^mdi:weather-sunset-(up|down)$/.test(m.icon)),
+        JSON.stringify([...new Set(at48.marks.map((m) => m.icon))]));
   check("inline labels stay inside the card",
-        at48.marks.every((m) => m.x - m.width / 2 >= -1 && m.x + m.width / 2 <= bounds.w + 1),
-        at48.marks.map((m) => `${(m.x - m.width / 2).toFixed(0)}..${(m.x + m.width / 2).toFixed(0)}`).join(" "));
+        at48.marks.every((m) => m.left >= at48.svg.left - 1
+                             && m.right <= at48.svg.left + at48.svg.width + 1),
+        at48.marks.map((m) => `${(m.left - at48.svg.left).toFixed(0)}..${(m.right - at48.svg.left).toFixed(0)}`)
+          .join(" ") + ` of ${at48.svg.width.toFixed(0)}`);
   check("no two inline labels overlap at 48h", !collides(at48.marks));
 
   // 120h is the interesting one. met.no is hourly for the first days and six-hourly
@@ -215,9 +229,10 @@ async function main() {
         `${at120.marks.length} marks for ${at120.runs - 1} events`);
   // And what survives is the hourly near end, not an arbitrary subset: nothing is
   // lettered out in the six-hourly tail, where a day is a quarter as wide.
+  const frac = (m, o) => (m.x - o.svg.left) / o.svg.width;
   check("nothing survives in the compressed tail",
-        at120.marks.length > 0 && at120.marks.every((m) => m.x < bounds.w * 0.75),
-        `marks at ${at120.marks.map((m) => m.x.toFixed(0)).join(" ")} of ${bounds.w}`);
+        at120.marks.length > 0 && at120.marks.every((m) => frac(m, at120) < 0.75),
+        `marks at ${at120.marks.map((m) => frac(m, at120).toFixed(2)).join(" ")} of the width`);
   check("no two inline labels overlap at 120h", !collides(at120.marks));
   await p120.close();
 
