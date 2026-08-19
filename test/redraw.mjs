@@ -79,14 +79,14 @@ async function main() {
     return s && s.querySelectorAll("*").length > 50;
   }, null, { timeout: 30_000 });
 
-  // Count chart rebuilds by watching #chart's children change.
-  await page.evaluate(() => {
-    const root = document.querySelector("meteogram-card").shadowRoot;
-    window.__draws = 0;
-    new MutationObserver((muts) => {
-      for (const m of muts) if (m.addedNodes.length) window.__draws++;
-    }).observe(root.querySelector("#chart"), { childList: true });
+  // Count draws from the card's own log rather than by watching the DOM. #chart's
+  // children used to change on every rebuild; now the svg survives a redraw and only
+  // its contents change, so a childList observer sees nothing.
+  const drawLog = [];
+  page.on("console", (m) => {
+    if (/ENTER: _drawMeteogram/.test(m.text())) drawLog.push(m.text());
   });
+  await page.evaluate(() => window.meteogramDebug());
 
   const windCount = () => page.evaluate(() =>
     document.querySelector("meteogram-card").shadowRoot
@@ -106,7 +106,7 @@ async function main() {
   check("a config change redraws the chart", after === 0, `${before} -> ${after} wind elements`);
 
   // A burst must collapse. Five changes in quick succession are one visual outcome.
-  await page.evaluate(() => { window.__draws = 0; });
+  drawLog.length = 0;
   await page.evaluate(() => {
     const c = document.querySelector("meteogram-card");
     for (const v of [true, false, true, false, true]) {
@@ -114,8 +114,8 @@ async function main() {
     }
   });
   await page.waitForTimeout(1200);
-  const draws = await page.evaluate(() => window.__draws);
-  check("a burst of changes draws once", draws === 1, `${draws} draws for 5 changes`);
+  check("a burst of changes draws once", drawLog.length === 1,
+        `${drawLog.length} draws for 5 changes`);
   const end = await windCount();
   check("the burst lands on the last value", end > 0, `${end} wind elements`);
   // The card must never be seen empty. Clearing the chart and rebuilding it is fine as
@@ -127,7 +127,9 @@ async function main() {
     window.__minNodes = Infinity;
     window.__samples = 0;
     const sample = () => {
-      const n = root.querySelector("#chart")?.childElementCount ?? 0;
+      // Inside the svg: #chart now holds the same svg element across redraws, so its
+      // own child count no longer moves and would pass this trivially.
+      const n = root.querySelector("#chart svg")?.childElementCount ?? 0;
       window.__minNodes = Math.min(window.__minNodes, n);
       window.__samples++;
       if (window.__sampling) requestAnimationFrame(sample);

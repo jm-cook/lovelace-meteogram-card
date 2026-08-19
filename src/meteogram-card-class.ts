@@ -290,6 +290,14 @@ export class MeteogramCard extends LitElement {
   private _lastDrawnKey = "";
   /** Set when a redraw was requested with force, consumed by the next draw. */
   private _forceNextDraw = false;
+  /**
+   * Debug switched on from the console, which outranks the config.
+   *
+   * Without this, the next setConfig re-read `debug` from the config and switched
+   * logging straight back off — so turning it on to investigate something and then
+   * touching the card in the editor silently stopped the logging mid-investigation.
+   */
+  _debugOverride: boolean | null = null;
   private _lastWeatherData: any = null;
 
   // Store the current units for each parameter
@@ -551,7 +559,8 @@ export class MeteogramCard extends LitElement {
         ? config.diagnostics
         : DIAGNOSTICS_DEFAULT;
     // Add debug option (undocumented)
-    this.debug = config.debug !== undefined ? config.debug : false;
+    this.debug =
+      this._debugOverride ?? (config.debug !== undefined ? config.debug : false);
     // Set entityId from config
     this.entityId = config.entity_id || undefined;
     // Ensure boolean for focussed mode
@@ -3564,7 +3573,10 @@ export class MeteogramCard extends LitElement {
  */
 const meteogramDebug = (on: boolean = true): string => {
   const cards = (MeteogramCard as any)._live as Set<MeteogramCard>;
-  cards.forEach((card) => { card.debug = on; });
+  cards.forEach((card) => {
+    card._debugOverride = on;
+    card.debug = on;
+  });
   return `meteogram-card: debug ${on ? "on" : "off"} for ${cards.size} card(s) on this page`;
 };
 
