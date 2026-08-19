@@ -12,6 +12,7 @@
     "start": "npm run build && serve",
     "lint:fix": "eslint src --fix",
     "snapshot": "node test/snapshot.mjs",
+    "test:browser": "node test/sun-tap.mjs",
     "snapshot:capture": "node test/snapshot.mjs --capture",
     "test": "vitest run",
     "test:watch": "vitest"

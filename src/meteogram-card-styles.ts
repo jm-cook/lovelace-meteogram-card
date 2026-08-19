@@ -242,6 +242,24 @@ export const meteogramCardStyles = css`
         fill: var(--meteogram-sun-night-color, #2b3557);
     }
 
+    /* Touch targets for the strip. The native <title> on each segment covers hover and
+       assistive technology; a hover tooltip never appears on a tablet, so the same text
+       is also reachable by tapping. Filled transparent rather than none, because
+       fill:none does not receive pointer events. */
+    .sun-strip-hit {
+        fill: transparent;
+        cursor: pointer;
+    }
+    .sun-strip-tip-box {
+        fill: var(--card-background-color, #fff);
+        stroke: var(--divider-color, rgba(0, 0, 0, 0.25));
+        stroke-width: 1;
+    }
+    .sun-strip-tip-text {
+        font-size: var(--meteogram-label-font-size, 0.875rem);
+        fill: var(--primary-text-color, #222);
+    }
+
     .wind-band-bg {
         fill: transparent;
     }

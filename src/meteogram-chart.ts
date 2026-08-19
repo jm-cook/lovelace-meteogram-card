@@ -156,6 +156,49 @@ export class MeteogramChart {
 
         const group = svg.append("g").attr("class", "sun-strip");
 
+        // The strip is 10px tall, which is far below a usable touch target, so the tap
+        // areas reach up over the glyph row and a little into the plot. Invisible, so
+        // they cost nothing visually.
+        const TAP_ABOVE = 12;
+        const TAP_BELOW = 6;
+
+        // Tap-to-show panel. Kept inside the svg rather than floated over it as HTML:
+        // it then shares the chart's viewBox scaling and is cleared with the chart on
+        // every redraw, instead of needing its own positioning maths and teardown.
+        const tip = group.append("g").attr("class", "sun-strip-tip").style("display", "none");
+        const tipBox = tip.append("rect").attr("class", "sun-strip-tip-box").attr("rx", 4);
+        const tipText = tip.append("text").attr("class", "sun-strip-tip-text");
+        let openKey: string | null = null;
+
+        const hideTip = () => {
+            tip.style("display", "none");
+            openKey = null;
+        };
+
+        const showTip = (key: string, label: string, cx: number) => {
+            // Tapping the open target again closes it — the only dismissal gesture that
+            // is discoverable without adding a close button to a 10px strip.
+            if (openKey === key) {
+                hideTip();
+                return;
+            }
+            openKey = key;
+            tipText.text(label);
+            tip.style("display", null);
+            // Measured only once visible: getComputedTextLength reports 0 while the
+            // group is display:none.
+            const padX = 6;
+            const w = (tipText.node() as SVGTextElement).getComputedTextLength() + padX * 2;
+            const h = 18;
+            // Clamped to the plot, so a run at either end of the window stays readable
+            // instead of hanging off the card.
+            const left = Math.max(margin.left,
+                                  Math.min(cx - w / 2, margin.left + chartWidth - w));
+            const top = y + stripHeight + 4;
+            tipBox.attr("x", left).attr("y", top).attr("width", w).attr("height", h);
+            tipText.attr("x", left + padX).attr("y", top + h - 5);
+        };
+
         for (let i = 0; i < bounds.length - 1; i++) {
             const a = bounds[i];
             const b = bounds[i + 1];
@@ -200,12 +243,25 @@ export class MeteogramChart {
                 night_from: "Night from {start}",
             };
             const id = `${kind}_${shape}`;
-            rect.append("title").text(
-                fill(
-                    trnslt(this.card.hass, `ui.card.meteogram.sun.${id}`, english[id]),
-                    { start: clock(a), end: clock(b) }
-                )
+            const label = fill(
+                trnslt(this.card.hass, `ui.card.meteogram.sun.${id}`, english[id]),
+                { start: clock(a), end: clock(b) }
             );
+            rect.append("title").text(label);
+
+            // A <title> is a hover tooltip, and hover does not exist on the wall tablet
+            // this card usually lives on. The same text is reachable by tapping.
+            const xEnd = Math.min(x1, margin.left + chartWidth);
+            group.append("rect")
+                .attr("class", "sun-strip-hit")
+                .attr("x", x0)
+                .attr("y", y - TAP_ABOVE)
+                .attr("width", Math.max(0, xEnd - x0))
+                .attr("height", stripHeight + TAP_ABOVE + TAP_BELOW)
+                .on("click", (event: any) => {
+                    event.stopPropagation();
+                    showTip(`seg${i}`, label, (x0 + xEnd) / 2);
+                });
         }
 
         // Midnight ticks, taking over from the day-boundary overshoot the strip
@@ -232,26 +288,43 @@ export class MeteogramChart {
             ? (timeToX(events[events.length - 1].at) - timeToX(events[0].at)) / (events.length - 1)
             : Number.POSITIVE_INFINITY;
         if (spacing >= 34) {
-            events.forEach((e) => {
+            events.forEach((e, gi) => {
+                const gx = margin.left + timeToX(e.at);
+                const glyphLabel = fill(
+                    trnslt(
+                        this.card.hass,
+                        `ui.card.meteogram.sun.${e.type}`,
+                        e.type === "sunrise" ? "Sunrise {time}" : "Sunset {time}"
+                    ),
+                    { time: e.at.toLocaleTimeString(locale, timeOptions) }
+                );
                 group.append("text")
                     .attr("class", "sun-strip-glyph")
-                    .attr("x", margin.left + timeToX(e.at))
+                    .attr("x", gx)
                     .attr("y", y - 2)
                     .attr("text-anchor", "middle")
                     .text(e.type === "sunrise" ? "\u2600" : "\u263D")
                     .append("title")
-                    .text(
-                        fill(
-                            trnslt(
-                                this.card.hass,
-                                `ui.card.meteogram.sun.${e.type}`,
-                                e.type === "sunrise" ? "Sunrise {time}" : "Sunset {time}"
-                            ),
-                            { time: e.at.toLocaleTimeString(locale, timeOptions) }
-                        )
-                    );
+                    .text(glyphLabel);
+                // Added after the segment targets, so a tap near an event reports the
+                // event's own time rather than the run it happens to fall inside.
+                group.append("rect")
+                    .attr("class", "sun-strip-hit")
+                    .attr("x", gx - 14)
+                    .attr("y", y - TAP_ABOVE)
+                    .attr("width", 28)
+                    .attr("height", stripHeight + TAP_ABOVE + TAP_BELOW)
+                    .on("click", (event: any) => {
+                        event.stopPropagation();
+                        showTip(`evt${gi}`, glyphLabel, gx);
+                    });
             });
         }
+
+        // Drawn last so the panel is never hidden behind a segment or glyph added after
+        // it. Namespaced so it cannot clobber another handler on the same svg.
+        tip.raise();
+        svg.on("click.sunstrip", hideTip);
     }
 
     drawGridOutline(chart: any) {
