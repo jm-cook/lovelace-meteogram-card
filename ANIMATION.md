@@ -35,7 +35,7 @@ tractable — a refactor meant to be visually identical can be *proved* so.
       - [x] temperature line (done — spike removed)
       - [x] rain bars — the interesting case, bars appear and vanish (done)
       - [x] cloud band and pressure line (done — shared persistentPath helper)
-      - [ ] wind barbs
+      - [x] wind barbs (done — placement animates, glyph redraws)
       - [ ] weather icons
       - [ ] axes, grid, labels, legends
 - [ ] **4. Transitions** on the joined attributes, gated behind `animate` (already

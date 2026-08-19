@@ -2768,7 +2768,7 @@ export class MeteogramCard extends LitElement {
             : this.getSystemWindSpeedUnit();
       }
       this._chartRenderer.drawWindBand(
-        this._layer(svg, "wind"),
+        this._layer(svg, "wind", false),
         x,
         windBandHeight,
         margin,

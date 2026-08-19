@@ -1455,8 +1455,19 @@ export class MeteogramChart {
         windSpeedUnit: string
     ) {
         const windBandYOffset = margin.top + this.card._chartHeight;
-        const windBand = svg.append('g')
-            .attr('transform', `translate(${margin.left},${windBandYOffset})`);
+        // Select-or-append: the layer no longer clears itself, so appending a fresh
+        // group each draw would stack a new copy of the whole band every time.
+        // By structure, not a class: it is the layer's only child group, so no marker
+        // attribute is needed and the serialised output is unchanged.
+        let windBand = svg.select(":scope > g");
+        if (windBand.empty()) {
+            windBand = svg.append('g')
+                .attr('transform', `translate(${margin.left},${windBandYOffset})`);
+        } else {
+            windBand.attr('transform', `translate(${margin.left},${windBandYOffset})`);
+        }
+        // Everything except the barb groups is still rebuilt each draw.
+        windBand.selectAll(":scope > :not(g)").remove();
 
         // Even hour grid lines
         const twoHourIdx: number[] = [];
@@ -1550,6 +1561,8 @@ export class MeteogramChart {
         
         // Now place wind barbs 
         const windBarbY = windBandHeight / 2;
+        const barbs: Array<{ t: number; cx: number; speed: number;
+                             gust: number | null; dir: number; len: number }> = [];
         
         // Draw high-resolution barbs (between even hours)
         for (let idx = 0; idx < highResIndices.length - 1; idx++) {
@@ -1568,7 +1581,8 @@ export class MeteogramChart {
             const gustInKnots = typeof gust === 'number' && !isNaN(gust) ? convertWindSpeed(gust, windSpeedUnit, "kt") : null;
             
             const barbLen = windLenScale(speed);
-            this.drawWindBarb(windBand, centerX, windBarbY, speedInKnots, gustInKnots, dir, barbLen, width < 400 ? 0.7 : 0.8);
+            barbs.push({ t: time[dataIdx] ? +time[dataIdx] : dataIdx, cx: centerX,
+                         speed: speedInKnots, gust: gustInKnots, dir, len: barbLen });
         }
         
         // Draw low-resolution barbs (every other point for 6-hourly data = 12-hour intervals)
@@ -1592,8 +1606,44 @@ export class MeteogramChart {
             const gustInKnots = typeof gust === 'number' && !isNaN(gust) ? convertWindSpeed(gust, windSpeedUnit, "kt") : null;
             
             const barbLen = windLenScale(speed);
-            this.drawWindBarb(windBand, x(dataIdx), windBarbY, speedInKnots, gustInKnots, dir, barbLen, width < 400 ? 0.7 : 0.8);
+            barbs.push({ t: time[dataIdx] ? +time[dataIdx] : dataIdx, cx: x(dataIdx),
+                         speed: speedInKnots, gust: gustInKnots, dir, len: barbLen });
         }
+
+        // One barb per forecast slot, keyed by time so a barb slides to its new position
+        // as the window advances rather than being destroyed and rebuilt somewhere else.
+        //
+        // Selected by structure rather than a class: these groups are the only direct <g>
+        // children of the wind band, so no marker attribute is needed and the serialised
+        // output is unchanged.
+        const scale = width < 400 ? 0.7 : 0.8;
+        const placement = (d: any) =>
+            `translate(${d.cx},${windBarbY}) rotate(${d.dir % 360}) scale(${scale})`;
+
+        const sel = windBand.selectAll(":scope > g").data(barbs, (d: any) => d.t);
+        sel.exit().remove();
+
+        const entered = sel.enter().append("g").attr("transform", placement);
+        entered.each((d: any, i: number, nodes: any) => {
+            this.renderBarb(d3.select(nodes[i]), d.speed, d.gust, d.len);
+        });
+
+        const all = entered.merge(sel);
+        // The glyph is redrawn rather than morphed: a barb is a discrete symbol, and
+        // feathers growing out of each other would read as noise. Its *position* is what
+        // carries the movement.
+        sel.each((d: any, i: number, nodes: any) => {
+            const g = d3.select(nodes[i]);
+            g.selectAll("*").remove();
+            this.renderBarb(g, d.speed, d.gust, d.len);
+        });
+        if (this.card.animateChanges) {
+            all.transition().duration(MeteogramChart.ANIM_MS)
+                .ease(d3.easeCubicOut).attr("transform", placement);
+        } else {
+            all.attr("transform", placement);
+        }
+        all.order();
     }
 
     /**
@@ -1615,7 +1665,20 @@ export class MeteogramChart {
 
         const barbGroup = g.append("g")
             .attr("transform", `translate(${x},${y}) rotate(${(dirDeg) % 360}) scale(${scale})`);
+        this.renderBarb(barbGroup, speed, gust, len);
+    }
 
+    /**
+     * The barb glyph itself, drawn into a group that is already positioned.
+     *
+     * Split out of drawWindBarb so the wind band can join on the positioned groups —
+     * placement animates, the glyph is redrawn. drawWindBarb is kept as the one-shot
+     * form it always was.
+     */
+    private renderBarb(barbGroup: any, speed: number, gust: number | null, len: number) {
+        const featherLong = 12;
+        const featherShort = 6;
+        const featherYOffset = 3;
         const y0 = -len / 2, y1 = +len / 2;
 
         if (speed < 2) {

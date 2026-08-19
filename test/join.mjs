@@ -151,6 +151,40 @@ paths.forEach((p) => console.log(
   `  ${p.cls.padEnd(14)} same element ${p.same}, ${p.count} in the chart, ${p.frames} shapes`));
 const pathsOk = paths.every((p) => p.same && p.count === 1 && p.frames > 5);
 
+// Wind barbs: placement animates, the glyph is redrawn. Also the case where the whole
+// band group could quietly stack a copy of itself each draw, since its layer no longer
+// clears.
+const wind = await page.evaluate(async () => {
+  const r = document.querySelector("meteogram-card").shadowRoot;
+  const band = () => r.querySelector(".layer-wind > g");
+  const barbs = () => [...r.querySelectorAll(".layer-wind > g > g")];
+  const before = barbs().length;
+  const sample = barbs()[3];
+  const hour = sample?.__data__?.t;
+  const t0 = sample?.getAttribute("transform");
+  const seen = new Set();
+  document.getElementById("step").click();
+  for (let i = 0; i < 50; i++) {
+    await new Promise(x => requestAnimationFrame(x));
+    const tr = sample?.getAttribute("transform");
+    if (tr) seen.add(tr);
+  }
+  return {
+    bands: r.querySelectorAll(".layer-wind > g").length,
+    before, after: barbs().length,
+    kept: barbs().includes(sample),
+    hourUnchanged: sample?.__data__?.t === hour,
+    moved: t0 !== sample?.getAttribute("transform"),
+    frames: seen.size,
+    hasGlyph: (sample?.childElementCount ?? 0) > 0,
+  };
+});
+console.log(`  wind: ${wind.bands} band group, ${wind.before}->${wind.after} barbs, `
+  + `sample kept ${wind.kept}, hour unchanged ${wind.hourUnchanged}, `
+  + `${wind.frames} positions, glyph present ${wind.hasGlyph}`);
+const windOk = wind.bands === 1 && wind.kept && wind.hourUnchanged
+  && wind.moved && wind.frames > 5 && wind.hasGlyph;
+
 console.log("  page errors:", errors.length ? errors.join("; ") : "none");
 await browser.close(); server.close();
 
@@ -158,7 +192,7 @@ const ok = JSON.stringify(a) === JSON.stringify(b)
     && identity.same && identity.present && frames > 5
     && slide.kept && slide.hourUnchanged
     && temp.same && temp.moved && temp.frames > 5 && temp.count === 1 && temp.defs === 1
-    && pathsOk
+    && pathsOk && windOk
     && errors.length === 0;
-console.log(ok ? "\n7/7 passed" : "\nFAILED");
+console.log(ok ? "\n8/8 passed" : "\nFAILED");
 process.exit(ok ? 0 : 1);
