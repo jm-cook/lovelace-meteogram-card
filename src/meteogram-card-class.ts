@@ -55,13 +55,6 @@ export type MeteogramStyleConfig = Record<string, string> & {
 @customElement("meteogram-card")
 export class MeteogramCard extends LitElement {
   private _chartRenderer: MeteogramChart | null = null;
-  // Getter for precipitation display (replaces showRain)
-  get showPrecipitation() {
-    // Prefer config property if present, else default to true
-    return (this as any).show_precipitation !== undefined
-      ? (this as any).show_precipitation
-      : true;
-  }
   // Store missing keys for diagnostics/info panel
   private _missingForecastKeys: string[] = [];
   private _availableHours: number | string = "unknown";
@@ -154,6 +147,7 @@ export class MeteogramCard extends LitElement {
   @property({ type: Boolean }) showWeatherIcons = true;
   @property({ type: Boolean }) showWind = true;
   @property({ type: Boolean }) showSun = true;
+  @property({ type: Boolean }) showPrecipitation = true;
   @property({ type: Boolean }) denseWeatherIcons = true; // NEW: icon density config
   @property({ type: String }) meteogramHours: string | number = "48h"; // Default is now 48h
   @property({ type: Object }) styles: MeteogramStyleConfig = {}; // NEW: styles override
@@ -499,6 +493,11 @@ export class MeteogramCard extends LitElement {
         : true;
     this.showWind = config.show_wind !== undefined ? config.show_wind : true;
     this.showSun = config.show_sun !== undefined ? config.show_sun : true;
+    // Assigned here for the first time. The getter this replaces read
+    // `this.show_precipitation`, a property setConfig never set, so it was always
+    // undefined and precipitation was on for everyone regardless of the toggle.
+    this.showPrecipitation =
+      config.show_precipitation !== undefined ? config.show_precipitation : true;
     this.denseWeatherIcons =
       config.dense_weather_icons !== undefined
         ? config.dense_weather_icons
