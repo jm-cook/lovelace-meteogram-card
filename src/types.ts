@@ -20,7 +20,9 @@ export interface MeteogramCardConfig {
     focussed?: boolean; // Add this line for Focussed mode
     display_mode?: "full" | "core" | "focussed"; // Add this line for display mode
     aspect_ratio?: string; // Add this line for aspect ratio support
-    layout_mode?: "sections" | "panel" | "grid"; // Add this line for layout mode support
+    layout_mode?: "sections" | "panel" | "grid";
+    /** SPIKE: animate the temperature line between redraws instead of snapping. */
+    animate?: boolean; // Add this line for layout mode support
 }
 
 export interface MeteogramData {

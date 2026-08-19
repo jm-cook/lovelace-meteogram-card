@@ -147,6 +147,10 @@ export class MeteogramCard extends LitElement {
   @property({ type: Boolean }) showWind = true;
   @property({ type: Boolean }) showSun = true;
   @property({ type: Boolean }) showPrecipitation = true;
+  /** SPIKE: animate changes rather than redrawing them cold. */
+  @property({ type: Boolean }) animateChanges = false;
+  /** Last temperature path drawn, so the next draw can transition from it. */
+  _previousTempPath: string | null = null;
   @property({ type: Boolean }) denseWeatherIcons = true; // NEW: icon density config
   @property({ type: String }) meteogramHours: string | number = "48h"; // Default is now 48h
   @property({ type: Object }) styles: MeteogramStyleConfig = {}; // NEW: styles override
@@ -534,6 +538,7 @@ export class MeteogramCard extends LitElement {
     // undefined and precipitation was on for everyone regardless of the toggle.
     this.showPrecipitation =
       config.show_precipitation !== undefined ? config.show_precipitation : true;
+    this.animateChanges = config.animate === true;
     this.denseWeatherIcons =
       config.dense_weather_icons !== undefined
         ? config.dense_weather_icons
@@ -1180,7 +1185,7 @@ export class MeteogramCard extends LitElement {
       this.displayMode, this.focussed, this.aspectRatio, this.layoutMode,
       this.showCloudCover, this.showPressure, this.showPrecipitation,
       this.showWeatherIcons, this.showWind, this.showSun,
-      this.denseWeatherIcons, this.meteogramHours,
+      this.denseWeatherIcons, this.meteogramHours, this.animateChanges,
       // Not hass itself — that changes constantly — but the two parts of it the chart
       // renders from. Both change rarely, and without them a user switching Home
       // Assistant to another language or to a 24-hour clock would keep the old labels

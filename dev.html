@@ -34,6 +34,7 @@
     <label>rain <input type="range" id="rainAmp" min="0" max="10" value="3"></label>
     <label>wind <input type="range" id="windAmp" min="0" max="10" value="3"></label>
     <label>pressure <input type="range" id="presAmp" min="0" max="10" value="3"></label>
+    <label><input type="checkbox" id="animate" checked> Animate temperature line</label>
     <button id="step">Step now</button>
     <button id="reset" class="off">Reset to fixture</button>
 </div>
@@ -123,6 +124,11 @@
         display_mode: "full", meteogram_hours: "48h",
         show_wind: true, show_sun: true, show_pressure: true,
         show_precipitation: true, show_cloud_cover: true, show_weather_icons: true,
+        animate: $("animate").checked,
+    });
+    // Toggling is the point of the spike: the same step, animated and not, back to back.
+    $("animate").addEventListener("change", () => {
+        card.setConfig({ ...(card._config ?? {}), animate: $("animate").checked });
     });
 
     let steps = 0;

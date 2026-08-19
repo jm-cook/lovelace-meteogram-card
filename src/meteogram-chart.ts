@@ -928,10 +928,32 @@ export class MeteogramChart {
         } else {
         }
         
+        // SPIKE: animate the temperature line rather than snapping to the new shape.
+        //
+        // The svg is rebuilt from scratch on every draw, so the previous path is gone by
+        // the time this runs — there is nothing to transition *from* in the DOM. The
+        // card therefore remembers the last path it drew, and this starts the new one
+        // there before transitioning to where it belongs.
+        //
+        // Only when the point count matches. d3 interpolates the `d` string, which is
+        // smooth between two paths of the same shape and produces nonsense between paths
+        // of different lengths — so a change of span snaps, as it should.
+        const newPath = line(temperature) ?? "";
+        const previous = this.card._previousTempPath;
+        const sameShape =
+            !!previous &&
+            previous.split("L").length === newPath.split("L").length &&
+            previous !== newPath;
+        const willAnimate = this.card.animateChanges && sameShape;
+
         const tempPath = chart.append("path")
             .datum(temperature)
             .attr("class", "temp-line")
-            .attr("d", line);
+            .attr("d", willAnimate ? previous! : newPath);
+        if (willAnimate) {
+            tempPath.transition().duration(450).ease(d3.easeCubicOut).attr("d", newPath);
+        }
+        this.card._previousTempPath = newPath;
         
         // Apply either custom color or gradient
         if (hasCustomColor) {
