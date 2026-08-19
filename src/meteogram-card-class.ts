@@ -639,12 +639,14 @@ export class MeteogramCard extends LitElement {
    * Direct-child selector: a descendant match would find a nested group of the same
    * name inside another layer.
    */
-  private _layer(parent: any, name: string): any {
+  private _layer(parent: any, name: string, clear: boolean = true): any {
     let g = parent.select(`:scope > g.layer-${name}`);
     if (g.empty()) {
       g = parent.append("g").attr("class", `layer layer-${name}`);
     }
-    g.selectAll("*").remove();
+    // A drawer that has been converted to keyed joins passes clear=false: its elements
+    // have to survive the redraw for the join to match them, which is the entire point.
+    if (clear) g.selectAll("*").remove();
     return g;
   }
 
@@ -2707,7 +2709,7 @@ export class MeteogramCard extends LitElement {
       if (rainLegendIndex >= 0 && legendPositions.length > 0) {
         const legendPos = legendPositions[rainLegendIndex];
         this._chartRenderer.drawRainBars(
-          this._layer(chart, "rain"),
+          this._layer(chart, "rain", false),
           rainConverted,
           rainMaxConverted,
           N,
@@ -2719,7 +2721,7 @@ export class MeteogramCard extends LitElement {
         );
       } else {
         this._chartRenderer.drawRainBars(
-          this._layer(chart, "rain"),
+          this._layer(chart, "rain", false),
           rainConverted,
           rainMaxConverted,
           N,

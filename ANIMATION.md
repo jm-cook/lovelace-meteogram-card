@@ -33,7 +33,7 @@ tractable — a refactor meant to be visually identical can be *proved* so.
 - [ ] **3. Keyed joins, drawer by drawer.** `.data(d, keyFn).join(...)` so elements keep
       their identity across redraws. Order by value:
       - [ ] temperature line (replaces the spike hack)
-      - [ ] rain bars — the interesting case, bars appear and vanish
+      - [x] rain bars — the interesting case, bars appear and vanish (done)
       - [ ] wind barbs
       - [ ] weather icons
       - [ ] axes, grid, labels, legends
@@ -54,6 +54,17 @@ node test/compare.mjs /tmp/before.svg /tmp/after.svg
 an animated update from a rebuild.
 
 ## Watch out for
+
+- A converted drawer's layer must not be cleared (`_layer(parent, name, false)`) — a
+  join needs its elements to survive in order to match them. Anything in that layer
+  still on the enter-only pattern has to be removed by hand, or it accumulates.
+- Set attributes in the order the enter-only code used them. Serialised attribute order
+  follows assignment order, and the snapshot compare is byte-level.
+- Entering elements append at the end, so document order drifts from data order. Call
+  `.order()` on the merged selection, and `.raise()` a set that must paint over another
+  sharing its layer.
+- Check element identity by data key, not by document position: filtered data means the
+  nth element is a different datum once an earlier one exits.
 
 - A drawer is handed its *layer*, not the root svg. Anything that must apply to the
   whole chart — the sun strip's tap-to-dismiss, for one — has to reach the root via

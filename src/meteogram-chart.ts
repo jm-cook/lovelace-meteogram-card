@@ -1056,50 +1056,91 @@ export class MeteogramChart {
         legendY?: number
     ) {
         const barWidth = dx * 0.8;
-        
+
+        // Stage 3 of animating updates: the bars are a keyed join.
+        //
+        // Keyed by hour index, so a bar keeps its identity between redraws — the same
+        // hour's bar grows or shrinks instead of being destroyed and rebuilt. Rain is
+        // the case worth doing first because bars genuinely appear and vanish as the
+        // forecast changes, which is what enter and exit are for.
+        //
+        // The labels below are still enter-only, so they are cleared by hand here: the
+        // rain layer no longer clears itself, because a join needs its elements to
+        // survive the draw in order to match them.
+        chart.selectAll(".rain-label, .rain-max-label").remove();
+
+        const animate = this.card.animateChanges;
+        const DUR = 450;
+        /** Height of a bar, with the 2px floor that keeps a trace of rain visible. */
+        const barHeight = (v: number) => {
+            const h = this.card._chartHeight - yPrecip(v);
+            return h < 2 && v > 0 ? 2 : h * 0.7;
+        };
+        const barX = (d: any) => x(d.index) + dx / 2 - barWidth / 2;
+        const barY = (d: any) => yPrecip(0) - barHeight(d.value);
+        const baseline = yPrecip(0);
+
+        /**
+         * Join one set of bars, growing new ones out of the baseline and shrinking
+         * departing ones back into it.
+         *
+         * Attributes are set in the order the enter-only code used, so the serialised
+         * output is unchanged — the snapshot comparison is byte-level and would
+         * otherwise fail on attribute order alone.
+         */
+        const joinBars = (cls: string, rows: any[]): any => {
+            const sel = chart.selectAll(`rect.${cls}`).data(rows, (d: any) => d.index);
+
+            const leaving = sel.exit();
+            if (animate) {
+                leaving.transition().duration(DUR)
+                    .attr("y", baseline).attr("height", 0).remove();
+            } else {
+                leaving.remove();
+            }
+
+            const entering = sel.enter().append("rect")
+                .attr("class", cls)
+                .attr("x", barX)
+                .attr("y", barY)
+                .attr("width", barWidth)
+                .attr("height", (d: any) => barHeight(d.value))
+                .attr("fill", "currentColor");
+            if (animate) entering.attr("y", baseline).attr("height", 0);
+
+            const all = entering.merge(sel);
+            if (animate) {
+                all.transition().duration(DUR)
+                    .attr("x", barX).attr("y", barY)
+                    .attr("width", barWidth)
+                    .attr("height", (d: any) => barHeight(d.value));
+            } else {
+                all.attr("x", barX).attr("y", barY)
+                    .attr("width", barWidth)
+                    .attr("height", (d: any) => barHeight(d.value));
+            }
+            // Entering elements are appended at the end, so without this the document
+            // order drifts away from the data order every time a bar appears.
+            all.order();
+            return all;
+        };
+
         // Only draw rainMax bars if precipitation min/max data is available
         if (this.card._dataAvailability.precipitationMinMax) {
             // Draw the max rain range bars first (only for non-null values)
             const rainMaxData = rainMax.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
-            
-            chart.selectAll(".rain-max-bar")
-                .data(rainMaxData)
-                .enter()
-                .append("rect")
-                .attr("class", "rain-max-bar")
-                .attr("x", (d: any) => x(d.index) + dx / 2 - barWidth / 2)
-                .attr("y", (d: any) => {
-                    const h = this.card._chartHeight - yPrecip(d.value);
-                    const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7; // Minimum height of 2px for visibility
-                    return yPrecip(0) - scaledH;
-                })
-                .attr("width", barWidth)
-                .attr("height", (d: any) => {
-                    const h = this.card._chartHeight - yPrecip(d.value);
-                    return h < 2 && d.value > 0 ? 2 : h * 0.7;
-                })
-                .attr("fill", "currentColor");
+            joinBars("rain-max-bar", rainMaxData);
+        } else {
+            joinBars("rain-max-bar", []);
         }
 
         // Draw main rain bars (foreground, deeper blue) - filter out null values
         const rainBarData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
         
-        chart.selectAll(".rain-bar")
-            .data(rainBarData)
-            .enter().append("rect")
-            .attr("class", "rain-bar")
-            .attr("x", (d: any) => x(d.index) + dx / 2 - barWidth / 2)
-            .attr("y", (d: any) => {
-                const h = this.card._chartHeight - yPrecip(d.value);
-                const scaledH = h < 2 && d.value > 0 ? 2 : h * 0.7;
-                return yPrecip(0) - scaledH;
-            })
-            .attr("width", barWidth)
-            .attr("height", (d: any) => {
-                const h = this.card._chartHeight - yPrecip(d.value);
-                return h < 2 && d.value > 0 ? 2 : h * 0.7;
-            })
-            .attr("fill", "currentColor");
+        // Raised over the max bars: the two sets share a layer, and a max bar entering
+        // on a later redraw would otherwise be appended after the rain bars and paint
+        // over them. No effect on a first render, where they are already in this order.
+        joinBars("rain-bar", rainBarData).raise();
 
         // Add main rain labels (show if rain > 0) - filter out null values
         const rainLabelData = rain.slice(0, N - 1).map((d, i) => ({ value: d, index: i })).filter(d => d.value !== null && d.value > 0);
