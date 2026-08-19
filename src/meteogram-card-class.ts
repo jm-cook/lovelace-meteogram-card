@@ -1751,6 +1751,29 @@ export class MeteogramCard extends LitElement {
       ? parent.clientHeight
       : (chartDiv as HTMLElement).offsetHeight || 180;
 
+    // A container measuring (almost) nothing is a transient layout state — the card
+    // being attached, revealed, or resized as the editor opens — not something to draw.
+    //
+    // Drawing anyway set the chart width to availableWidth minus the margins, so a
+    // zero-width container gave -80, and every bar and band derived from it inherited a
+    // negative width. The browser rejects those outright: hundreds of "<rect> attribute
+    // width: A negative value is not valid" per resize. The visible symptom was the
+    // blink, because this pass cleared the chart and drew a broken one before a later
+    // pass with a real size drew it properly.
+    //
+    // Returning early leaves the good chart on screen. The resize observer calls back
+    // once the container has a real size.
+    const MIN_DRAWABLE_WIDTH = 120;
+    const MIN_DRAWABLE_HEIGHT = 40;
+    if (availableWidth < MIN_DRAWABLE_WIDTH || availableHeight < MIN_DRAWABLE_HEIGHT) {
+      this._debugLog(
+        `[${CARD_NAME}] _renderChart: container is ${availableWidth}x${availableHeight}, `
+          + `too small to draw — keeping the current chart until it has a real size.`
+      );
+      this._chartRenderInProgress = false;
+      return;
+    }
+
     // --- Aspect Ratio Logic ---
     let width: number, height: number;
     // Use aspectRatio only if not in sections layout
