@@ -3022,7 +3022,10 @@ export class MeteogramCard extends LitElement {
                 <div style="${chartContainerStyle}">
                   <div id="chart" style="width:100%;height:100%"></div>
                 </div>
-                ${this.diagnostics || this.debug
+                <!-- diagnostics only. debug is console logging and used to pull the
+                     panel up with it, so turning logging on to investigate something
+                     changed the very layout being investigated. -->
+                ${this.diagnostics
                   ? (() => {
                       const diagnosticInfo = this.generateDiagnosticInfo();
                       return html`

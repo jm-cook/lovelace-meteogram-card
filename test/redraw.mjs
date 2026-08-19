@@ -214,6 +214,13 @@ async function main() {
     return s && s.querySelectorAll("*").length > 50;
   }, null, { timeout: 30_000 });
   await loadPage.waitForTimeout(1500);
+  // debug is console logging. It used to pull the diagnostics panel up with it, so
+  // switching logging on to investigate a layout problem changed the layout.
+  const panelWithDebug = await loadPage.evaluate(() =>
+    !!document.querySelector("meteogram-card").shadowRoot
+      .querySelector("#meteogram-status-panel"));
+  check("debug alone does not show the diagnostics panel", panelWithDebug === false);
+
   check("a page load draws the chart once", loadDraws.length === 1,
         `${loadDraws.length}: ` + loadDraws.map((d) => (d.match(/caller: \S+/) ?? [d])[0]).join(" | "));
   await loadPage.close();
