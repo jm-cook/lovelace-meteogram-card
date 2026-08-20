@@ -335,11 +335,16 @@ The card uses the "complete" API endpoint to retrieve precipitation probability 
 
 ### Forecast fields the card uses
 
-Met.no provides all of these. A Home Assistant weather entity provides whatever its
-integration chooses to, which varies a great deal — so when you select an entity, some
-features may have no data to draw. The card does not fail in that case: it leaves the
-feature out and lists what was missing in the information panel (the ℹ️ in the corner),
-using the names in the first column.
+Which of these you get depends on your source, and no source provides all of them
+everywhere. A Home Assistant weather entity provides whatever its integration chooses to,
+which varies a great deal. Met.no provides most of them worldwide, but the precipitation
+range (`rainMin`/`rainMax`) only inside the Nordic area its high-resolution model covers —
+tested against the live API, those fields are present for Norway and absent for London
+and Sydney.
+
+The card does not fail when a field is missing: it leaves that feature out and lists what
+was absent in the information panel (the ℹ️ in the corner), using the names in the first
+column.
 
 | Field | Draws | From a weather entity's forecast | If it is missing |
 |-------|-------|----------------------------------|------------------|
@@ -360,9 +365,10 @@ Two things worth knowing:
 - **Turning a feature on cannot conjure data.** `show_pressure: true` with an entity that
   publishes no pressure leaves the pressure curve out; the option controls whether the
   card *may* draw it, not whether it can.
-- **`rainMin` and `rainMax` are commonly absent.** Most integrations publish a single
-  precipitation figure. Only the range shading is lost — the bars themselves still draw
-  from `rain`.
+- **`rainMin` and `rainMax` are absent for most people.** Most weather integrations
+  publish a single precipitation figure, and met.no only supplies the range inside the
+  Nordic area. Seeing them listed as missing is normal and costs you only the range
+  shading — the bars themselves still draw from `rain`.
 
 If a feature you expect is not appearing, open the information panel first: it names
 exactly which fields your source did not supply.
