@@ -192,7 +192,9 @@ export class MeteogramChart {
      * reach on demand, a forecast changing only once an hour.
      */
     private get animating(): boolean {
-        return !!this.card.animateChanges && !this.card._chartResized;
+        return !!this.card.animateChanges
+            && !this.card._chartResized
+            && !this.card._remountDraw;
     }
 
     /**

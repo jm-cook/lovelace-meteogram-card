@@ -289,6 +289,18 @@ export class MeteogramCard extends LitElement {
   private _lastDrawnKey = "";
   /** True while redrawing after a size change — see _renderChart. */
   _chartResized = false;
+  /** True while this element draws for the first time on a page that has already drawn.
+   *
+   * The opening animation is a page-load flourish: it earns its keep once, when the
+   * dashboard appears. Home Assistant replaces a card element without the page
+   * reloading, though, and every replacement is a first draw for that element — so
+   * restoring a window left minimised produced a blank card, then a full animated build
+   * of a forecast that had not changed and had not even been re-fetched. Conspicuous
+   * motion drawing the eye to nothing at all.
+   */
+  _remountDraw = false;
+  /** Whether anything on this page has drawn yet. Static: it dates the page, not the card. */
+  private static _pageHasDrawn = false;
   /**
    * The last few draws, for the diagnostics panel.
    *
@@ -342,6 +354,20 @@ export class MeteogramCard extends LitElement {
     if (secs < 90) return `${secs}s`;
     const mins = Math.round(secs / 60);
     return mins < 90 ? `${mins}m` : `${Math.round(mins / 60)}h`;
+  }
+
+  /** A timestamp as local wall-clock time, for the status panel.
+   *
+   * The panel used to print Expires At through toLocaleString() and Last Render as a
+   * UTC ISO string, side by side and neither labelled — so the only way to know which
+   * was which was to read the source, which is what someone reading a status panel is
+   * trying to avoid. Local throughout: the panel is read by a person next to the spa,
+   * not by a log parser, and the zone is named so there is nothing left to infer.
+   */
+  private static _localTime(value: string | number | Date | null | undefined): string {
+    if (value === null || value === undefined || value === "") return "not available";
+    const d = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
   }
 
   private static _ancestry(el: Element): string {
@@ -2310,6 +2336,7 @@ export class MeteogramCard extends LitElement {
     // list is itself the evidence that the element is new and its history went with the
     // old one.
     const firstDraw = this._lastDrawnKey === "";
+    this._remountDraw = firstDraw && MeteogramCard._pageHasDrawn;
     this._note(
       "drew",
       `${firstDraw ? "first draw" : MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
@@ -2365,6 +2392,7 @@ export class MeteogramCard extends LitElement {
         this._lastRenderedWidth = availableWidth;
         this._lastRenderedHeight = availableHeight;
         this._lastDrawnKey = drawKey;
+        MeteogramCard._pageHasDrawn = true;
         this._alignAttributionIcon();
 
         // Stage 1 of animating updates: the <svg> element itself survives a redraw.
@@ -2640,7 +2668,9 @@ export class MeteogramCard extends LitElement {
     let panelInfo = null;
     let expiresInfo: any = "not available";
     let lastFetchInfo = "not available";
-    const lastRenderInfo = this._statusLastRender || "unknown";
+    const lastRenderInfo = this._statusLastRender
+      ? MeteogramCard._localTime(this._statusLastRender)
+      : "unknown";
 
     // Calculate forecast data age for both entity and API modes
     const forecastDataAge = this.getForecastDataAge();
@@ -2707,12 +2737,12 @@ export class MeteogramCard extends LitElement {
           const color = isExpired ? "#f44336" : "#4caf50";
           const status = isExpired ? " (EXPIRED)" : "";
           expiresInfo = html`<span style="color:${color}"
-            >${new Date(this.apiExpiresAt).toLocaleString()}${status}</span
+            >${MeteogramCard._localTime(this.apiExpiresAt)}${status}</span
           >`;
         }
         lastFetchInfo = this._statusLastFetch
           ? this._statusLastFetch.includes("T")
-            ? new Date(this._statusLastFetch).toLocaleString()
+            ? MeteogramCard._localTime(this._statusLastFetch)
             : this._statusLastFetch
           : "not available";
 
@@ -3338,7 +3368,7 @@ export class MeteogramCard extends LitElement {
       WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT
     }/${
       WeatherAPI.METEOGRAM_CARD_API_CALL_COUNT
-    } (${successRate}%) since ${METEOGRAM_CARD_STARTUP_TIME.toISOString()}`;
+    } (${successRate}%) since ${MeteogramCard._localTime(METEOGRAM_CARD_STARTUP_TIME)}`;
 
     // Calculate aspect ratio style
     // let aspectRatioStyle = "aspect-ratio: 16/9;";
