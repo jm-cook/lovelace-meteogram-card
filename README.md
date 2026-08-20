@@ -333,6 +333,40 @@ If no coordinates or entity are specified, it will use your Home Assistant's con
 
 The card uses the "complete" API endpoint to retrieve precipitation probability data, which allows visualization of precipitation uncertainty.
 
+### Forecast fields the card uses
+
+Met.no provides all of these. A Home Assistant weather entity provides whatever its
+integration chooses to, which varies a great deal — so when you select an entity, some
+features may have no data to draw. The card does not fail in that case: it leaves the
+feature out and lists what was missing in the information panel (the ℹ️ in the corner),
+using the names in the first column.
+
+| Field | Draws | From a weather entity's forecast | If it is missing |
+|-------|-------|----------------------------------|------------------|
+| `time` | the time axis | `datetime` | the card cannot render |
+| `temperature` | the temperature curve | `temperature` | the card cannot render |
+| `rain` | precipitation bars | `precipitation` | no bars, and no precipitation labels |
+| `rainMin` | lower edge of the precipitation range | `precipitation_min` | bars are drawn without an uncertainty range |
+| `rainMax` | upper edge of the precipitation range | `precipitation_max` | as above |
+| `cloudCover` | the cloud band across the top | `cloud_coverage` | no cloud band |
+| `pressure` | the pressure curve and its right-hand axis | `pressure` | no pressure curve, even with `show_pressure: true` |
+| `windSpeed` | wind barbs | `wind_speed` | no wind band |
+| `windDirection` | which way each barb points | `wind_bearing` | no wind band — direction is required as well as speed |
+| `windGust` | the gust feathers on a barb | `wind_gust` or `wind_gust_speed` | barbs are drawn without gust feathers |
+| `symbolCode` | the weather icons | `condition` | no icons |
+
+Two things worth knowing:
+
+- **Turning a feature on cannot conjure data.** `show_pressure: true` with an entity that
+  publishes no pressure leaves the pressure curve out; the option controls whether the
+  card *may* draw it, not whether it can.
+- **`rainMin` and `rainMax` are commonly absent.** Most integrations publish a single
+  precipitation figure. Only the range shading is lost — the bars themselves still draw
+  from `rain`.
+
+If a feature you expect is not appearing, open the information panel first: it names
+exactly which fields your source did not supply.
+
 ## Development
 
 For developers, the Meteogram Card is built with TypeScript and uses modern web technologies. 
