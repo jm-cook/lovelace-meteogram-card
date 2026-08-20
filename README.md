@@ -122,7 +122,9 @@ Below are the main configuration options for the Meteogram Card:
 | show_precipitation  | boolean  | true            | Show/hide precipitation visualization                                             |
 | show_weather_icons  | boolean  | true            | Show/hide weather icons                                                                           |
 | show_wind           | boolean  | true            | Show/hide wind barbs section                                                                      |
+| show_sun            | boolean  | true            | Show/hide the sunrise/sunset strip above the chart                                                 |
 | dense_weather_icons | boolean  | true            | Show weather icons every hour (true) or every 2 hours (false)                                     |
+| animate             | boolean  | true            | Move the chart to its new shape when the forecast updates, instead of redrawing it                |
 | meteogram_hours     | string or number | "48h"   | Hours to display: preset strings (`"8h"`, `"12h"`, `"24h"`, `"48h"`, `"max"`), or any number (e.g., `120` for 120 hours) |
 | aspect_ratio        | string   | "16:9"          | Aspect ratio for the chart (e.g., "16:9", "4:3"). Only applies in panel/grid layout modes.      |
 | layout_mode         | string   | "sections"      | Layout mode for the card: "sections", "panel", or "grid"                                        |

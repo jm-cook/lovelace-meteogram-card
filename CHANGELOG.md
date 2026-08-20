@@ -7,25 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2026.8.2] - unreleased
 
-**The chart now moves.** When the forecast advances an hour, the whole picture travels
+**New animation feature.** When the forecast advances an hour, the whole meteogram travels
 with it: the temperature, pressure and cloud lines flow to their new shapes, rain bars
-grow and shrink where they stand, and wind barbs and weather icons slide along — each one
-following its own hour rather than shuffling into whatever slot it lands in. It reads the
-way a forecast actually behaves, as a window moving over time rather than a fresh picture
-every hour.
+grow and shrink where they stand, and wind barbs and weather icons slide along.
 
-That took rebuilding how the card draws. Until now the chart was thrown away and
-reconstructed from nothing on every redraw, which is why nothing could move — and why the
-card blinked. Both are gone. The chart persists between updates and only what changed is
-touched, the redraw itself has been rewritten to coalesce requests rather than discard
-them, and a card that has nothing new to show no longer redraws at all. The blink was the
-symptom people noticed; the cause was that the card had no memory of what it had already
-drawn.
+The way the card draws is completely overhauled. Until now the chart was thrown away and
+reconstructed from nothing on every redraw; it is no longer wiped for every update, but
+updated on the fly. This also means there is no more annoying blinking when it redraws.
 
-The visual editor has been rebuilt on the same principle — stop assuming, start asking.
-It is a schema Home Assistant renders with its own components now, rather than markup of
-ours that hoped the right pieces had been loaded. That assumption is what had left several
-fields invisible.
+The visual editor has been rebuilt to use the Home Assistant schema. It looks better, and
+it matches the settings editors on other cards.
 
 ### Added
 - **Animated updates.** On by default; turn it off with `animate: false` or from the visual editor.
@@ -33,6 +24,7 @@ fields invisible.
 - **The sunrise and sunset times are printed on the strip** wherever there is room for them, so the card needs no interaction to be read. Where the forecast is too compressed they fall back to a marker alone, and the times stay available on hover or tap.
 - **Sunrise and sunset are marked with proper icons** rather than a sun and a moon, coloured to match the band each one leads into.
 - `layout_mode` is now available in the visual editor instead of YAML only.
+- **Debug logging can be turned on from the browser console** with `meteogramDebug()`, without editing the card or reloading the page — useful when reporting a problem that only happens while something is changing. `meteogramDebug(false)` turns it off again.
 
 ### Changed
 - **The rebuilt editor changes three things you will notice:**
@@ -50,6 +42,7 @@ fields invisible.
 - **Display options in the visual editor did nothing** and showed as off regardless of your configuration: they were being written to a nested key the card never read.
 - **Typing a latitude made the visual editor disappear**, replaced by "Visual editor not supported".
 - Coordinates of exactly 0 were treated as no location at all, so anywhere on the equator or the prime meridian failed to load.
+- Turning on debug logging also forced the diagnostics panel open, which changed the layout you were trying to inspect. The two are independent now.
 
 ## [2026.8.1] - 2026.08.18
 
