@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sunrise/sunset strip**: a day/night band above the chart, amber for daylight and blue-grey for night, with an mdi sunrise/sunset icon at each event and a tick at local midnight. The times are printed beside the icons wherever there is room, and any run can be hovered or tapped for its own times. Enabled with `show_sun` (on by default) and available in the visual editor.
   - Sun times are computed from the card's coordinates, so they are correct for the whole forecast rather than just today, and polar day and night are handled properly.
   - Tooltips follow Home Assistant's language and its 12/24-hour setting, and are translated into all supported languages.
+- **The chart moves to its new shape instead of being redrawn.** When the forecast updates or a setting changes, the temperature, pressure and cloud lines travel to their new shapes, rain bars grow and shrink in place, and wind barbs and weather icons slide to their new positions — each one following its own forecast hour as the window advances. Turn it off with `animate: false`, or from the visual editor.
+  - The first draw and any resize are not animated: a card appearing should simply be there.
 - **Weather icons are now bundled with the card** rather than fetched from GitHub on every render. The card no longer needs network access for icons, works offline, and cannot be affected by rate limiting.
 
 ### Changed
@@ -21,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `layout_mode` is now available in the editor instead of YAML only.
 
 ### Fixed
+- **The chart no longer blinks when it redraws.** Several causes, all of them fixed: redraw requests were discarded rather than coalesced, which could also lose a change entirely; the chart was cleared before an await rather than replaced when its successor was ready; it was drawn while its container measured nothing, producing negative widths the browser rejected; and every load drew it twice.
+- **Sunrise and sunset marks did not appear on iPhone, iPad or the iOS Companion app.** They were drawn with a Home Assistant icon component mounted inside the chart's SVG, which WebKit does not reliably paint. They are ordinary SVG paths now.
+- **In focussed mode the sunrise and sunset times were cut off** at the top of the card — nothing reserved the space they are drawn in.
+- **The information icon overlapped the last date label.** It sits in the left-hand margin now.
 - **The `show_precipitation` option never worked.** The card read it from a property that was never set, so precipitation was drawn for everyone whatever the setting said, and had been since the option was introduced. It is honoured now. **If you switched precipitation off, saw no change and left it off, it will now actually be hidden** — switch it back on if you want it.
 - **The Title, Latitude, Longitude and Altitude fields were missing from the visual editor.** They were drawn with a Home Assistant form component that is no longer registered on the card-editor page, so they were present in the page but rendered nothing at all. See *Changed* below — the editor has been rebuilt so this cannot recur. Setting any of these options in YAML was never affected.
 - Widening `meteogram_hours` did nothing — the forecast cache was being truncated in place, so the extra hours were no longer available to show.

@@ -147,8 +147,8 @@ export class MeteogramCard extends LitElement {
   @property({ type: Boolean }) showWind = true;
   @property({ type: Boolean }) showSun = true;
   @property({ type: Boolean }) showPrecipitation = true;
-  /** SPIKE: animate changes rather than redrawing them cold. */
-  @property({ type: Boolean }) animateChanges = false;
+  /** Animate changes rather than redrawing them cold. Config key: `animate`. */
+  @property({ type: Boolean }) animateChanges = true;
   @property({ type: Boolean }) denseWeatherIcons = true; // NEW: icon density config
   @property({ type: String }) meteogramHours: string | number = "48h"; // Default is now 48h
   @property({ type: Object }) styles: MeteogramStyleConfig = {}; // NEW: styles override
@@ -286,6 +286,8 @@ export class MeteogramCard extends LitElement {
   private _hasDrawnOnce = false;
   /** Config signature and size the chart currently on screen was drawn from. */
   private _lastDrawnKey = "";
+  /** True while drawing into a newly created svg — see _renderChart. */
+  _chartIsFresh = true;
   /** Set when a redraw was requested with force, consumed by the next draw. */
   private _forceNextDraw = false;
   /**
@@ -544,7 +546,7 @@ export class MeteogramCard extends LitElement {
     // undefined and precipitation was on for everyone regardless of the toggle.
     this.showPrecipitation =
       config.show_precipitation !== undefined ? config.show_precipitation : true;
-    this.animateChanges = config.animate === true;
+    this.animateChanges = config.animate !== undefined ? config.animate : true;
     this.denseWeatherIcons =
       config.dense_weather_icons !== undefined
         ? config.dense_weather_icons
@@ -1947,6 +1949,11 @@ export class MeteogramCard extends LitElement {
           existing.attr("height") === String(height) &&
           existing.attr("preserveAspectRatio") === preserve;
 
+        // A fresh svg means there is nothing on screen to move from: the card is being
+        // drawn for the first time, or resized. Neither should animate — a card
+        // appearing should simply be there, and a resize should land at its new size
+        // rather than sliding to it.
+        this._chartIsFresh = !reusable;
         if (reusable) {
           // Not cleared. Every drawer owns a named layer and clears only its own, so
           // the groups survive the redraw — which is the whole point: an element that

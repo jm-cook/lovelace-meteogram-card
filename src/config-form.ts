@@ -47,6 +47,7 @@ const LABELS: Record<string, () => string> = {
     dense_weather_icons: () => t("attributes.dense_icons", "Dense weather icons (hourly)"),
     show_wind: () => t("attributes.wind", "Show wind"),
     show_sun: () => t("attributes.sun", "Show sunrise/sunset"),
+    animate: () => t("attributes.animate", "Animate changes"),
 };
 
 const HELPERS: Record<string, () => string> = {
@@ -65,6 +66,8 @@ const HELPERS: Record<string, () => string> = {
     meteogram_hours: () => t("choose_hours",
         "How much forecast to show. Pick a value or type your own, such as 96h."),
     aspect_ratio: () => t("aspect_ratio_helper", "Pick a ratio or type your own, such as 1.6 or 5:3."),
+    animate: () => t("animate_helper",
+        "Move the chart to its new shape when the forecast updates, rather than redrawing it."),
 };
 
 /**
@@ -89,6 +92,7 @@ export const CARD_DEFAULTS: MeteogramCardConfig = {
     meteogram_hours: "48h",
     aspect_ratio: "16:9",
     layout_mode: "sections",
+    animate: true,
 };
 
 /**
@@ -181,6 +185,7 @@ export function meteogramConfigForm() {
                     { name: "dense_weather_icons", selector: { boolean: {} } },
                     { name: "show_wind", selector: { boolean: {} } },
                     { name: "show_sun", selector: { boolean: {} } },
+                    { name: "animate", selector: { boolean: {} } },
                 ],
             },
             {

@@ -21,7 +21,7 @@ export interface MeteogramCardConfig {
     display_mode?: "full" | "core" | "focussed"; // Add this line for display mode
     aspect_ratio?: string; // Add this line for aspect ratio support
     layout_mode?: "sections" | "panel" | "grid";
-    /** SPIKE: animate the temperature line between redraws instead of snapping. */
+    /** Animate changes between redraws instead of snapping. Default true. */
     animate?: boolean; // Add this line for layout mode support
 }
 

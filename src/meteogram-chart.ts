@@ -145,7 +145,7 @@ export class MeteogramChart {
         // decided by index against the spacing interval, so it flips as the window
         // slides, and fading that in and out would draw the eye to bookkeeping.
         allIcons.attr("opacity", (d: any) => iconVisible(d) ? 1 : 0);
-        if (this.card.animateChanges) {
+        if (this.animating) {
             icons.transition().duration(MeteogramChart.ANIM_MS)
                 .ease(d3.easeCubicOut).attr("x", iconX).attr("y", iconY);
         } else {
@@ -184,6 +184,17 @@ export class MeteogramChart {
     private static readonly ANIM_MS = 450;
 
     /**
+     * Whether this draw should move things or just place them.
+     *
+     * Off for the first draw into a fresh svg, which is also every resize: there is
+     * nothing on screen to move from, so animating means flying the whole chart in from
+     * nowhere. Movement is for changes between states.
+     */
+    private get animating(): boolean {
+        return !!this.card.animateChanges && !this.card._chartIsFresh;
+    }
+
+    /**
      * A path that survives redraws and interpolates to its new shape.
      *
      * The third copy of this was one too many. Each of the temperature line, the
@@ -209,7 +220,7 @@ export class MeteogramChart {
         const previous = sel.attr("d") ?? "";
         const sameShape =
             previous.split("L").length === d.split("L").length && previous !== d;
-        if (this.card.animateChanges && sameShape) {
+        if (this.animating && sameShape) {
             sel.transition().duration(MeteogramChart.ANIM_MS)
                 .ease(d3.easeCubicOut).attr("d", d);
         } else {
@@ -1128,7 +1139,7 @@ export class MeteogramChart {
         // survive the draw in order to match them.
         chart.selectAll(".rain-label, .rain-max-label").remove();
 
-        const animate = this.card.animateChanges;
+        const animate = this.animating;
         const DUR = 450;
         /** Height of a bar, with the 2px floor that keeps a trace of rain visible. */
         const barHeight = (v: number) => {
@@ -1673,7 +1684,7 @@ export class MeteogramChart {
             g.selectAll("*").remove();
             this.renderBarb(g, d.speed, d.gust, d.len);
         });
-        if (this.card.animateChanges) {
+        if (this.animating) {
             all.transition().duration(MeteogramChart.ANIM_MS)
                 .ease(d3.easeCubicOut).attr("transform", placement);
         } else {
