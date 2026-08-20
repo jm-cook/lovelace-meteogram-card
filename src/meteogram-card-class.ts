@@ -5,6 +5,7 @@ import {
   MeteogramCardConfig,
 } from "./types";
 import { version } from "../package.json";
+import { BUILD_VERSION } from "./build-version.generated";
 import { getClientName } from "./diagnostics";
 import { WeatherAPI, ForecastData } from "./weather-api";
 import {
@@ -344,7 +345,9 @@ export class MeteogramCard extends LitElement {
   private _windSpeedUnit: "m/s" | "km/h" | "mph" | "kt" = "m/s";
   private _precipUnit: "mm" | "in" = "mm";
 
-  static meteogramCardVersion: string = version;
+  // The build, not the package version: those differ for every prerelease, and the
+  // card is what someone is asked to read when confirming which one they have.
+  static meteogramCardVersion: string = BUILD_VERSION || version;
 
   // Add a method to fetch icons
   private async getIconSVG(iconName: string): Promise<string> {

@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The information panel lists the last few redraws** when `diagnostics: true` — the size of the space the card was given and the size it drew, for each of the last six. A card that misbehaves by resizing itself shows those numbers climbing; a healthy one repeats the same pair. Screenshotting the ℹ️ is now enough to report it, with no need for the browser console.
 
+- **The card reports which build it is running.** A release shows its tag, so a prerelease reads `2026.8.3-beta2` rather than the `2026.8.3` it shares with the release. A build made and uploaded by hand shows the commit it came from, as `2026.8.3+hot.351ebf5`, and says `.dirty` if it was built with uncommitted changes. Visible under Card version in the ℹ️ panel — so "check you have the new build" is now a question the card can answer.
+
 ### Documentation
 - **The forecast fields the card uses are documented**, in a table under Weather Data: what each one draws, which weather-entity attribute it comes from, and what is lost when it is absent. The panel had been reporting field names that appeared nowhere in the documentation.
 

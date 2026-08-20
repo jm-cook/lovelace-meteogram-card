@@ -55,6 +55,11 @@ jobs:
         run: npm test
 
       - name: Build
+        # The tag, so the card reports the build it came from rather than the version it
+        # shares with every prerelease of itself. Someone asked to confirm they have the
+        # new build can only do that if the card distinguishes them.
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: npm run build
 
       - name: Upload to Release
