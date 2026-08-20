@@ -1916,25 +1916,41 @@ export class MeteogramCard extends LitElement {
           width = Math.round(height * (w / h));
         }
       } else {
-        width =
-          (chartDiv as HTMLElement).offsetWidth > 0
-            ? (chartDiv as HTMLElement).offsetWidth
-            : availableWidth;
-        height =
-          (chartDiv as HTMLElement).offsetHeight > 0
-            ? (chartDiv as HTMLElement).offsetHeight
-            : availableHeight;
+        // Measured from the container, not from our own output.
+        //
+        // The chart div is styled height:100%, so where the card has no externally fixed
+        // height — a panel dashboard, most obviously — its height is decided by whatever is
+        // inside it. Reading offsetHeight there and sizing the svg from it closes a loop: svg
+        // height from div height from svg height, growing on each pass until the card
+        // overflows the panel.
+        //
+        // This did not bite before only because the old code emptied the div before measuring,
+        // so offsetHeight was always 0 and it always fell through to the container. Keeping the
+        // previous chart on screen during a redraw removed that accident. Restored on purpose
+        // now. See issue #46.
+        width = availableWidth > 0
+          ? availableWidth : (chartDiv as HTMLElement).offsetWidth;
+        height = availableHeight > 0
+          ? availableHeight : (chartDiv as HTMLElement).offsetHeight;
       }
     } else {
       // Default: fill container
-      width =
-        (chartDiv as HTMLElement).offsetWidth > 0
-          ? (chartDiv as HTMLElement).offsetWidth
-          : availableWidth;
-      height =
-        (chartDiv as HTMLElement).offsetHeight > 0
-          ? (chartDiv as HTMLElement).offsetHeight
-          : availableHeight;
+      // Measured from the container, not from our own output.
+      //
+      // The chart div is styled height:100%, so where the card has no externally fixed
+      // height — a panel dashboard, most obviously — its height is decided by whatever is
+      // inside it. Reading offsetHeight there and sizing the svg from it closes a loop: svg
+      // height from div height from svg height, growing on each pass until the card
+      // overflows the panel.
+      //
+      // This did not bite before only because the old code emptied the div before measuring,
+      // so offsetHeight was always 0 and it always fell through to the container. Keeping the
+      // previous chart on screen during a redraw removed that accident. Restored on purpose
+      // now. See issue #46.
+      width = availableWidth > 0
+        ? availableWidth : (chartDiv as HTMLElement).offsetWidth;
+      height = availableHeight > 0
+        ? availableHeight : (chartDiv as HTMLElement).offsetHeight;
     }
 
     // Fetch weather data and render. The previous chart stays up while this runs and is
