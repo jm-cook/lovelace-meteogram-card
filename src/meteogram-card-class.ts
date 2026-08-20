@@ -299,6 +299,8 @@ export class MeteogramCard extends LitElement {
    * not comfortable with it. Here they can be screenshotted, which people already do.
    */
   private _recentDraws: string[] = [];
+  /** Set briefly after a copy, so the button can say it worked. */
+  @state() private _copiedAt = false;
   // Deliberately generous. Nobody knows what someone will try before they think to look
   // — dragging a pane wider, then narrower, switching modes, rotating a tablet — and a
   // short buffer throws away the beginning of exactly the sequence that explains it. The
@@ -711,6 +713,68 @@ export class MeteogramCard extends LitElement {
       `${Math.round(centre - wrapper.offsetHeight / 2)}px`
     );
   }
+
+  /**
+   * Put everything needed to diagnose this card on the clipboard.
+   *
+   * The tooltip shows the same material, but a screenshot of it has to be readable,
+   * cropped and attached; this pastes straight into an issue as text that can be
+   * searched and quoted. Deliberately plain — no markdown — so it survives whatever it
+   * is pasted into.
+   *
+   * Clipboard access needs a user gesture and a secure context. A button click is a
+   * gesture, and Home Assistant is served over https, but some embedded webviews still
+   * refuse, so there is a fallback through a detached textarea. If both fail the button
+   * says so rather than pretending.
+   */
+  private _copyDiagnostics = async (ev: Event): Promise<void> => {
+    ev.stopPropagation();
+    const strip = (html: string) =>
+      html.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+    const lines = [
+      `Meteogram Card ${MeteogramCard.meteogramCardVersion}`,
+      strip(this._setupHtml()).replace(/^Setup:\s*/, "Setup: "),
+      this.entityId && this.entityId !== "none"
+        ? `Source: entity ${this.entityId}`
+        : `Source: met.no direct ${this.latitude}, ${this.longitude}`,
+      this._missingForecastKeys?.length
+        ? `Not provided: ${this._missingForecastKeys.join(", ")}`
+        : "Not provided: nothing",
+      `Hours available: ${this.getAvailableHours()}`,
+      this.meteogramError ? `Error: ${strip(this.meteogramError)}` : null,
+      "",
+      "Recent redraws (container -> drawn)",
+      ...(this._recentDraws.length ? this._recentDraws.map((l) => `  ${l}`) : ["  (none)"]),
+    ].filter((l) => l !== null);
+    const text = lines.join("\n");
+
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        this.shadowRoot?.appendChild(ta);
+        ta.select();
+        ok = document.execCommand("copy");
+        ta.remove();
+      } catch {
+        ok = false;
+      }
+    }
+    if (ok) {
+      this._copiedAt = true;
+      setTimeout(() => { this._copiedAt = false; }, 2500);
+    } else {
+      // Better to hand it over in a form they can select than to claim success.
+      console.log(text);
+      this._debugLog(`[${CARD_NAME}] diagnostics could not be copied; printed above`);
+    }
+  };
 
   /**
    * The card's setup, in one line.
@@ -3476,6 +3540,19 @@ export class MeteogramCard extends LitElement {
                             </div>
                           </div>
                           ${diagnosticInfo.panel || ""}
+                          <div style="margin-top:8px;">
+                            <button
+                              @click=${this._copyDiagnostics}
+                              style="font:inherit;padding:4px 10px;border-radius:4px;
+                                     border:1px solid var(--divider-color,#bbb);
+                                     background:var(--card-background-color,#fff);
+                                     color:var(--primary-text-color,#222);cursor:pointer;"
+                            >
+                              ${this._copiedAt
+                                ? trnslt(this.hass, "ui.card.meteogram.copied", "Copied \u2713")
+                                : trnslt(this.hass, "ui.card.meteogram.copy_diagnostics", "Copy diagnostics")}
+                            </button>
+                          </div>
                         </div>
                       `;
                     })()

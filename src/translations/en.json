@@ -71,5 +71,7 @@
   "ui.editor.meteogram.hours_120": "120 hours",
   "ui.card.meteogram.no_location": "No location. Set latitude and longitude on the card, or set Home Assistant's location in Settings.",
   "ui.editor.meteogram.attributes.animate": "Animate changes",
-  "ui.editor.meteogram.animate_helper": "Move the chart to its new shape when the forecast updates, rather than redrawing it."
+  "ui.editor.meteogram.animate_helper": "Move the chart to its new shape when the forecast updates, rather than redrawing it.",
+  "ui.card.meteogram.copy_diagnostics": "Copy diagnostics",
+  "ui.card.meteogram.copied": "Copied ✓"
 }
