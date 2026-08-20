@@ -3065,10 +3065,10 @@ export class MeteogramCard extends LitElement {
                     ${
                       this._missingForecastKeys &&
                       this._missingForecastKeys.length > 0
-                        ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(
+                        ? `<div style='margin-top:8px;color:var(--secondary-text-color);font-size:0.97em;'><b>Not provided by your source:</b> ${this._missingForecastKeys.join(
                             ", "
                           )}
-                    <br>Some supported features cannot be plotted because the required data is not provided.</div>`
+                    <br>These are optional, so the features that use them are left out. This is normal for many weather sources — see the README for what each field draws.</div>`
                         : ""
                     }
                     ${this.generateDiagnosticInfo().tooltip}
@@ -3093,9 +3093,9 @@ export class MeteogramCard extends LitElement {
                     ${
                       this._missingForecastKeys &&
                       this._missingForecastKeys.length > 0
-                        ? `<div style='margin-top:8px;color:#b71c1c;font-size:0.97em;'><b>Missing data:</b> ${this._missingForecastKeys.join(
+                        ? `<div style='margin-top:8px;color:var(--secondary-text-color);font-size:0.97em;'><b>Not provided by your source:</b> ${this._missingForecastKeys.join(
                             ", "
-                          )}</div>`
+                          )}<br>These are optional, so the features that use them are left out. This is normal for many weather sources — see the README for what each field draws.</div>`
                         : ""
                     }
                     ${this.generateDiagnosticInfo().tooltip}

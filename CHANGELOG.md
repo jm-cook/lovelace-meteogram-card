@@ -5,6 +5,15 @@ All notable changes to the Meteogram Card will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **The information panel no longer calls optional forecast fields "missing".** It says they are not provided by your source, and no longer prints them in error red. Most weather sources supply only some of the optional fields — met.no publishes the precipitation range only inside the Nordic area, for instance — so seeing a few listed is the normal case, not a fault.
+
+### Documentation
+- **The forecast fields the card uses are documented**, in a table under Weather Data: what each one draws, which weather-entity attribute it comes from, and what is lost when it is absent. The panel had been reporting field names that appeared nowhere in the documentation.
+
+
 ## [2026.8.2] - 2026.08.20
 
 **New animation feature.** When the forecast advances an hour, the whole meteogram travels
