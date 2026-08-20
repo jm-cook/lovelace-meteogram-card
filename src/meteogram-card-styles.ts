@@ -43,10 +43,31 @@ export const meteogramCardStyles = css`
         overflow: hidden;
     }
 
-    #chart {
+    /* The chart's own size must never feed back into the card's height.
+     *
+     * In a panel dashboard nothing above the card fixes its height, so height:100% walks
+     * up a chain of auto-height ancestors and resolves to "as tall as the content" — and
+     * the content is the svg we just drew. Measuring the container then measures our own
+     * output, and every draw adds the few pixels of slack between the two, so the card
+     * ratchets taller until it fills the screen. That is issue #46.
+     *
+     * Taking #chart out of flow with position:absolute breaks the loop at the source: an
+     * absolutely positioned box contributes nothing to its parent's height, so the
+     * wrapper's height is decided before we draw and cannot be moved by what we draw.
+     * The wrapper then needs a height of its own from somewhere that is not us, which is
+     * exactly what aspect-ratio provides — see .chart-wrap below.
+     */
+    .chart-wrap {
+        position: relative;
         width: 100%;
         height: 100%;
         min-height: 180px;
+        box-sizing: border-box;
+    }
+
+    #chart {
+        position: absolute;
+        inset: 0;
         box-sizing: border-box;
         overflow: hidden;
         display: flex;

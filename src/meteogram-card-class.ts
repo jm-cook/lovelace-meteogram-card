@@ -315,6 +315,15 @@ export class MeteogramCard extends LitElement {
    * view, and tag names alone carry no configuration or personal detail, which matters
    * for something meant to be pasted into a public issue.
    */
+  /** The configured ratio as a CSS aspect-ratio value: "16:9" and "1.6" both work. */
+  private static _ratioValue(ratio: string | undefined): string {
+    if (typeof ratio === "string" && ratio.includes(":")) {
+      const [w, h] = ratio.split(":").map(Number);
+      if (w > 0 && h > 0) return `${w}/${h}`;
+    }
+    const n = Number(ratio);
+    return n > 0 ? `${n}` : "16/9";
+  }
   private static _ancestry(el: Element): string {
     const names: string[] = [];
     let node: any = el;
@@ -2075,7 +2084,8 @@ export class MeteogramCard extends LitElement {
           if (this.shadowRoot) {
             const cardContent = this.shadowRoot.querySelector(".card-content");
             if (cardContent && this.isConnected) {
-              cardContent.innerHTML = '<div id="chart"></div>';
+              cardContent.innerHTML =
+                '<div class="chart-wrap"><div id="chart"></div></div>';
               const finalAttemptChartDiv =
                 this.shadowRoot.querySelector("#chart");
               if (finalAttemptChartDiv) {
@@ -3278,8 +3288,21 @@ export class MeteogramCard extends LitElement {
     // } else if (this.aspectRatio && !isNaN(Number(this.aspectRatio))) {
     //     aspectRatioStyle = `aspect-ratio: ${Number(this.aspectRatio)}/1;`;
     // }
-    // Instead, always use width:100%;height:100% for the chart container
-    const chartContainerStyle = "width:100%;height:100%;";
+    // The wrapper's height, and where it comes from when the dashboard supplies none.
+    //
+    // height:100% is right whenever an ancestor has a real height — sections, masonry, a
+    // card with a height set on it. In a panel dashboard nothing does, and the percentage
+    // resolves to auto; the wrapper would then take its height from its content, which is
+    // the chart, which we size from the wrapper. aspect-ratio settles it from the width
+    // instead, so the height is known before we draw and does not move when we do.
+    //
+    // The two never fight: a percentage that resolves leaves the height definite, and
+    // aspect-ratio only applies to an auto height. See issue #46.
+    const chartContainerStyle =
+      "width:100%;height:100%;" +
+      (this.layoutMode !== "sections"
+        ? `aspect-ratio:${MeteogramCard._ratioValue(this.aspectRatio)};`
+        : "");
 
     // In Focussed mode, hide title and attribution
     if (this.displayMode === "focussed" || this.focussed) {
@@ -3294,8 +3317,8 @@ export class MeteogramCard extends LitElement {
                   style="white-space:normal;"
                   .innerHTML=${this.meteogramError}
                 ></div>`
-              : html`<div style="${chartContainerStyle}">
-                  <div id="chart" style="width:100%;height:100%"></div>
+              : html`<div class="chart-wrap" style="${chartContainerStyle}">
+                  <div id="chart"></div>
                 </div>`}
           </div>
         </ha-card>
@@ -3484,8 +3507,8 @@ export class MeteogramCard extends LitElement {
                 .innerHTML=${this.meteogramError}
               ></div>`
             : html`
-                <div style="${chartContainerStyle}">
-                  <div id="chart" style="width:100%;height:100%"></div>
+                <div class="chart-wrap" style="${chartContainerStyle}">
+                  <div id="chart"></div>
                 </div>
                 <!-- diagnostics only. debug is console logging and used to pull the
                      panel up with it, so turning logging on to investigate something
