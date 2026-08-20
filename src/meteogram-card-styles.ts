@@ -379,7 +379,10 @@ export const meteogramCardStyles = css`
        starts after it. */
     .attribution-icon-wrapper {
         position: absolute;
-        top: 24px;
+        /* Set from the layout at draw time so the icon stays level with the date labels
+           whatever moves above the plot. The fallback only applies before the first
+           draw. */
+        top: var(--meteogram-attribution-top, 24px);
         left: 6px;
         z-index: 3;
         display: flex;

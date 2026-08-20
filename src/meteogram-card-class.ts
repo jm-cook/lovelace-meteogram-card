@@ -639,6 +639,37 @@ export class MeteogramCard extends LitElement {
    * Direct-child selector: a descendant match would find a nested group of the same
    * name inside another layer.
    */
+  /**
+   * Sit the information icon on the same line as the date labels.
+   *
+   * Measured from the rendered label rather than computed from the layout. The layout's
+   * dateLabelY is an SVG coordinate, and the svg is stretched to its container with
+   * preserveAspectRatio="none" — so an SVG unit is not a CSS pixel, and by how much
+   * depends on the height of the card. A constant offset is therefore wrong everywhere
+   * except the size it was measured at.
+   *
+   * It used to be pinned a fixed distance from the top of the card, which could not
+   * track a layout that moves at all: the labels sit below the legend row, and the top
+   * of the plot rises when the sun strip is off, crowding the temperature axis where a
+   * tick label wants the room.
+   */
+  private _alignAttributionIcon(): void {
+    const root = this.shadowRoot;
+    const label = root?.querySelector(".top-date-label") as SVGGraphicsElement | null;
+    const wrapper = root?.querySelector(".attribution-icon-wrapper") as HTMLElement | null;
+    if (!label || !wrapper) return;
+    const parent = wrapper.offsetParent as HTMLElement | null;
+    if (!parent) return;
+    const l = label.getBoundingClientRect();
+    const p = parent.getBoundingClientRect();
+    if (!l.height) return;
+    const centre = l.top + l.height / 2 - p.top;
+    this.style.setProperty(
+      "--meteogram-attribution-top",
+      `${Math.round(centre - wrapper.offsetHeight / 2)}px`
+    );
+  }
+
   private _layer(parent: any, name: string, clear: boolean = true): any {
     let g = parent.select(`:scope > g.layer-${name}`);
     if (g.empty()) {
@@ -1931,6 +1962,7 @@ export class MeteogramCard extends LitElement {
         this._lastRenderedWidth = availableWidth;
         this._lastRenderedHeight = availableHeight;
         this._lastDrawnKey = drawKey;
+        this._alignAttributionIcon();
 
         // Stage 1 of animating updates: the <svg> element itself survives a redraw.
         //
@@ -2487,6 +2519,7 @@ export class MeteogramCard extends LitElement {
     this._margin.top = layout.marginTop;
     const margin = this._margin;
     this._layout = layout;
+
 
     this._chartHeight = layout.plotHeight;
     // Cap the chart width to only what's needed for the data
