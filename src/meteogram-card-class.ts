@@ -288,6 +288,19 @@ export class MeteogramCard extends LitElement {
   private _lastDrawnKey = "";
   /** True while redrawing after a size change — see _renderChart. */
   _chartResized = false;
+  /**
+   * The last few draws, for the diagnostics panel.
+   *
+   * A card that grows without limit is diagnosed from a handful of numbers — the
+   * container it measured and the size it chose, over successive draws. Those were only
+   * ever in the browser console, which asks a reporter for F12, the Verbose level, a
+   * reproduction and a copy: four places to lose someone who has said plainly they are
+   * not comfortable with it. Here they can be screenshotted, which people already do.
+   */
+  private _recentDraws: string[] = [];
+  private static readonly _RECENT_DRAWS = 6;
+  /** Caller that triggered the draw currently being rendered. */
+  private _lastDrawCaller = "";
   /** Start of the current run of resize-driven redraws, for the runaway fuse. */
   private _resizeStormSince = 0;
   private _resizeStormCount = 0;
@@ -460,6 +473,7 @@ export class MeteogramCard extends LitElement {
       this._drawTimer = null;
       this._drawWantedSince = 0;
       this._hasDrawnOnce = true;
+      this._lastDrawCaller = callerId;
       this._drawMeteogram(callerId);
     }, delay);
   }
@@ -671,6 +685,51 @@ export class MeteogramCard extends LitElement {
       "--meteogram-attribution-top",
       `${Math.round(centre - wrapper.offsetHeight / 2)}px`
     );
+  }
+
+  /**
+   * The recent-draws block for the diagnostics panel.
+   *
+   * Reads as a list because that is how the fault reads: a card that grows shows the
+   * container climbing line after line, while a healthy one repeats the same numbers.
+   * Anyone can photograph it, which is the point — the alternative asks for the browser
+   * console.
+   */
+  private _recentDrawsHtml(): string {
+    // Shown only with diagnostics on, which is also the only time the buffer is kept
+    // fresh — see _noteDraw. Rendering it otherwise would offer numbers that stopped
+    // updating at the last render, which is worse than offering none.
+    if (!this.diagnostics || !this._recentDraws.length) return "";
+    const rows = this._recentDraws
+      .map((l) => `<div>${l}</div>`)
+      .join("");
+    return (
+      `<div style='margin-top:8px;color:var(--secondary-text-color);font-size:0.9em;'>` +
+      `<b>Recent redraws</b> (container \u2192 drawn)` +
+      `<div style='font-family:monospace;font-size:0.95em;line-height:1.4;margin-top:4px;'>` +
+      rows +
+      `</div></div>`
+    );
+  }
+
+  /** Add one line to the recent-draws ring, newest last. */
+  private _noteDraw(line: string): void {
+    const at = new Date().toLocaleTimeString(this.getHaLocale(), {
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+    this._recentDraws.push(`${at}  ${line}`);
+    if (this._recentDraws.length > MeteogramCard._RECENT_DRAWS) {
+      this._recentDraws.shift();
+    }
+    // The panel's markup is built during render, and this is a plain field, so without a
+    // nudge the block shows whatever the buffer held at the last render — in Home
+    // Assistant that is masked by frequent hass updates, which is exactly the kind of
+    // accident that leaves someone screenshotting stale numbers. Only when the panel is
+    // actually on: rendering has a cost and this is diagnostics.
+    //
+    // It cannot recurse: a render only schedules a draw when the render signature has
+    // changed, and nothing here changes it.
+    if (this.diagnostics) this.requestUpdate();
   }
 
   private _layer(parent: any, name: string, clear: boolean = true): any {
@@ -1113,6 +1172,10 @@ export class MeteogramCard extends LitElement {
         // a resize per frame, and saying the same thing twenty times buries the rest of
         // the log. _onResizeEnd still draws the final size when it stops.
         if (this._resizeStormCount === 7) {
+          this._noteDraw(
+            `resize storm \u2014 ${this._resizeStormCount} in ` +
+              `${now - this._resizeStormSince}ms, holding off`
+          );
           this._debugLog(
             `[${CARD_NAME}] _onResize: ${this._resizeStormCount} resize-driven redraws in ` +
               `${now - this._resizeStormSince}ms at ` +
@@ -1984,6 +2047,13 @@ export class MeteogramCard extends LitElement {
       height = availableHeight > 0
         ? availableHeight : (chartDiv as HTMLElement).offsetHeight;
     }
+
+    // Same numbers as the debug line below, kept for the diagnostics panel so they can
+    // be screenshotted rather than fetched from the console.
+    this._noteDraw(
+      `${(this._lastDrawCaller || "draw").replace(/#\d+$/, "")}  ` +
+        `${availableWidth}\u00D7${availableHeight} \u2192 ${width}\u00D7${height}`
+    );
 
     // The measured container and the size chosen from it, on every draw.
     //
@@ -3145,6 +3215,7 @@ export class MeteogramCard extends LitElement {
                     }
                     ${this.generateDiagnosticInfo().tooltip}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
+                    ${this._recentDrawsHtml()}
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${
                       MeteogramCard.meteogramCardVersion
                     }</div>
@@ -3172,6 +3243,7 @@ export class MeteogramCard extends LitElement {
                     }
                     ${this.generateDiagnosticInfo().tooltip}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
+                    ${this._recentDrawsHtml()}
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${
                       MeteogramCard.meteogramCardVersion
                     }</div>

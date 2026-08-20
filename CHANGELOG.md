@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A card left running on an always-on panel could show a stale forecast after the screen woke.** 2026.8.2 stopped redrawing when nothing about the card had changed, which was right as far as it went — but a redraw carrying a *newer forecast* was skipped along with the rest. It mattered only where the browser had frozen the page and its refresh timer, so the wake-up redraw was the one that should have fetched. The forecast's age is now part of that decision.
 - **Very short cards could fail to draw parts of the chart.** Everything above and below the plot is subtracted from it, and below roughly 110px the remainder went negative — which the browser rejects rather than draws. The plot now has a floor.
 
+- **The information panel lists the last few redraws** when `diagnostics: true` — the size of the space the card was given and the size it drew, for each of the last six. A card that misbehaves by resizing itself shows those numbers climbing; a healthy one repeats the same pair. Screenshotting the ℹ️ is now enough to report it, with no need for the browser console.
+
 ### Documentation
 - **The forecast fields the card uses are documented**, in a table under Weather Data: what each one draws, which weather-entity attribute it comes from, and what is lost when it is absent. The panel had been reporting field names that appeared nowhere in the documentation.
 
