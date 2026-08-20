@@ -22,9 +22,8 @@ it matches the settings editors on other cards.
 - **Animated updates.** On by default; turn it off with `animate: false` or from the visual editor.
   - The first draw and any resize are not animated: a card appearing should simply be there.
 - **The sunrise and sunset times are printed on the strip** wherever there is room for them, so the card needs no interaction to be read. Where the forecast is too compressed they fall back to a marker alone, and the times stay available on hover or tap.
-- **Sunrise and sunset are marked with proper icons** rather than a sun and a moon, coloured to match the band each one leads into.
+- **Sunrise and sunset are marked with MDI icons** rather than a sun and a moon, coloured to match the band each one leads into.
 - `layout_mode` is now available in the visual editor instead of YAML only.
-- **Debug logging can be turned on from the browser console** with `meteogramDebug()`, without editing the card or reloading the page — useful when reporting a problem that only happens while something is changing. `meteogramDebug(false)` turns it off again.
 
 ### Changed
 - **The rebuilt editor changes three things you will notice:**
