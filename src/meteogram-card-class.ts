@@ -1109,12 +1109,17 @@ export class MeteogramCard extends LitElement {
         this._resizeStormCount = 0;
       }
       if (++this._resizeStormCount > 6) {
-        this._debugLog(
-          `[${CARD_NAME}] _onResize: ${this._resizeStormCount} resize-driven redraws in ` +
-            `${now - this._resizeStormSince}ms at ` +
-            `${Math.round(entry.contentRect.width)}x${Math.round(entry.contentRect.height)} — ` +
-            `ignoring further resizes until this settles.`
-        );
+        // Once per run, not once per event: a card being animated to a new width reports
+        // a resize per frame, and saying the same thing twenty times buries the rest of
+        // the log. _onResizeEnd still draws the final size when it stops.
+        if (this._resizeStormCount === 7) {
+          this._debugLog(
+            `[${CARD_NAME}] _onResize: ${this._resizeStormCount} resize-driven redraws in ` +
+              `${now - this._resizeStormSince}ms at ` +
+              `${Math.round(entry.contentRect.width)}x${Math.round(entry.contentRect.height)} — ` +
+              `holding off until this settles.`
+          );
+        }
         return;
       }
       this._lastWidth = entry.contentRect.width;
