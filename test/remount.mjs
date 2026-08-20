@@ -83,8 +83,8 @@ check(after.remount === true, "and knows it is a remount, so it does not animate
 // The ancestry line comes first on any new element, then the draw itself — the same
 // two lines the reported panel showed.
 const draws = after.log.filter((l) => l.includes("  drew  "));
-check(draws.length === 1 && draws[0].includes("first draw"),
-  "its log holds exactly one draw, reported as a first draw",
+check(draws.length === 1 && draws[0].includes("new element"),
+  "its log holds exactly one draw, reported as new",
   draws.join(" | ") || "none");
 check(errors.length === 0, "no page errors", errors.join("; "));
 

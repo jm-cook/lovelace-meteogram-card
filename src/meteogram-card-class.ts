@@ -2323,7 +2323,13 @@ export class MeteogramCard extends LitElement {
       this._note("in", nest);
     }
 
-    // An element's very first draw is reported as such, whatever triggered it.
+    // An element's very first draw is reported as the element being new, whatever
+    // triggered it.
+    //
+    // It says "new element" rather than "first draw" because the shorter phrasing was
+    // read, reasonably, as a claim about the card on screen — and that card may well
+    // have been visible for some time. It is the *element* that is new; the one drawn
+    // before it is gone, which is why none of its history is in this list.
     //
     // Which caller gets there first is a race — a ResizeObserver fires its initial
     // callback as soon as it starts observing, so it often beats the load path — and the
@@ -2339,7 +2345,7 @@ export class MeteogramCard extends LitElement {
     this._remountDraw = firstDraw && MeteogramCard._pageHasDrawn;
     this._note(
       "drew",
-      `${firstDraw ? "first draw" : MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
+      `${firstDraw ? "new element" : MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
         `${availableWidth}\u00D7${availableHeight} \u2192 ${width}\u00D7${height}`
     );
 
