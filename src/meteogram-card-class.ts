@@ -288,6 +288,9 @@ export class MeteogramCard extends LitElement {
   private _lastDrawnKey = "";
   /** True while redrawing after a size change — see _renderChart. */
   _chartResized = false;
+  /** Start of the current run of resize-driven redraws, for the runaway fuse. */
+  private _resizeStormSince = 0;
+  private _resizeStormCount = 0;
   /** Set when a redraw was requested with force, consumed by the next draw. */
   private _forceNextDraw = false;
   /**
@@ -1090,6 +1093,30 @@ export class MeteogramCard extends LitElement {
     }
     // Always redraw if significant change and at least DEBOUNCE_INTERVAL since last redraw
     if (significantChange && now - this._lastResizeTime > DEBOUNCE_INTERVAL) {
+      // A fuse against drawing ourselves bigger, over and over.
+      //
+      // Where the card's height comes from its own content — a panel dashboard — a
+      // redraw can change the size that triggered it, and the resize observer reports
+      // that as another significant change. The debounce only paces such a loop; it
+      // cannot end it, and issue #46 is a card growing until it fills the screen.
+      //
+      // Six resize-driven redraws inside three seconds is not a user dragging a window;
+      // it is the card chasing itself. Stop honouring them until things go quiet. A
+      // config change or the forecast refresh still draws, because they do not come
+      // through here.
+      if (now - this._resizeStormSince > 3000) {
+        this._resizeStormSince = now;
+        this._resizeStormCount = 0;
+      }
+      if (++this._resizeStormCount > 6) {
+        this._debugLog(
+          `[${CARD_NAME}] _onResize: ${this._resizeStormCount} resize-driven redraws in ` +
+            `${now - this._resizeStormSince}ms at ` +
+            `${Math.round(entry.contentRect.width)}x${Math.round(entry.contentRect.height)} — ` +
+            `ignoring further resizes until this settles.`
+        );
+        return;
+      }
       this._lastWidth = entry.contentRect.width;
       this._lastHeight = entry.contentRect.height;
       this._lastResizeTime = now;
@@ -1952,6 +1979,19 @@ export class MeteogramCard extends LitElement {
       height = availableHeight > 0
         ? availableHeight : (chartDiv as HTMLElement).offsetHeight;
     }
+
+    // The measured container and the size chosen from it, on every draw.
+    //
+    // Without this the log says nothing about size unless a draw is skipped, which is the
+    // one thing needed to diagnose a card that grows: issue #46 is a container whose
+    // height comes from its content, so the numbers to watch are these climbing together
+    // on successive draws. Cheap, and only when debug is on.
+    this._debugLog(
+      `[${CARD_NAME}] _renderChart: container ${availableWidth}x${availableHeight}` +
+        ` \u2192 drawing ${width}x${height}` +
+        ` (chartDiv ${(chartDiv as HTMLElement).offsetWidth}x${(chartDiv as HTMLElement).offsetHeight},` +
+        ` mode ${this.layoutMode}${useAspectRatio ? `, ratio ${this.aspectRatio}` : ""})`
+    );
 
     // Fetch weather data and render. The previous chart stays up while this runs and is
     // swapped out only once there is something to put in its place.
