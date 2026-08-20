@@ -411,6 +411,11 @@ export const meteogramCardStyles = css`
         padding: 8px 12px;
         min-width: 220px;
         max-width: 340px;
+        /* The redraw list can reach twenty entries and the panel stays open while a card
+           is being resized, so it has to be able to run out of room without running off
+           the screen — on a phone the list is the part that would be lost. */
+        max-height: 60vh;
+        overflow-y: auto;
         font-size: 0.97em;
         z-index: 10;
         white-space: normal;

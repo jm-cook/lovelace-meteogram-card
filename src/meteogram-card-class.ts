@@ -713,6 +713,37 @@ export class MeteogramCard extends LitElement {
   }
 
   /**
+   * The card's setup, in one line.
+   *
+   * Everything here decides which sizing branch runs, and without it a screenshot of the
+   * redraw list still needs a round of questions — which layout mode, which ratio, how
+   * big is the screen — before it can be read. The point of the panel is that one
+   * screenshot is enough.
+   */
+  private _setupHtml(): string {
+    if (!this.diagnostics) return "";
+    const bits = [
+      `layout ${this.layoutMode}`,
+      `mode ${this.displayMode}`,
+      this.layoutMode !== "sections" ? `ratio ${this.aspectRatio}` : null,
+      `span ${this.meteogramHours}`,
+      this.animateChanges ? "animated" : "not animated",
+    ].filter(Boolean);
+    const ha = this.hass?.config?.version ? `HA ${this.hass.config.version}` : null;
+    const screen =
+      typeof window !== "undefined"
+        ? `window ${window.innerWidth}\u00D7${window.innerHeight}`
+        : null;
+    const tail = [ha, screen].filter(Boolean).join(" \u00B7 ");
+    return (
+      `<div style='margin-top:8px;color:var(--secondary-text-color);font-size:0.9em;'>` +
+      `<b>Setup:</b> ${bits.join(" \u00B7 ")}` +
+      (tail ? `<br>${tail}` : "") +
+      `</div>`
+    );
+  }
+
+  /**
    * The recent-draws block for the diagnostics panel.
    *
    * Reads as a list because that is how the fault reads: a card that grows shows the
@@ -731,7 +762,10 @@ export class MeteogramCard extends LitElement {
     return (
       `<div style='margin-top:8px;color:var(--secondary-text-color);font-size:0.9em;'>` +
       `<b>Recent redraws</b> (container \u2192 drawn)` +
-      `<div style='font-family:monospace;font-size:0.95em;line-height:1.4;margin-top:4px;'>` +
+      `<div style='font-family:monospace;font-size:0.95em;line-height:1.4;margin-top:4px;` +
+      // Each row stays on one line and the block scrolls sideways if it must: a wrapped
+      // row splits the two sizes across lines, which is the one comparison being made.
+      `white-space:nowrap;overflow-x:auto;'>` +
       rows +
       `</div></div>`
     );
@@ -3266,6 +3300,7 @@ export class MeteogramCard extends LitElement {
                     }
                     ${this.generateDiagnosticInfo().tooltip}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
+                    ${this._setupHtml()}
                     ${this._recentDrawsHtml()}
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${
                       MeteogramCard.meteogramCardVersion
@@ -3294,6 +3329,7 @@ export class MeteogramCard extends LitElement {
                     }
                     ${this.generateDiagnosticInfo().tooltip}
                     <div style='margin-top:8px;color:#1976d2;font-size:0.97em;'><b>Hours available in data source:</b> <b>${this.getAvailableHours()}</b></div>
+                    ${this._setupHtml()}
                     ${this._recentDrawsHtml()}
                     <div style='margin-top:8px;color:#666;font-size:0.9em;'><b>Card version:</b> ${
                       MeteogramCard.meteogramCardVersion
