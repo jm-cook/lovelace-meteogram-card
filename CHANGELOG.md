@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **The information panel no longer calls optional forecast fields "missing".** It says they are not provided by your source, and no longer prints them in error red. Most weather sources supply only some of the optional fields — met.no publishes the precipitation range only inside the Nordic area, for instance — so seeing a few listed is the normal case, not a fault.
 
+### Fixed
+- **A card left running on an always-on panel could show a stale forecast after the screen woke.** 2026.8.2 stopped redrawing when nothing about the card had changed, which was right as far as it went — but a redraw carrying a *newer forecast* was skipped along with the rest. It mattered only where the browser had frozen the page and its refresh timer, so the wake-up redraw was the one that should have fetched. The forecast's age is now part of that decision.
+- **Very short cards could fail to draw parts of the chart.** Everything above and below the plot is subtracted from it, and below roughly 110px the remainder went negative — which the browser rejects rather than draws. The plot now has a floor.
+
 ### Documentation
 - **The forecast fields the card uses are documented**, in a table under Weather Data: what each one draws, which weather-entity attribute it comes from, and what is lost when it is absent. The panel had been reporting field names that appeared nowhere in the documentation.
 
