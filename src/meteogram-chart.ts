@@ -186,12 +186,13 @@ export class MeteogramChart {
     /**
      * Whether this draw should move things or just place them.
      *
-     * Off for the first draw into a fresh svg, which is also every resize: there is
-     * nothing on screen to move from, so animating means flying the whole chart in from
-     * nowhere. Movement is for changes between states.
+     * Off for a resize: elements sliding to new positions while the card is still being
+     * dragged is noise. On for everything else, including the first draw, where the
+     * enter transitions bring the chart in — and which is the only trigger anyone can
+     * reach on demand, a forecast changing only once an hour.
      */
     private get animating(): boolean {
-        return !!this.card.animateChanges && !this.card._chartIsFresh;
+        return !!this.card.animateChanges && !this.card._chartResized;
     }
 
     /**

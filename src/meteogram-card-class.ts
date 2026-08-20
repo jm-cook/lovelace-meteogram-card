@@ -286,8 +286,8 @@ export class MeteogramCard extends LitElement {
   private _hasDrawnOnce = false;
   /** Config signature and size the chart currently on screen was drawn from. */
   private _lastDrawnKey = "";
-  /** True while drawing into a newly created svg — see _renderChart. */
-  _chartIsFresh = true;
+  /** True while redrawing after a size change — see _renderChart. */
+  _chartResized = false;
   /** Set when a redraw was requested with force, consumed by the next draw. */
   private _forceNextDraw = false;
   /**
@@ -1949,11 +1949,15 @@ export class MeteogramCard extends LitElement {
           existing.attr("height") === String(height) &&
           existing.attr("preserveAspectRatio") === preserve;
 
-        // A fresh svg means there is nothing on screen to move from: the card is being
-        // drawn for the first time, or resized. Neither should animate — a card
-        // appearing should simply be there, and a resize should land at its new size
-        // rather than sliding to it.
-        this._chartIsFresh = !reusable;
+        // A resize must not animate: elements sliding to new positions while the card is
+        // still being dragged is noise, not information.
+        //
+        // The first draw is a different case and does animate — bars rise out of the
+        // baseline as the chart appears. It was briefly lumped in with resizes here,
+        // both being "a fresh svg", which made the animation almost impossible to
+        // observe: a forecast changes hourly and opening the editor rebuilds the card,
+        // so first paint is the only trigger anyone can reach on demand.
+        this._chartResized = !existing.empty() && !reusable;
         if (reusable) {
           // Not cleared. Every drawer owns a named layer and clears only its own, so
           // the groups survive the redraw — which is the whole point: an element that

@@ -192,13 +192,19 @@ async function main() {
     process.exit(1);
   }
 
-  // Let any deferred icon loading settle, then confirm it has stopped changing.
-  let last = -1;
-  for (let i = 0; i < 20; i++) {
-    const n = await page.evaluate(() => document.querySelector("meteogram-card")
-      ?.shadowRoot?.querySelector("#chart svg")?.querySelectorAll("*").length ?? 0);
-    if (n === last) break;
-    last = n;
+  // Let the chart settle, then confirm it has stopped changing.
+  //
+  // Counting nodes is not enough. Deferred icon loading adds elements, so a stable count
+  // used to mean a stable chart — but the first draw animates now, and a transition
+  // moves attributes without adding or removing anything. A snapshot taken mid-flight
+  // differs from itself run to run, which makes the whole comparison worthless. Compare
+  // the serialised markup instead: it catches both.
+  let last = "";
+  for (let i = 0; i < 40; i++) {
+    const now = await page.evaluate(() => document.querySelector("meteogram-card")
+      ?.shadowRoot?.querySelector("#chart svg")?.outerHTML ?? "");
+    if (now && now === last) break;
+    last = now;
     await page.waitForTimeout(250);
   }
 
