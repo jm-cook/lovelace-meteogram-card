@@ -336,6 +336,14 @@ export class MeteogramCard extends LitElement {
     const n = Number(ratio);
     return n > 0 ? `${n}` : "16/9";
   }
+  /** Rough age of a timestamp, for a diagnostics line: "3s", "12m", "4h". */
+  private static _since(then: Date): string {
+    const secs = Math.max(0, Math.round((Date.now() - then.getTime()) / 1000));
+    if (secs < 90) return `${secs}s`;
+    const mins = Math.round(secs / 60);
+    return mins < 90 ? `${mins}m` : `${Math.round(mins / 60)}h`;
+  }
+
   private static _ancestry(el: Element): string {
     const names: string[] = [];
     let node: any = el;
@@ -849,7 +857,17 @@ export class MeteogramCard extends LitElement {
       typeof window !== "undefined"
         ? `window ${window.innerWidth}\u00D7${window.innerHeight}`
         : null;
-    const tail = [ha, screen].filter(Boolean).join(" \u00B7 ");
+    // How long this page has been loaded, which separates two very different causes of
+    // "the card redrew on its own".
+    //
+    // The constant is evaluated once when the module is first parsed, so it dates the
+    // page, not the card. A card whose log holds a single "first draw" is a new element
+    // either way — but if the page is new too, the browser discarded the tab and reloaded
+    // everything, which is nothing to do with this card; and if the page is old, the
+    // element was replaced underneath a page that kept running, which is. Without this
+    // the two are indistinguishable from a paste, and they lead opposite ways.
+    const pageAge = MeteogramCard._since(METEOGRAM_CARD_STARTUP_TIME);
+    const tail = [ha, screen, `page loaded ${pageAge} ago`].filter(Boolean).join(" \u00B7 ");
     return (
       `<div style='margin-top:8px;color:var(--secondary-text-color);font-size:0.9em;'>` +
       `<b>Setup:</b> ${bits.join(" \u00B7 ")}` +
