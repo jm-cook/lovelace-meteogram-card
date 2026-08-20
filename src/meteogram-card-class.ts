@@ -299,7 +299,29 @@ export class MeteogramCard extends LitElement {
    * not comfortable with it. Here they can be screenshotted, which people already do.
    */
   private _recentDraws: string[] = [];
-  private static readonly _RECENT_DRAWS = 6;
+  // Deliberately generous. Nobody knows what someone will try before they think to look
+  // — dragging a pane wider, then narrower, switching modes, rotating a tablet — and a
+  // short buffer throws away the beginning of exactly the sequence that explains it. The
+  // tooltip scrolls, so length costs nothing but a taller screenshot.
+  private static readonly _RECENT_DRAWS = 20;
+
+  /** Trigger names as something a person can read, rather than method names. */
+  private static _triggerLabel(caller: string): string {
+    const raw = (caller || "draw").replace(/#\d+$/, "");
+    const map: Record<string, string> = {
+      "_onResize-significant": "resize",
+      "_onResize-fallback": "resize",
+      "_onResizeEnd-final": "resize ended",
+      loadD3AndDraw: "first load",
+      connectedCallback: "card added",
+      _handleVisibilityChange: "tab shown",
+      orientationchange: "rotated",
+      updated: "setting changed",
+      "updated-forced": "setting changed",
+      "scheduled-refresh-after-expiresAt": "forecast refresh",
+    };
+    return map[raw] ?? raw;
+  }
   /** Caller that triggered the draw currently being rendered. */
   private _lastDrawCaller = "";
   /** Start of the current run of resize-driven redraws, for the runaway fuse. */
@@ -715,12 +737,29 @@ export class MeteogramCard extends LitElement {
     );
   }
 
-  /** Add one line to the recent-draws ring, newest last. */
-  private _noteDraw(line: string): void {
+  /**
+   * Add one line to the recent-draws ring, newest last.
+   *
+   * `kind` says what became of the request, because a list of draws alone cannot answer
+   * the question this exists for. If the fuse holds off a runaway but the card keeps
+   * growing for some other reason, a draws-only list falls silent and reads as fixed
+   * while the card is still climbing on screen.
+   *
+   * `replaceLast` lets a run of held-off resizes stay one line that updates, so twenty
+   * suppressed events do not flush everything else out of a six-line buffer — and so the
+   * size it shows is the latest one, which is what says whether it is still growing.
+   */
+  private _note(kind: string, line: string, replaceLast = false): void {
     const at = new Date().toLocaleTimeString(this.getHaLocale(), {
       hour: "2-digit", minute: "2-digit", second: "2-digit",
     });
-    this._recentDraws.push(`${at}  ${line}`);
+    const entry = `${at}  ${kind.padEnd(4)}  ${line}`;
+    const last = this._recentDraws[this._recentDraws.length - 1];
+    if (replaceLast && last && last.includes(`  ${kind.padEnd(4)}  `)) {
+      this._recentDraws[this._recentDraws.length - 1] = entry;
+    } else {
+      this._recentDraws.push(entry);
+    }
     if (this._recentDraws.length > MeteogramCard._RECENT_DRAWS) {
       this._recentDraws.shift();
     }
@@ -1171,14 +1210,20 @@ export class MeteogramCard extends LitElement {
         this._resizeStormCount = 0;
       }
       if (++this._resizeStormCount > 6) {
-        // Once per run, not once per event: a card being animated to a new width reports
-        // a resize per frame, and saying the same thing twenty times buries the rest of
-        // the log. _onResizeEnd still draws the final size when it stops.
+        // The panel line is rewritten on every held resize, not just the first. It is one
+        // line either way, but it carries the newest size — which is the only thing that
+        // says whether the card is still growing while the fuse holds it off. A line
+        // frozen at the moment the fuse engaged would read as "caught" whether or not it
+        // was.
+        this._note(
+          "held",
+          `resize \u00D7${this._resizeStormCount} in ${now - this._resizeStormSince}ms  ` +
+            `${Math.round(entry.contentRect.width)}\u00D7${Math.round(entry.contentRect.height)}`,
+          true
+        );
+        // The console line stays once per run: a resize per frame saying the same thing
+        // twenty times buries everything else.
         if (this._resizeStormCount === 7) {
-          this._noteDraw(
-            `resize storm \u2014 ${this._resizeStormCount} in ` +
-              `${now - this._resizeStormSince}ms, holding off`
-          );
           this._debugLog(
             `[${CARD_NAME}] _onResize: ${this._resizeStormCount} resize-driven redraws in ` +
               `${now - this._resizeStormSince}ms at ` +
@@ -1979,6 +2024,7 @@ export class MeteogramCard extends LitElement {
       drawKey === this._lastDrawnKey &&
       chartDiv.querySelector("svg")
     ) {
+      this._note("same", `nothing changed  ${availableWidth}\u00D7${availableHeight}`, true);
       this._debugLog(
         `[${CARD_NAME}] _renderChart: nothing changed since the last draw, skipping.`
       );
@@ -1990,6 +2036,7 @@ export class MeteogramCard extends LitElement {
     const MIN_DRAWABLE_WIDTH = 120;
     const MIN_DRAWABLE_HEIGHT = 40;
     if (availableWidth < MIN_DRAWABLE_WIDTH || availableHeight < MIN_DRAWABLE_HEIGHT) {
+      this._note("tiny", `too small  ${availableWidth}\u00D7${availableHeight}`, true);
       this._debugLog(
         `[${CARD_NAME}] _renderChart: container is ${availableWidth}x${availableHeight}, `
           + `too small to draw — keeping the current chart until it has a real size.`
@@ -2053,8 +2100,9 @@ export class MeteogramCard extends LitElement {
 
     // Same numbers as the debug line below, kept for the diagnostics panel so they can
     // be screenshotted rather than fetched from the console.
-    this._noteDraw(
-      `${(this._lastDrawCaller || "draw").replace(/#\d+$/, "")}  ` +
+    this._note(
+      "drew",
+      `${MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
         `${availableWidth}\u00D7${availableHeight} \u2192 ${width}\u00D7${height}`
     );
 
