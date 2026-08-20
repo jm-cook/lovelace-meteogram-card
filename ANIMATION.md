@@ -56,6 +56,13 @@ an animated update from a rebuild.
 
 ## Watch out for
 
+- Never mount a Home Assistant custom element (ha-icon and friends) inside a
+  foreignObject inside the SVG. WebKit — Safari, and the iOS Companion app, which is
+  WKWebView — often does not paint it, with no error anywhere. Inject plain markup, as
+  the weather icons do, or use ordinary SVG. Nothing local reproduces this: the harness
+  is not Home Assistant, so it never registers those components and never takes that
+  branch.
+
 - A converted drawer's layer must not be cleared (`_layer(parent, name, false)`) — a
   join needs its elements to survive in order to match them. Anything in that layer
   still on the enter-only pattern has to be removed by hand, or it accumulates.

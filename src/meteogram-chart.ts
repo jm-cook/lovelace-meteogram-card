@@ -7,15 +7,19 @@ import { isDaylightAt, sunEventsBetween } from "./solar";
 /**
  * Sunrise and sunset marks for the day/night strip.
  *
- * Home Assistant ships Material Design Icons, so the strip asks for mdi:weather-sunset-up
- * and mdi:weather-sunset-down through ha-icon and inherits the theme's icon styling.
+ * Material Design Icons weather-sunset-up and weather-sunset-down (Apache-2.0, from
+ * github.com/Templarian/MaterialDesign), inlined as path data.
  *
- * These paths are the same two icons (Apache-2.0, github.com/Templarian/MaterialDesign)
- * inlined for the case where ha-icon is not registered on the page. That is not a
- * hypothetical: ha-textfield is missing from the card-editor page in current Home
- * Assistant, which is what left the editor's text fields invisible, and there is no
- * documented set of components a custom card may rely on. 1.2 KB is cheap insurance
- * against the mark silently not drawing.
+ * Home Assistant ships these icons, and the strip originally asked for them through
+ * ha-icon. On iPad they did not appear at all: WebKit does not reliably paint a custom
+ * element with its own shadow DOM inside a foreignObject inside an SVG. The times beside
+ * them rendered, and so did the weather icons — which use the same foreignObject but
+ * inject plain markup into a div rather than mounting a component. So foreignObject is
+ * fine; ha-icon inside one is not.
+ *
+ * A path has no such problem: it is ordinary SVG that every renderer draws, it takes its
+ * colour from the stylesheet like everything else here, and it costs 1.2 KB. There is no
+ * longer a second route to go wrong on a device nobody can attach a debugger to.
  *
  * Both replace the \u2600 and \u263D characters the strip used to draw. Those name the
  * sun and the moon, where what the mark means is the moment one rises or sets: a
@@ -428,9 +432,6 @@ export class MeteogramChart {
         const LABEL_GAP = 6;
         const ICON = 16;
         const ICON_GAP = 2;
-        // Resolved once: an unregistered ha-icon renders nothing at all, so the strip
-        // falls back to drawing the same two icons as plain paths.
-        const haIcons = typeof customElements !== "undefined" && !!customElements.get("ha-icon");
         {
             events.forEach((e, gi) => {
                 const room = roomAt(gi);
@@ -447,16 +448,9 @@ export class MeteogramChart {
                     .attr("class", "sun-strip-glyph "
                         + (e.type === "sunrise" ? "sun-strip-rise" : "sun-strip-set"));
                 mark.append("title").text(glyphLabel);
-                if (haIcons) {
-                    mark.append("foreignObject")
-                        .attr("width", ICON).attr("height", ICON)
-                        .html(`<ha-icon icon="mdi:weather-sunset-${e.type === "sunrise" ? "up" : "down"}" `
-                            + `style="display:block;width:${ICON}px;height:${ICON}px;--mdc-icon-size:${ICON}px"></ha-icon>`);
-                } else {
-                    mark.append("path")
-                        .attr("d", e.type === "sunrise" ? MDI_SUNRISE : MDI_SUNSET)
-                        .attr("transform", `scale(${ICON / MDI_VIEWBOX})`);
-                }
+                mark.append("path")
+                    .attr("d", e.type === "sunrise" ? MDI_SUNRISE : MDI_SUNSET)
+                    .attr("transform", `scale(${ICON / MDI_VIEWBOX})`);
 
                 // Written with the time, then measured and dropped back to the icon
                 // alone if the pair does not fit. Measuring beats a pixel threshold

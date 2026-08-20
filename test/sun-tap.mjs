@@ -227,9 +227,13 @@ async function main() {
         !!riseFill && !!setFill && riseFill !== setFill,
         `rise ${riseFill} vs set ${setFill}`);
 
-  check("marks use the mdi sunset icons",
-        at48.marks.every((m) => m.icon === "path-fallback"
-                             || /^mdi:weather-sunset-(up|down)$/.test(m.icon)),
+  // Plain <path>, never ha-icon. On iPad the ha-icon route drew nothing at all: WebKit
+  // does not reliably paint a custom element with its own shadow DOM inside a
+  // foreignObject inside an SVG, and the Companion app is WebKit too. The test harness
+  // is not Home Assistant, so it never registered ha-icon and never took that route —
+  // which is exactly why nothing here caught it.
+  check("marks are drawn as plain paths, not ha-icon",
+        at48.marks.length > 0 && at48.marks.every((m) => m.icon === "path-fallback"),
         JSON.stringify([...new Set(at48.marks.map((m) => m.icon))]));
   check("inline labels stay inside the card",
         at48.marks.every((m) => m.left >= at48.svg.left - 1
