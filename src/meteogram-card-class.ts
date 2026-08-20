@@ -307,6 +307,26 @@ export class MeteogramCard extends LitElement {
   // tooltip scrolls, so length costs nothing but a taller screenshot.
   private static readonly _RECENT_DRAWS = 20;
 
+  /**
+   * The chain of elements the card is nested in, outermost last.
+   *
+   * Crosses shadow boundaries deliberately — a card lives inside several of them, and
+   * stopping at the first would report nothing useful. Six levels is enough to reach the
+   * view, and tag names alone carry no configuration or personal detail, which matters
+   * for something meant to be pasted into a public issue.
+   */
+  private static _ancestry(el: Element): string {
+    const names: string[] = [];
+    let node: any = el;
+    for (let i = 0; i < 6 && node; i++) {
+      node = node.parentElement ?? node.getRootNode?.()?.host;
+      if (!node || !node.tagName) break;
+      const tag = String(node.tagName).toLowerCase();
+      if (names[names.length - 1] !== tag) names.push(tag);
+    }
+    return names.join(" \u2039 ");
+  }
+
   /** Trigger names as something a person can read, rather than method names. */
   private static _triggerLabel(caller: string): string {
     const raw = (caller || "draw").replace(/#\d+$/, "");
@@ -326,6 +346,8 @@ export class MeteogramCard extends LitElement {
   }
   /** Caller that triggered the draw currently being rendered. */
   private _lastDrawCaller = "";
+  /** Ancestry as last recorded, so a move between containers is noticed. */
+  private _lastAncestry = "";
   /** Start of the current run of resize-driven redraws, for the runaway fuse. */
   private _resizeStormSince = 0;
   private _resizeStormCount = 0;
@@ -733,7 +755,7 @@ export class MeteogramCard extends LitElement {
       html.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
     const lines = [
       `Meteogram Card ${MeteogramCard.meteogramCardVersion}`,
-      strip(this._setupHtml()).replace(/^Setup:\s*/, "Setup: "),
+      strip(this._setupHtml()),
       this.entityId && this.entityId !== "none"
         ? `Source: entity ${this.entityId}`
         : `Source: met.no direct ${this.latitude}, ${this.longitude}`,
@@ -794,6 +816,12 @@ export class MeteogramCard extends LitElement {
       this.animateChanges ? "animated" : "not animated",
     ].filter(Boolean);
     const ha = this.hass?.config?.version ? `HA ${this.hass.config.version}` : null;
+    // What the card is sitting inside, which is the fact a layout report turns on and
+    // the one nobody thinks to mention. The dashboard editor wraps a card in preview
+    // elements whose sizing differs from the live view, so "only in design mode" shows
+    // up here as a different chain rather than as something the reporter has to notice
+    // and describe.
+    const nest = MeteogramCard._ancestry(this);
     const screen =
       typeof window !== "undefined"
         ? `window ${window.innerWidth}\u00D7${window.innerHeight}`
@@ -803,6 +831,7 @@ export class MeteogramCard extends LitElement {
       `<div style='margin-top:8px;color:var(--secondary-text-color);font-size:0.9em;'>` +
       `<b>Setup:</b> ${bits.join(" \u00B7 ")}` +
       (tail ? `<br>${tail}` : "") +
+      (nest ? `<br>In: ${nest}` : "") +
       `</div>`
     );
   }
@@ -2198,6 +2227,19 @@ export class MeteogramCard extends LitElement {
 
     // Same numbers as the debug line below, kept for the diagnostics panel so they can
     // be screenshotted rather than fetched from the console.
+    // A move between containers goes in the list, not just in the setup line.
+    //
+    // The setup line reports where the card is when Copy is pressed, which is the wrong
+    // moment: a card that misbehaves only in the dashboard editor may well have been
+    // dragged back to the live view before anyone reaches the button, and the evidence
+    // would read as though it never happened. Recorded here, the log shows which draws
+    // happened in which container.
+    const nest = MeteogramCard._ancestry(this);
+    if (nest && nest !== this._lastAncestry) {
+      this._lastAncestry = nest;
+      this._note("in", nest);
+    }
+
     this._note(
       "drew",
       `${MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
