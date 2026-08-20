@@ -298,18 +298,9 @@ export const meteogramCardStyles = css`
 
     /* .attribution is not used, move its styles to .attribution-icon-wrapper for correct layout */
     .attribution-icon-wrapper {
-        position: absolute;
-        top: 12px;
-        right: 24px;
-        z-index: 3;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        height: 32px;
-        width: 32px;
         font-size: 0.85em;
         color: var(--secondary-text-color);
-        text-align: right;
+        text-align: left;
         background: rgba(255, 255, 255, 0.7);
         padding: 2px 8px;
         border-radius: 6px;
@@ -381,14 +372,19 @@ export const meteogramCardStyles = css`
     }
 
 
+    /* Top left, in the margin outside the temperature axis and level with the date
+       labels. It used to sit top right, where it overlapped the last date label — the
+       right-hand label is the one pushed inward to stay on the card, so the two were
+       competing for the same corner. The left margin is empty by construction: the plot
+       starts after it. */
     .attribution-icon-wrapper {
         position: absolute;
-        top: 12px;
-        right: 24px;
+        top: 24px;
+        left: 6px;
         z-index: 3;
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: flex-start;
         height: 32px;
         width: 32px;
     }
@@ -402,7 +398,8 @@ export const meteogramCardStyles = css`
         display: none;
         position: absolute;
         top: 120%;
-        right: 0;
+        /* Opens rightward, following the icon to the left-hand margin. */
+        left: 0;
         background: rgba(255,255,255,0.98);
         color: #222;
         border: 1px solid #bbb;

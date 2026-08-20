@@ -145,3 +145,39 @@ describe("slack — dead space at the bottom, which should be zero", () => {
     ).toBe(10);
   });
 });
+
+describe("sunrise/sunset marks have room above the strip", () => {
+  // The marks are drawn above the strip, not inside it: a 16px icon two pixels clear.
+  // With date labels they have always sat in the gap between those and the plot. In the
+  // focussed layout there is no gap, nothing reserved the space, and the marks landed at
+  // y = -3 — off the top of the card, which is what an iPad photo showed.
+  const MARK_HEIGHT = 18;
+
+  it("keeps the marks on the card in the focussed layout", () => {
+    const l = chartLayout({
+      height: 300, hasLegends: false, hasDateLabels: false,
+      windBand: 45, hourLabelBand: 24, sunBand: 15, focussed: true,
+    });
+    expect(l.sunStripY).not.toBeNull();
+    expect(l.sunStripY! - MARK_HEIGHT).toBeGreaterThanOrEqual(0);
+  });
+
+  it("still keeps them clear of the date labels in the full layout", () => {
+    const l = chartLayout({
+      height: 300, hasLegends: true, hasDateLabels: true,
+      windBand: 45, hourLabelBand: 24, sunBand: 15, focussed: false,
+    });
+    expect(l.sunStripY! - MARK_HEIGHT).toBeGreaterThan(l.dateLabelY!);
+  });
+
+  it("takes the headroom out of the plot, not off the bottom of the card", () => {
+    const args = {
+      height: 300, hasLegends: false, hasDateLabels: false,
+      windBand: 45, hourLabelBand: 24, focussed: true,
+    };
+    const withSun = chartLayout({ ...args, sunBand: 15 });
+    const without = chartLayout({ ...args, sunBand: 0 });
+    // Whatever the strip and its marks consume, the bottom of the chart must not move.
+    expect(withSun.hourLabelY).toBe(without.hourLabelY);
+  });
+});

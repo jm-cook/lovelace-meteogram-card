@@ -36,6 +36,16 @@ const WIND_TO_HOUR_LABEL = 15;
 /** The strip's own height. It sits flush on the plot border, so its top edge is this
  *  far above marginTop and the rest of the reserved band is clear air above it. */
 const SUN_STRIP_ON_BORDER = 10;
+/**
+ * Room above the strip for the sunrise and sunset marks, which are drawn above it
+ * rather than inside it: a 16px icon and a 2px gap.
+ *
+ * Only needed where nothing else is reserved above the plot. With date labels the marks
+ * have always sat in the gap between them and the plot — by luck rather than by
+ * arrangement, but with room to spare. In the focussed layout there is no such gap, and
+ * the marks landed at y = -3, clipped off the top of the card entirely.
+ */
+const SUN_MARK_BAND = 18;
 
 /**
  * Height the old code reserved above the plot when computing `_chartHeight`.
@@ -97,9 +107,12 @@ export function chartLayout(input: LayoutInput): Layout {
 
   // With nothing above it the plot starts near the top; otherwise the rows stack and the
   // plot begins below them.
+  // The marks need their own headroom only in the bare layout; the date-label gap
+  // already provides it in the other.
+  const markBand = sunBand && !hasDateLabels ? SUN_MARK_BAND : 0;
   const marginTop = hasDateLabels
     ? legendBand + dateBand + DATE_TO_PLOT + sunBand
-    : BARE_TOP + sunBand;
+    : BARE_TOP + sunBand + markBand;
 
   const dateLabelY = hasDateLabels ? legendBand + dateBand : null;
   const legendY = hasLegends ? LEGEND_BASELINE : null;
@@ -112,7 +125,10 @@ export function chartLayout(input: LayoutInput): Layout {
     windBand -
     hourLabelBand -
     (focussed ? LEGACY_TOP_RESERVE_BARE : LEGACY_TOP_RESERVE) -
-    sunBand;
+    sunBand -
+    // Taken out of the plot as well as added to the margin: adding it to only one would
+    // push the wind band and hour labels off the bottom by the same amount.
+    markBand;
 
   const windTop = marginTop + plotHeight;
   const hourLabelY = windTop + windBand + WIND_TO_HOUR_LABEL;
