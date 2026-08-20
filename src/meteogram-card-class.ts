@@ -299,6 +299,9 @@ export class MeteogramCard extends LitElement {
    * not comfortable with it. Here they can be screenshotted, which people already do.
    */
   private _recentDraws: string[] = [];
+  // Entries discarded between the preserved head and the live tail, so the gap can be
+  // stated rather than left as a silent jump in the timestamps.
+  private _droppedDraws = 0;
   /** Set briefly after a copy, so the button can say it worked. */
   @state() private _copiedAt = false;
   // Deliberately generous. Nobody knows what someone will try before they think to look
@@ -306,6 +309,15 @@ export class MeteogramCard extends LitElement {
   // short buffer throws away the beginning of exactly the sequence that explains it. The
   // tooltip scrolls, so length costs nothing but a taller screenshot.
   private static readonly _RECENT_DRAWS = 20;
+  // How many of the earliest entries survive no matter how long the incident runs.
+  //
+  // A plain ring loses its head, and the head is where the card's starting size is
+  // recorded. Someone reproducing a fault resizes hard — sixty events in three seconds
+  // is an ordinary drag — so a twenty-entry ring holds about seven seconds and the load
+  // has long since scrolled out by the time they press Copy. Keeping the first few means
+  // the log still answers "what size did it start at", which is the comparison every
+  // growth report turns on.
+  private static readonly _RECENT_KEEP_FIRST = 5;
 
   /**
    * The chain of elements the card is nested in, outermost last.
@@ -775,7 +787,9 @@ export class MeteogramCard extends LitElement {
       this.meteogramError ? `Error: ${strip(this.meteogramError)}` : null,
       "",
       "Recent redraws (container -> drawn)",
-      ...(this._recentDraws.length ? this._recentDraws.map((l) => `  ${l}`) : ["  (none)"]),
+      ...(this._recentDraws.length
+        ? this._recentDrawLines().map((l) => `  ${l}`)
+        : ["  (none)"]),
     ].filter((l) => l !== null);
     const text = lines.join("\n");
 
@@ -853,12 +867,25 @@ export class MeteogramCard extends LitElement {
    * Anyone can photograph it, which is the point — the alternative asks for the browser
    * console.
    */
+  /** The buffer with the elision marker in place, or [] when there is nothing to show. */
+  private _recentDrawLines(): string[] {
+    if (!this._recentDraws.length) return [];
+    if (!this._droppedDraws) return [...this._recentDraws];
+    const keep = MeteogramCard._RECENT_KEEP_FIRST;
+    return [
+      ...this._recentDraws.slice(0, keep),
+      `\u2026 ${this._droppedDraws} further redraw${this._droppedDraws === 1 ? "" : "s"}` +
+        ` not listed`,
+      ...this._recentDraws.slice(keep),
+    ];
+  }
+
   private _recentDrawsHtml(): string {
     // Shown only with diagnostics on, which is also the only time the buffer is kept
     // fresh — see _noteDraw. Rendering it otherwise would offer numbers that stopped
     // updating at the last render, which is worse than offering none.
     if (!this.diagnostics || !this._recentDraws.length) return "";
-    const rows = this._recentDraws
+    const rows = this._recentDrawLines()
       .map((l) => `<div>${l}</div>`)
       .join("");
     return (
@@ -897,7 +924,9 @@ export class MeteogramCard extends LitElement {
       this._recentDraws.push(entry);
     }
     if (this._recentDraws.length > MeteogramCard._RECENT_DRAWS) {
-      this._recentDraws.shift();
+      // Drop from just after the preserved head, not from the front.
+      this._recentDraws.splice(MeteogramCard._RECENT_KEEP_FIRST, 1);
+      this._droppedDraws++;
     }
     // The panel's markup is built during render, and this is a plain field, so without a
     // nudge the block shows whatever the buffer held at the last render — in Home
