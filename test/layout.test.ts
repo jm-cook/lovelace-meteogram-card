@@ -181,3 +181,17 @@ describe("sunrise/sunset marks have room above the strip", () => {
     expect(withSun.hourLabelY).toBe(without.hourLabelY);
   });
 });
+
+describe("a short card does not produce a negative plot", () => {
+  // Issue #24 asked for shorter cards. Every band above and below the plot is subtracted
+  // from it, so past some height the remainder goes negative — and a negative plot height
+  // reaches the renderer as negative bar heights and rect widths, which the browser
+  // rejects outright. It is the same failure the zero-width container produced.
+  it.each([400, 200, 140, 110, 90, 60])("stays positive at %ipx", (height) => {
+    const l = chartLayout({
+      height, hasLegends: false, hasDateLabels: false,
+      windBand: 45, hourLabelBand: 24, sunBand: 15, focussed: true,
+    });
+    expect(l.plotHeight).toBeGreaterThan(0);
+  });
+});

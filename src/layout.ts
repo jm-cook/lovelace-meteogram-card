@@ -120,7 +120,14 @@ export function chartLayout(input: LayoutInput): Layout {
   // under the day it describes and cannot be reached by a taller label row.
   const sunStripY = sunBand ? marginTop - SUN_STRIP_ON_BORDER : null;
 
-  const plotHeight =
+  // A floor, because everything above and below the plot is subtracted from it and past
+  // some card height the remainder goes negative. That reaches the renderer as negative
+  // bar heights and rect widths, which the browser rejects outright — the same failure a
+  // zero-width container produced. A card this short cannot show everything; drawing a
+  // squeezed plot is friendlier than drawing nothing, and far better than drawing
+  // something the browser refuses.
+  const MIN_PLOT = 20;
+  const plotHeight = Math.max(MIN_PLOT,
     height -
     windBand -
     hourLabelBand -
@@ -128,7 +135,7 @@ export function chartLayout(input: LayoutInput): Layout {
     sunBand -
     // Taken out of the plot as well as added to the margin: adding it to only one would
     // push the wind band and hour labels off the bottom by the same amount.
-    markBand;
+    markBand);
 
   const windTop = marginTop + plotHeight;
   const hourLabelY = windTop + windBand + WIND_TO_HOUR_LABEL;

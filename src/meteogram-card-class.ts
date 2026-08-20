@@ -1864,7 +1864,18 @@ export class MeteogramCard extends LitElement {
     // change and a resize, each far enough apart to survive coalescing, and each drew
     // an identical chart. A forced redraw — the scheduled refresh after the forecast
     // expires — always goes through, so new data is never skipped.
-    const drawKey = `${this._renderSignature}|${availableWidth}x${availableHeight}`;
+    // The data belongs in the key as much as the config does.
+    //
+    // Without it the key says only "same settings, same size", so a redraw carrying a
+    // fresh forecast is skipped — and on an always-on wall panel, where nothing about
+    // the card ever changes, the display would then depend entirely on the refresh timer
+    // surviving. That is issue #16, fixed in v3.0.0, and this guard would have quietly
+    // reopened it: the redraws that used to save it (a visibility change, a resize) are
+    // exactly the ones being skipped.
+    const dataStamp =
+      (this._weatherApiInstance as any)?._lastFetchTime ?? this.apiExpiresAt ?? 0;
+    const drawKey =
+      `${this._renderSignature}|${availableWidth}x${availableHeight}|${dataStamp}`;
     if (
       !this._forceNextDraw &&
       drawKey === this._lastDrawnKey &&
