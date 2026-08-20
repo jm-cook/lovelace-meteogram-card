@@ -5,7 +5,7 @@ All notable changes to the Meteogram Card will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2026.8.2] - unreleased
+## [2026.8.2] - 2026.08.20
 
 **New animation feature.** When the forecast advances an hour, the whole meteogram travels
 with it: the temperature, pressure and cloud lines flow to their new shapes, rain bars
