@@ -35,12 +35,8 @@ it matches the settings editors on other cards.
 
 ### Fixed
 - **The chart no longer blinks when it redraws.** Four distinct causes, all fixed: redraw requests were discarded rather than queued, which could lose a change outright; the chart was emptied before the data arrived rather than swapped once its replacement was ready; it was drawn while its container still measured nothing; and every load drew it twice over.
-- **Sunrise and sunset marks did not appear on iPhone, iPad or the iOS Companion app.** They were drawn with a Home Assistant icon component mounted inside the chart's SVG, which WebKit does not reliably paint. They are ordinary SVG paths now.
-- **In focussed mode the sunrise and sunset times were cut off** at the top of the card — nothing reserved the space they are drawn in.
 - **The information icon overlapped the last date label.** It sits in the left-hand margin now.
 - **The `show_precipitation` option never worked.** The card read it from a property that was never set, so precipitation was drawn for everyone whatever the setting said, and had been since the option was introduced. It is honoured now. **If you switched precipitation off, saw no change and left it off, it will now actually be hidden** — switch it back on if you want it.
-- **Display options in the visual editor did nothing** and showed as off regardless of your configuration: they were being written to a nested key the card never read.
-- **Typing a latitude made the visual editor disappear**, replaced by "Visual editor not supported".
 - Coordinates of exactly 0 were treated as no location at all, so anywhere on the equator or the prime meridian failed to load.
 - Turning on debug logging also forced the diagnostics panel open, which changed the layout you were trying to inspect. The two are independent now.
 
