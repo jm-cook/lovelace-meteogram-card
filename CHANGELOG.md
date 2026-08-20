@@ -7,22 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2026.8.2] - unreleased
 
+**The chart now moves.** When the forecast advances an hour, the whole picture travels
+with it: the temperature, pressure and cloud lines flow to their new shapes, rain bars
+grow and shrink where they stand, and wind barbs and weather icons slide along — each one
+following its own hour rather than shuffling into whatever slot it lands in. It reads the
+way a forecast actually behaves, as a window moving over time rather than a fresh picture
+every hour.
+
+That took rebuilding how the card draws. Until now the chart was thrown away and
+reconstructed from nothing on every redraw, which is why nothing could move — and why the
+card blinked. Both are gone. The chart persists between updates and only what changed is
+touched, the redraw itself has been rewritten to coalesce requests rather than discard
+them, and a card that has nothing new to show no longer redraws at all. The blink was the
+symptom people noticed; the cause was that the card had no memory of what it had already
+drawn.
+
+The visual editor has been rebuilt on the same principle — stop assuming, start asking.
+It is a schema Home Assistant renders with its own components now, rather than markup of
+ours that hoped the right pieces had been loaded. That assumption is what had left several
+fields invisible.
+
 ### Added
-- **The chart moves to its new shape instead of being redrawn.** When the forecast updates or a setting changes, the temperature, pressure and cloud lines travel to their new shapes, rain bars grow and shrink in place, and wind barbs and weather icons slide to their new positions — each one following its own forecast hour as the window advances. On by default; turn it off with `animate: false` or from the visual editor.
+- **Animated updates.** On by default; turn it off with `animate: false` or from the visual editor.
   - The first draw and any resize are not animated: a card appearing should simply be there.
 - **The sunrise and sunset times are printed on the strip** wherever there is room for them, so the card needs no interaction to be read. Where the forecast is too compressed they fall back to a marker alone, and the times stay available on hover or tap.
 - **Sunrise and sunset are marked with proper icons** rather than a sun and a moon, coloured to match the band each one leads into.
 - `layout_mode` is now available in the visual editor instead of YAML only.
 
 ### Changed
-- **The visual editor has been rebuilt.** It is now a schema that Home Assistant renders with its own components, rather than a custom element of ours that assumed those components were already loaded — the assumption that made several fields invisible in 2026.8.1. Three practical differences:
+- **The rebuilt editor changes three things you will notice:**
   - **Latitude and longitude are always editable.** They used to grey out whenever a weather entity was selected. That became wrong when the sun strip arrived: sunrise and sunset are computed from these coordinates no matter what supplies the forecast, so a weather entity for another location drew the wrong sun times with no way to correct them.
   - **The forecast length and aspect ratio are each a single field** that accepts a listed value or one you type, replacing the old dropdown plus separate "custom" box.
   - **Invalid settings are rejected rather than quietly ignored** — coordinates out of range, for instance.
 - **A card with no coordinates now says so** instead of silently drawing the weather for London. The card falls back to Home Assistant's location as before; only the hardcoded last resort is gone.
 
 ### Fixed
-- **The chart no longer blinks when it redraws.** Several causes, all of them fixed: redraw requests were discarded rather than coalesced, which could also lose a change entirely; the chart was cleared before an await rather than replaced once its successor was ready; it was drawn while its container measured nothing, producing negative widths the browser rejected; and every load drew it twice.
+- **The chart no longer blinks when it redraws.** Four distinct causes, all fixed: redraw requests were discarded rather than queued, which could lose a change outright; the chart was emptied before the data arrived rather than swapped once its replacement was ready; it was drawn while its container still measured nothing; and every load drew it twice over.
 - **Sunrise and sunset marks did not appear on iPhone, iPad or the iOS Companion app.** They were drawn with a Home Assistant icon component mounted inside the chart's SVG, which WebKit does not reliably paint. They are ordinary SVG paths now.
 - **In focussed mode the sunrise and sunset times were cut off** at the top of the card — nothing reserved the space they are drawn in.
 - **The information icon overlapped the last date label.** It sits in the left-hand margin now.
