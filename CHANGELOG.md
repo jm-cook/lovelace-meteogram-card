@@ -5,36 +5,47 @@ All notable changes to the Meteogram Card will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2026.8.1] - 2026.08.18
+## [2026.8.2] - unreleased
 
 ### Added
-- **Sunrise/sunset strip**: a day/night band above the chart, amber for daylight and blue-grey for night, with an mdi sunrise/sunset icon at each event and a tick at local midnight. The times are printed beside the icons wherever there is room, and any run can be hovered or tapped for its own times. Enabled with `show_sun` (on by default) and available in the visual editor.
-  - Sun times are computed from the card's coordinates, so they are correct for the whole forecast rather than just today, and polar day and night are handled properly.
-  - Tooltips follow Home Assistant's language and its 12/24-hour setting, and are translated into all supported languages.
-- **The chart moves to its new shape instead of being redrawn.** When the forecast updates or a setting changes, the temperature, pressure and cloud lines travel to their new shapes, rain bars grow and shrink in place, and wind barbs and weather icons slide to their new positions — each one following its own forecast hour as the window advances. Turn it off with `animate: false`, or from the visual editor.
+- **The chart moves to its new shape instead of being redrawn.** When the forecast updates or a setting changes, the temperature, pressure and cloud lines travel to their new shapes, rain bars grow and shrink in place, and wind barbs and weather icons slide to their new positions — each one following its own forecast hour as the window advances. On by default; turn it off with `animate: false` or from the visual editor.
   - The first draw and any resize are not animated: a card appearing should simply be there.
-- **Weather icons are now bundled with the card** rather than fetched from GitHub on every render. The card no longer needs network access for icons, works offline, and cannot be affected by rate limiting.
+- **The sunrise and sunset times are printed on the strip** wherever there is room for them, so the card needs no interaction to be read. Where the forecast is too compressed they fall back to a marker alone, and the times stay available on hover or tap.
+- **Sunrise and sunset are marked with proper icons** rather than a sun and a moon, coloured to match the band each one leads into.
+- `layout_mode` is now available in the visual editor instead of YAML only.
 
 ### Changed
-- **The visual editor has been rebuilt.** It is now a schema that Home Assistant renders with its own components, rather than a custom element of ours that assumed those components were already loaded — the assumption that made the fields above invisible. It cannot break that way again. Three practical differences:
+- **The visual editor has been rebuilt.** It is now a schema that Home Assistant renders with its own components, rather than a custom element of ours that assumed those components were already loaded — the assumption that made several fields invisible in 2026.8.1. Three practical differences:
   - **Latitude and longitude are always editable.** They used to grey out whenever a weather entity was selected. That became wrong when the sun strip arrived: sunrise and sunset are computed from these coordinates no matter what supplies the forecast, so a weather entity for another location drew the wrong sun times with no way to correct them.
-  - **The forecast length and aspect ratio each became a single field** that accepts a listed value or one you type, replacing the old dropdown plus separate "custom" box.
-  - **Invalid settings are now rejected rather than quietly ignored** — a latitude with no longitude, or coordinates out of range.
-- `layout_mode` is now available in the editor instead of YAML only.
+  - **The forecast length and aspect ratio are each a single field** that accepts a listed value or one you type, replacing the old dropdown plus separate "custom" box.
+  - **Invalid settings are rejected rather than quietly ignored** — coordinates out of range, for instance.
+- **A card with no coordinates now says so** instead of silently drawing the weather for London. The card falls back to Home Assistant's location as before; only the hardcoded last resort is gone.
 
 ### Fixed
-- **The chart no longer blinks when it redraws.** Several causes, all of them fixed: redraw requests were discarded rather than coalesced, which could also lose a change entirely; the chart was cleared before an await rather than replaced when its successor was ready; it was drawn while its container measured nothing, producing negative widths the browser rejected; and every load drew it twice.
+- **The chart no longer blinks when it redraws.** Several causes, all of them fixed: redraw requests were discarded rather than coalesced, which could also lose a change entirely; the chart was cleared before an await rather than replaced once its successor was ready; it was drawn while its container measured nothing, producing negative widths the browser rejected; and every load drew it twice.
 - **Sunrise and sunset marks did not appear on iPhone, iPad or the iOS Companion app.** They were drawn with a Home Assistant icon component mounted inside the chart's SVG, which WebKit does not reliably paint. They are ordinary SVG paths now.
 - **In focussed mode the sunrise and sunset times were cut off** at the top of the card — nothing reserved the space they are drawn in.
 - **The information icon overlapped the last date label.** It sits in the left-hand margin now.
 - **The `show_precipitation` option never worked.** The card read it from a property that was never set, so precipitation was drawn for everyone whatever the setting said, and had been since the option was introduced. It is honoured now. **If you switched precipitation off, saw no change and left it off, it will now actually be hidden** — switch it back on if you want it.
-- **The Title, Latitude, Longitude and Altitude fields were missing from the visual editor.** They were drawn with a Home Assistant form component that is no longer registered on the card-editor page, so they were present in the page but rendered nothing at all. See *Changed* below — the editor has been rebuilt so this cannot recur. Setting any of these options in YAML was never affected.
+- **Display options in the visual editor did nothing** and showed as off regardless of your configuration: they were being written to a nested key the card never read.
+- **Typing a latitude made the visual editor disappear**, replaced by "Visual editor not supported".
+- Coordinates of exactly 0 were treated as no location at all, so anywhere on the equator or the prime meridian failed to load.
+
+## [2026.8.1] - 2026.08.18
+
+### Added
+- **Sunrise/sunset strip**: a day/night band above the chart, amber for daylight and blue-grey for night, with a marker at each sunrise and sunset and a tick at local midnight. Hover any segment for its times. Enabled with `show_sun` (on by default) and available in the visual editor.
+  - Sun times are computed from the card's coordinates, so they are correct for the whole forecast rather than just today, and polar day and night are handled properly.
+  - Tooltips follow Home Assistant's language and its 12/24-hour setting, and are translated into all supported languages.
+- **Weather icons are now bundled with the card** rather than fetched from GitHub on every render. The card no longer needs network access for icons, works offline, and cannot be affected by rate limiting.
+
+### Fixed
+- **The Title, Latitude, Longitude and Altitude fields were missing from the visual editor.** They were drawn with a Home Assistant form component that is no longer registered on the card-editor page, so they were present in the page but rendered nothing at all, while the help text beside them showed normally. They are ordinary text fields now and no longer depend on that component. Setting any of these options in YAML was never affected.
 - Widening `meteogram_hours` did nothing — the forecast cache was being truncated in place, so the extra hours were no longer available to show.
 - Switching `display_mode` did not redraw the chart, so `core` could keep showing `full`'s legends, and after `focussed` the legends never came back.
 - Weather icons could silently disappear when GitHub rate-limited the request, and the card then retried twice per icon, making it worse.
 - The diagnostics panel appeared for everyone on a beta build instead of only when asked for.
 - Day/night weather icons were chosen from the sun's position *at page load*, so every hour beyond today could be wrong.
-
 
 ## [2026.6.2] - 2026.06.19
 
