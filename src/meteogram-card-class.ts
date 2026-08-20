@@ -2279,9 +2279,22 @@ export class MeteogramCard extends LitElement {
       this._note("in", nest);
     }
 
+    // An element's very first draw is reported as such, whatever triggered it.
+    //
+    // Which caller gets there first is a race — a ResizeObserver fires its initial
+    // callback as soon as it starts observing, so it often beats the load path — and the
+    // winner's label is then actively misleading: a card rebuilt by Home Assistant after
+    // a websocket reconnect reported "resize", which reads as the card resizing itself
+    // when nothing of the sort happened. A first draw is not something the card chose to
+    // do, and the log should not imply it was.
+    //
+    // The buffer is per-element and never cleared, so a lone "first draw" at the top of a
+    // list is itself the evidence that the element is new and its history went with the
+    // old one.
+    const firstDraw = this._lastDrawnKey === "";
     this._note(
       "drew",
-      `${MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
+      `${firstDraw ? "first draw" : MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
         `${availableWidth}\u00D7${availableHeight} \u2192 ${width}\u00D7${height}`
     );
 
