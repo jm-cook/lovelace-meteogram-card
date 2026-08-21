@@ -75,17 +75,20 @@ const after = await page.evaluate(async () => {
     };
     tick();
   });
-  return { drew, remount: el._remountDraw, log: el._recentDraws.slice(),
+  return { drew, remount: el._remountDraw, log: el.constructor._recentDraws.slice(),
            err: el.meteogramError ? String(el.meteogramError).slice(0, 60) : null };
 });
 check(after.drew, "the replacement element draws");
 check(after.remount === true, "and knows it is a remount, so it does not animate");
-// The ancestry line comes first on any new element, then the draw itself — the same
-// two lines the reported panel showed.
+// The log is shared across elements on the page, so it still carries the first
+// element's history — that is the point of it. The replacement's own draw is the last
+// one, and it is reported as a new element.
 const draws = after.log.filter((l) => l.includes("  drew  "));
-check(draws.length === 1 && draws[0].includes("new element"),
-  "its log holds exactly one draw, reported as new",
-  draws.join(" | ") || "none");
+check(draws.length >= 2, "the replacement inherits the page's redraw history",
+  `${draws.length} draws in the log`);
+check(draws[draws.length - 1].includes("new element"),
+  "and its own draw is reported as new",
+  draws[draws.length - 1] ?? "none");
 check(errors.length === 0, "no page errors", errors.join("; "));
 
 // A first draw must not be postponed by the requests that arrive behind it.
@@ -109,6 +112,7 @@ const paced = await page.evaluate(async () => {
   el.setConfig(cfg);
   host.appendChild(el);
   // Keep asking, well past the settle, the way a slow mount does.
+  const before = el.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
   const nag = setInterval(() => el._scheduleDrawMeteogram("test-nag"), 20);
   await new Promise((res) => {
     const started = performance.now();
@@ -121,7 +125,8 @@ const paced = await page.evaluate(async () => {
     tick();
   });
   clearInterval(nag);
-  return { blank: el._firstPaintMs, draws: el._recentDraws.filter((l) => l.includes("  drew  ")).length };
+  const after = el.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
+  return { blank: el._firstPaintMs, draws: after - before };
 });
 // The deadline is _firstDrawSettleMs from the first request plus the draw itself, so
 // about 190ms; the old reset-on-every-request policy ran to its _drawMaxWaitMs ceiling
@@ -131,6 +136,6 @@ check(paced.blank !== null && paced.blank < 300,
   "a steady stream of requests cannot postpone the first paint", `blank ${paced.blank}ms`);
 check(paced.draws === 1, "and it still coalesces to a single draw", `${paced.draws} draws`);
 
-console.log(failed ? "\nremount: FAILED" : "\n7/7 passed");
+console.log(failed ? "\nremount: FAILED" : "\n8/8 passed");
 await browser.close(); server.close();
 process.exit(failed ? 1 : 0);

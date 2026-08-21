@@ -314,10 +314,24 @@ export class MeteogramCard extends LitElement {
    * reproduction and a copy: four places to lose someone who has said plainly they are
    * not comfortable with it. Here they can be screenshotted, which people already do.
    */
-  private _recentDraws: string[] = [];
+  /** The redraw log, shared by every card element on the page.
+   *
+   * Per-element, it died with the element — and Home Assistant rebuilds a card without
+   * the page reloading whenever it re-emits the Lovelace config, which a websocket
+   * reconnect does. Observed 2026-08-21: three elements in eighty minutes on one page,
+   * and the log of the element that was on screen when the fault appeared went with it.
+   * A log that is wiped by the very event being investigated is no log.
+   *
+   * Static, so the timeline spans the page rather than the element. Each element opens
+   * its section with its ancestry and a "new element" row, so handovers are visible. On
+   * a page with two meteogram cards the two timelines interleave; the sizes and the
+   * ancestry lines tell them apart, and a shared timeline is still worth more than two
+   * that vanish.
+   */
+  private static _recentDraws: string[] = [];
   // Entries discarded between the preserved head and the live tail, so the gap can be
   // stated rather than left as a silent jump in the timestamps.
-  private _droppedDraws = 0;
+  private static _droppedDraws = 0;
   /** Set briefly after a copy, so the button can say it worked. */
   @state() private _copiedAt = false;
   // Deliberately generous. Nobody knows what someone will try before they think to look
@@ -860,7 +874,7 @@ export class MeteogramCard extends LitElement {
       this.meteogramError ? `Error: ${strip(this.meteogramError)}` : null,
       "",
       "Recent redraws (container -> drawn)",
-      ...(this._recentDraws.length
+      ...(MeteogramCard._recentDraws.length
         ? this._recentDrawLines().map((l) => `  ${l}`)
         : ["  (none)"]),
     ].filter((l) => l !== null);
@@ -963,14 +977,14 @@ export class MeteogramCard extends LitElement {
    */
   /** The buffer with the elision marker in place, or [] when there is nothing to show. */
   private _recentDrawLines(): string[] {
-    if (!this._recentDraws.length) return [];
-    if (!this._droppedDraws) return [...this._recentDraws];
+    if (!MeteogramCard._recentDraws.length) return [];
+    if (!MeteogramCard._droppedDraws) return [...MeteogramCard._recentDraws];
     const keep = MeteogramCard._RECENT_KEEP_FIRST;
     return [
-      ...this._recentDraws.slice(0, keep),
-      `\u2026 ${this._droppedDraws} further redraw${this._droppedDraws === 1 ? "" : "s"}` +
+      ...MeteogramCard._recentDraws.slice(0, keep),
+      `\u2026 ${MeteogramCard._droppedDraws} further redraw${MeteogramCard._droppedDraws === 1 ? "" : "s"}` +
         ` not listed`,
-      ...this._recentDraws.slice(keep),
+      ...MeteogramCard._recentDraws.slice(keep),
     ];
   }
 
@@ -978,7 +992,7 @@ export class MeteogramCard extends LitElement {
     // Shown only with diagnostics on, which is also the only time the buffer is kept
     // fresh — see _noteDraw. Rendering it otherwise would offer numbers that stopped
     // updating at the last render, which is worse than offering none.
-    if (!this.diagnostics || !this._recentDraws.length) return "";
+    if (!this.diagnostics || !MeteogramCard._recentDraws.length) return "";
     const rows = this._recentDrawLines()
       .map((l) => `<div>${l}</div>`)
       .join("");
@@ -1011,16 +1025,16 @@ export class MeteogramCard extends LitElement {
       hour: "2-digit", minute: "2-digit", second: "2-digit",
     });
     const entry = `${at}  ${kind.padEnd(4)}  ${line}`;
-    const last = this._recentDraws[this._recentDraws.length - 1];
+    const last = MeteogramCard._recentDraws[MeteogramCard._recentDraws.length - 1];
     if (replaceLast && last && last.includes(`  ${kind.padEnd(4)}  `)) {
-      this._recentDraws[this._recentDraws.length - 1] = entry;
+      MeteogramCard._recentDraws[MeteogramCard._recentDraws.length - 1] = entry;
     } else {
-      this._recentDraws.push(entry);
+      MeteogramCard._recentDraws.push(entry);
     }
-    if (this._recentDraws.length > MeteogramCard._RECENT_DRAWS) {
+    if (MeteogramCard._recentDraws.length > MeteogramCard._RECENT_DRAWS) {
       // Drop from just after the preserved head, not from the front.
-      this._recentDraws.splice(MeteogramCard._RECENT_KEEP_FIRST, 1);
-      this._droppedDraws++;
+      MeteogramCard._recentDraws.splice(MeteogramCard._RECENT_KEEP_FIRST, 1);
+      MeteogramCard._droppedDraws++;
     }
     // The panel's markup is built during render, and this is a plain field, so without a
     // nudge the block shows whatever the buffer held at the last render — in Home
@@ -1043,11 +1057,11 @@ export class MeteogramCard extends LitElement {
    * the detail is dropped rather than attached to the wrong line.
    */
   private _amendLastNote(kind: string, extra: string): void {
-    const i = this._recentDraws.length - 1;
+    const i = MeteogramCard._recentDraws.length - 1;
     if (i < 0) return;
     const marker = `  ${kind.padEnd(4)}  `;
-    if (!this._recentDraws[i].includes(marker)) return;
-    this._recentDraws[i] = `${this._recentDraws[i]}  ${extra}`;
+    if (!MeteogramCard._recentDraws[i].includes(marker)) return;
+    MeteogramCard._recentDraws[i] = `${MeteogramCard._recentDraws[i]}  ${extra}`;
     if (this.diagnostics) this.requestUpdate();
   }
 
