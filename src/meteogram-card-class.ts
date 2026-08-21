@@ -272,6 +272,13 @@ export class MeteogramCard extends LitElement {
   /** When the oldest un-served redraw request arrived, for the maxWait bound. */
   private _drawWantedSince = 0;
   /** Quiet period a burst must settle for before drawing. */
+  /** How long a redraw waits after a reconnect, for the rebuild that usually follows. */
+  private static readonly _RECONNECT_HOLD_MS = 2500;
+  /** `hass.connected` as last seen, so the false\u2192true edge can be noticed. */
+  private _lastConnected: boolean | undefined = undefined;
+  /** While in the future, redraws are deferred to it. */
+  private _reconnectHoldUntil = 0;
+
   private _drawCoalesceMs = 60;
   /** Longest a redraw may be postponed by a continuing trickle of requests. */
   private _drawMaxWaitMs = 400;
@@ -622,9 +629,17 @@ export class MeteogramCard extends LitElement {
 
     const waited = now - this._drawWantedSince;
     const settle = this._hasDrawnOnce ? this._drawCoalesceMs : this._firstDrawSettleMs;
-    const delay = force
+    let delay = force
       ? 0
       : Math.max(0, Math.min(settle, this._drawMaxWaitMs - waited));
+    // A reconnect is usually followed by Home Assistant replacing this element, so a
+    // redraw started now is work done for a card that will not be on screen to show it.
+    // Waiting the hold out costs nothing if the rebuild comes, and a couple of seconds
+    // if it does not. A forced draw still goes first: those come from a setting the
+    // user just changed, and making them wait would be worse than a wasted redraw.
+    if (!force) {
+      delay = Math.max(delay, this._reconnectHoldUntil - now);
+    }
 
     this._drawTimer = setTimeout(() => {
       this._drawTimer = null;
@@ -1359,6 +1374,37 @@ export class MeteogramCard extends LitElement {
   }
 
   // Handle document visibility changes (browser tab switching)
+  /**
+   * Notice a websocket reconnect, because a card rebuild follows it.
+   *
+   * Home Assistant sets `hass.connected` false when the socket drops and true when it
+   * comes back, and the reconnect handler then refetches config — which lands as a new
+   * config object, and `hui-view` compares those by reference, so every card in the
+   * view is replaced. Returning to a backgrounded tab therefore produces two visible
+   * events in about a second: this card notices the tab is visible, finds the forecast
+   * expired, fetches and animates the new window into place — and is then thrown away
+   * and rebuilt from scratch by Home Assistant.
+   *
+   * The card cannot stop the rebuild, but it can decline to spend a redraw on an
+   * element that is about to be discarded. `connected` flips before the config arrives,
+   * which is the whole of the warning needed: hold the redraw briefly, and either the
+   * element is gone by the time the hold expires — costing nothing — or it survived and
+   * the redraw happens a couple of seconds later than it would have, which nobody sees.
+   */
+  private _watchReconnect(): void {
+    const now = this.hass?.connected;
+    if (now === undefined) return;
+    if (this._lastConnected === false && now === true) {
+      this._reconnectHoldUntil = Date.now() + MeteogramCard._RECONNECT_HOLD_MS;
+      this._note("held", "reconnected \u2014 waiting to see if the card is rebuilt", true);
+      this._debugLog(
+        `[${CARD_NAME}] websocket reconnected; holding redraws for `
+          + `${MeteogramCard._RECONNECT_HOLD_MS}ms in case Home Assistant rebuilds the card.`
+      );
+    }
+    this._lastConnected = now;
+  }
+
   private _onVisibilityChange = () => {
     if (document.hidden) {
       // Tab became hidden - pause subscription to save resources
@@ -1649,6 +1695,7 @@ export class MeteogramCard extends LitElement {
     // Initialize units when hass property changes
     if (changedProps.has("hass") && this.hass) {
       this._initializeUnits();
+      this._watchReconnect();
     }
 
     // Resolve the location before the signature is taken, not during the draw.
