@@ -70,6 +70,40 @@ check(r.eventually >= 1, "the deferred redraw is not lost, only delayed");
 check(r.note.includes("reconnected"), "the hold is recorded in the log", r.note.slice(11));
 check(errors.length === 0, "no page errors", errors.join("; "));
 
-console.log(failed ? "\nreconnect: FAILED" : "\n6/6 passed");
+// Home Assistant detaches the dashboard panel after five minutes hidden and re-appends
+// the same elements on return, so connectedCallback runs on a card that has been drawing
+// for an hour. Recorded: two draws in the same second, the second animating, and the card
+// replaced five seconds later anyway.
+const reattach = await page.evaluate(async () => {
+  const c = document.querySelector("meteogram-card");
+  const host = c.parentElement;
+  c._reconnectHoldUntil = 0;                 // start from a clean slate
+  const before = c.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
+  c.remove();                                // detached, as the suspend does
+  await new Promise((r) => setTimeout(r, 50));
+  host.appendChild(c);                       // and back again — same element
+  await c.updateComplete;
+  const held = c._reconnectHoldUntil - Date.now();
+  // Both of the requests a re-attach produces, spaced beyond the 60ms coalesce window.
+  c._scheduleDrawMeteogram("loadD3AndDraw");
+  await new Promise((r) => setTimeout(r, 120));
+  c._scheduleDrawMeteogram("_onResize-significant");
+  await new Promise((r) => setTimeout(r, 900));
+  const during = c.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
+  await new Promise((r) => setTimeout(r, 6200));
+  const after = c.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
+  return { held, duringHold: during - before, total: after - before,
+           note: c.constructor._recentDraws.filter((l) => l.includes("re-attached")).pop() ?? "" };
+});
+
+check(reattach.held > 4000, "a re-attach starts a hold of its own",
+  `${Math.round(reattach.held)}ms`);
+check(reattach.note.includes("re-attached"), "and says so in the log",
+  reattach.note.slice(11));
+check(reattach.duringHold === 0, "neither re-attach draw runs during the hold");
+check(reattach.total === 1, "and the two requests coalesce into one draw, not two",
+  `${reattach.total} draw(s)`);
+
+console.log(failed ? "\nreconnect: FAILED" : "\n10/10 passed");
 await browser.close(); server.close();
 process.exit(failed ? 1 : 0);

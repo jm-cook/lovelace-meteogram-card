@@ -273,11 +273,19 @@ export class MeteogramCard extends LitElement {
   private _drawWantedSince = 0;
   /** Quiet period a burst must settle for before drawing. */
   /** How long a redraw waits after a reconnect, for the rebuild that usually follows. */
-  private static readonly _RECONNECT_HOLD_MS = 2500;
+  // Long enough to cover the rebuild, which is the whole point of waiting for it.
+  // Measured twice in one session: a rebuild one second after a reconnect, and five
+  // seconds after a re-attach. Two samples is not a distribution, so this is set above
+  // both rather than at their mean — and the cost of overshooting is only a refresh
+  // arriving late on a card that survived, where the chart on screen is already correct.
+  // A rebuild cancels the wait for free, because the element stops existing.
+  private static readonly _RECONNECT_HOLD_MS = 6000;
   /** `hass.connected` as last seen, so the false\u2192true edge can be noticed. */
   private _lastConnected: boolean | undefined = undefined;
   /** While in the future, redraws are deferred to it. */
   private _reconnectHoldUntil = 0;
+  /** Set once the element has been in the DOM, so a re-attach can be told from a mount. */
+  private _hasBeenConnected = false;
 
   private _drawCoalesceMs = 60;
   /** Longest a redraw may be postponed by a continuing trickle of requests. */
@@ -1138,6 +1146,35 @@ export class MeteogramCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     MeteogramCard._live.add(this);
+
+    // Coming back into the DOM is not the same as arriving in it.
+    //
+    // Home Assistant detaches the whole dashboard panel after five minutes hidden
+    // (partial-panel-resolver._onHidden) and re-appends the same elements when you
+    // return, so connectedCallback runs again on a card that has been drawing happily
+    // for an hour. Two things went wrong there, both visible in one recorded session:
+    //
+    //   11:42:02  drew  first load  865x973 -> 865x487  rebuilt
+    //   11:42:02  drew  resize      865x973 -> 865x487  reused    <- animated
+    //   11:42:07  drew  new element 865x973 -> 865x487  rebuilt   <- replaced anyway
+    //
+    // First, two draws in the same second: the load path and the resize observer's
+    // opening callback arrive more than the 60ms coalesce window apart, so the burst
+    // that a fresh mount absorbs into one draw was split into two here. Restoring
+    // _hasDrawnOnce to false puts re-attachment back on the first-draw deadline, which
+    // is measured from the first request and absorbs the whole burst.
+    //
+    // Second, the reconnect hold could not fire. The websocket dropped and recovered
+    // while the panel was detached, so hass never reached this card and the
+    // false->true edge went unseen. A re-attach is itself the evidence: it means the
+    // tab was hidden long enough to be suspended, which is long enough for the socket
+    // to have gone and come back. Hold on that too.
+    if (this._hasBeenConnected) {
+      this._hasDrawnOnce = false;
+      this._reconnectHoldUntil = Date.now() + MeteogramCard._RECONNECT_HOLD_MS;
+      this._note("held", "re-attached \u2014 waiting to see if the card is rebuilt", true);
+    }
+    this._hasBeenConnected = true;
     
     // Initialize internal state variables (NOT config properties)
     this.chartLoaded = false;
