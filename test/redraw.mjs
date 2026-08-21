@@ -223,8 +223,27 @@ async function main() {
       .querySelector("#meteogram-status-panel"));
   check("debug alone does not show the diagnostics panel", panelWithDebug === false);
 
-  check("a page load draws the chart once", loadDraws.length === 1,
-        `${loadDraws.length}: ` + loadDraws.map((d) => (d.match(/caller: \S+/) ?? [d])[0]).join(" | "));
+  // Counted from the card's own log, not from entries into _drawMeteogram.
+  //
+  // The bug this guards is two *chart* draws on one load — "once to discover where it
+  // is, once to use it" — and entries into the scheduler were a proxy for that. They
+  // stopped being one when the first draw moved earlier: it now happens before the last
+  // of the mount requests arrives, so that request cannot be coalesced into it and
+  // enters the scheduler on its own. It is then skipped against the draw key, which is
+  // the mechanism doing its job rather than a second draw.
+  //
+  // So both halves are asserted: the chart is drawn exactly once, and anything that
+  // reached the scheduler beyond that was recognised as changing nothing. The second
+  // half is what stops this quietly becoming a real double draw again.
+  const loadLog = await loadPage.evaluate(() =>
+    document.querySelector("meteogram-card").constructor._recentDraws.slice());
+  const loadChartDraws = loadLog.filter((l) => l.includes("  drew  "));
+  check("a page load draws the chart once", loadChartDraws.length === 1,
+        `${loadChartDraws.length}: ` + loadChartDraws.join(" | "));
+  check("and any further request on that load changed nothing",
+        loadDraws.length === loadChartDraws.length
+          || loadLog.some((l) => l.includes("  same  ")),
+        `${loadDraws.length} scheduler passes, ${loadChartDraws.length} draw(s)`);
   await loadPage.close();
 
   await browser.close();

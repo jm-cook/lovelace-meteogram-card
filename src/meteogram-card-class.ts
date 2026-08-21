@@ -52,6 +52,12 @@ export type MeteogramStyleConfig = Record<string, string> & {
   modes?: MeteogramStyleModes;
 };
 
+// Below this a container is a transient layout state, not somewhere to draw. Shared by
+// the draw itself and by the size watch that decides when the first draw may go ahead, so
+// that "too small to draw" means one thing in both places.
+const MIN_DRAWABLE_WIDTH = 120;
+const MIN_DRAWABLE_HEIGHT = 40;
+
 @customElement("meteogram-card")
 export class MeteogramCard extends LitElement {
   private _chartRenderer: MeteogramChart | null = null;
@@ -286,6 +292,11 @@ export class MeteogramCard extends LitElement {
   private _reconnectHoldUntil = 0;
   /** Set once the element has been in the DOM, so a re-attach can be told from a mount. */
   private _hasBeenConnected = false;
+
+  /** Consecutive equal measurements before a first draw is allowed to proceed. */
+  private static readonly _STABLE_FRAMES = 2;
+  /** Set while the first draw is waiting for the container size to stop moving. */
+  private _sizeWatch: number | null = null;
 
   private _drawCoalesceMs = 60;
   /** Longest a redraw may be postponed by a continuing trickle of requests. */
@@ -602,6 +613,12 @@ export class MeteogramCard extends LitElement {
     source: string = "unknown",
     force: boolean = false
   ) {
+    // The resize observer reports one last time as the element leaves the DOM — the
+    // container going to 0x0 — and that callback is already queued when
+    // disconnectedCallback runs, so cancelling timers there does not catch it. It
+    // arrived as "tiny  too small  0×0" in the log of a card that no longer existed.
+    if (!this.isConnected) return;
+
     const now = Date.now();
     this._drawCallIndex++;
     const callerId = `${source}#${this._drawCallIndex}`;
@@ -649,13 +666,19 @@ export class MeteogramCard extends LitElement {
       delay = Math.max(delay, this._reconnectHoldUntil - now);
     }
 
+    const first = !this._hasDrawnOnce;
     this._drawTimer = setTimeout(() => {
       this._drawTimer = null;
       this._drawWantedSince = 0;
       this._hasDrawnOnce = true;
       this._lastDrawCaller = callerId;
-      this._drawMeteogram(callerId);
-    }, delay);
+      if (first) this._drawWhenSizeSettles(callerId);
+      else this._drawMeteogram(callerId);
+      // A first draw waits for the size to settle rather than for a fixed delay, so its
+      // timer only has to carry the reconnect hold. Dropping it to zero outright was
+      // wrong: a re-attach makes the next draw a first draw, which is exactly when the
+      // hold matters most, and the card drew straight through it.
+    }, first ? Math.max(0, this._reconnectHoldUntil - now) : delay);
   }
 
   // Status panel properties
@@ -1088,6 +1111,73 @@ export class MeteogramCard extends LitElement {
     if (this.diagnostics) this.requestUpdate();
   }
 
+  /**
+   * Draw as soon as the container has told us the same size twice, or the deadline.
+   *
+   * The first draw used to wait a flat 180ms for layout to settle, and that is most of
+   * what anyone sees as the card being slow to appear: measured end to end, about 200ms
+   * of blank card of which roughly 20ms is the drawing. Beside an entity card — which
+   * renders straight from hass with nothing to measure and so appears instantly — the
+   * difference is obvious and looks like the card being sluggish.
+   *
+   * The wait exists for a real reason: an svg is drawn to measured dimensions, so
+   * drawing before layout settles produces a chart at the wrong size and a correction
+   * straight after. But 180ms was a fixed guess, and the container turns out to report
+   * its final size one millisecond after Lit's first render and hold it unchanged for
+   * the next four hundred. Two matching frames is evidence that layout has settled;
+   * a fixed delay is only a hope that it has.
+   *
+   * The deadline is kept as the fallback, so a container that is genuinely still moving
+   * — or is zero-sized because it has not been laid out at all — waits exactly as long
+   * as it used to and no longer.
+   *
+   * Drawing early is safe against a later resize: the draw key includes the measured
+   * size, so a resize callback arriving afterwards with the same numbers is skipped as
+   * "nothing changed", and one arriving with different numbers is a real resize that
+   * should redraw anyway.
+   */
+  private _drawWhenSizeSettles(callerId: string): void {
+    const deadline = Date.now() + this._firstDrawSettleMs;
+    let last = "";
+    let stable = 0;
+    // The signature is part of what has to have settled, not just the size.
+    //
+    // updated() resolves latitude and longitude out of hass, and both are in the
+    // signature — so a draw that goes ahead before that has happened is drawing from a
+    // configuration that is about to change, and the change schedules a second draw.
+    // That is the double draw the comment on updated() describes, and drawing earlier
+    // brought it straight back: every page load drew twice, both from loadD3AndDraw.
+    // Waiting for two frames of the *same configuration at the same size* is what makes
+    // the early draw safe rather than merely fast.
+    const measure = (): string => {
+      const chartDiv = this.shadowRoot?.querySelector("#chart");
+      const parent = chartDiv?.parentElement;
+      if (!parent) return "";
+      const w = parent.clientWidth;
+      const h = parent.clientHeight;
+      if (w < MIN_DRAWABLE_WIDTH || h < MIN_DRAWABLE_HEIGHT) return "";
+      return `${this._renderSignature}|${w}x${h}`;
+    };
+    const tick = () => {
+      this._sizeWatch = null;
+      if (!this.isConnected) return;          // removed while waiting; nothing to draw into
+      const now = measure();
+      if (now && now === last) stable++;
+      else stable = now ? 1 : 0;
+      last = now;
+      if (stable >= MeteogramCard._STABLE_FRAMES || Date.now() >= deadline) {
+        this._debugLog(
+          `[${CARD_NAME}] first draw after ${stable >= MeteogramCard._STABLE_FRAMES
+            ? `${stable} matching measurements` : "the settle deadline"} (${now || "no size"})`
+        );
+        this._drawMeteogram(callerId);
+        return;
+      }
+      this._sizeWatch = requestAnimationFrame(tick);
+    };
+    this._sizeWatch = requestAnimationFrame(tick);
+  }
+
   private _layer(parent: any, name: string, clear: boolean = true): any {
     let g = parent.select(`:scope > g.layer-${name}`);
     if (g.empty()) {
@@ -1243,6 +1333,10 @@ export class MeteogramCard extends LitElement {
       clearTimeout(this._drawTimer);
       this._drawTimer = null;
       this._drawWantedSince = 0;
+    }
+    if (this._sizeWatch !== null) {
+      cancelAnimationFrame(this._sizeWatch);
+      this._sizeWatch = null;
     }
 
     this._teardownResizeObserver(); // <-- Implemented teardown for resize observer
@@ -2412,7 +2506,7 @@ export class MeteogramCard extends LitElement {
     // exactly the ones being skipped.
     const dataStamp =
       (this._weatherApiInstance as any)?._lastFetchTime ?? this.apiExpiresAt ?? 0;
-    const drawKey =
+    let drawKey =
       `${this._renderSignature}|${availableWidth}x${availableHeight}|${dataStamp}`;
     if (
       !this._forceNextDraw &&
@@ -2428,8 +2522,6 @@ export class MeteogramCard extends LitElement {
     }
     this._forceNextDraw = false;
 
-    const MIN_DRAWABLE_WIDTH = 120;
-    const MIN_DRAWABLE_HEIGHT = 40;
     if (availableWidth < MIN_DRAWABLE_WIDTH || availableHeight < MIN_DRAWABLE_HEIGHT) {
       this._note("tiny", `too small  ${availableWidth}\u00D7${availableHeight}`, true);
       this._debugLog(
@@ -2582,6 +2674,18 @@ export class MeteogramCard extends LitElement {
         // --- Track last rendered chart size for final resize logic ---
         this._lastRenderedWidth = availableWidth;
         this._lastRenderedHeight = availableHeight;
+        // Re-taken after the fetch, not before it.
+        //
+        // The key includes a stamp for the forecast, and the first draw of a new element
+        // computes it before any forecast exists — so the very fetch that draw performs
+        // changes the stamp, and the next request no longer matches a key describing the
+        // same chart. A second, identical draw followed. Recording the key as it stands
+        // once the data is in hand makes "nothing changed" true when nothing has.
+        {
+          const stamp =
+            (this._weatherApiInstance as any)?._lastFetchTime ?? this.apiExpiresAt ?? 0;
+          drawKey = `${this._renderSignature}|${availableWidth}x${availableHeight}|${stamp}`;
+        }
         if (this._firstPaintMs === null) {
           // Measured at completion rather than when the draw was scheduled, because the
           // gap being reported is the one the eye sees: the card shows nothing from the

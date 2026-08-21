@@ -136,6 +136,49 @@ check(paced.blank !== null && paced.blank < 300,
   "a steady stream of requests cannot postpone the first paint", `blank ${paced.blank}ms`);
 check(paced.draws === 1, "and it still coalesces to a single draw", `${paced.draws} draws`);
 
-console.log(failed ? "\nremount: FAILED" : "\n8/8 passed");
+// The first draw waits for two frames of the same size and configuration rather than a
+// fixed 180ms. Measured before: ~200ms of blank card, of which ~20ms was drawing.
+const blanks = [];
+for (let i = 0; i < 3; i++) {
+  blanks.push(await page.evaluate(async () => {
+    const old = document.querySelector("meteogram-card");
+    const cfg = {
+      latitude: 58.4314, longitude: 8.8255, display_mode: "full", meteogram_hours: "48",
+      show_wind: true, show_sun: true, show_pressure: true, show_precipitation: true,
+      show_cloud_cover: true, show_weather_icons: true, animate: true,
+    };
+    const hass = old.hass, host = old.parentElement;
+    const before = old.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
+    old.remove();
+    const el = document.createElement("meteogram-card");
+    if (hass) el.hass = hass;
+    el.setConfig(cfg);
+    host.appendChild(el);
+    await new Promise((res) => {
+      const t0 = performance.now();
+      const tick = () => {
+        const svg = el.shadowRoot?.querySelector("#chart svg");
+        if (svg && svg.querySelectorAll("*").length > 50) res();
+        else if (performance.now() - t0 > 20000) res();
+        else requestAnimationFrame(tick);
+      };
+      tick();
+    });
+    await new Promise((r) => setTimeout(r, 500));
+    const after = el.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
+    return { blank: el._firstPaintMs, draws: after - before };
+  }));
+  await page.waitForTimeout(250);
+}
+const worst = Math.max(...blanks.map((b) => b.blank));
+// The old fixed settle put this at ~200ms and its deadline is still the fallback, so
+// anything at or above 150ms means the size watch is not firing and it has silently
+// reverted to waiting the clock out.
+check(worst < 150, "a replacement paints without waiting out the full settle",
+  blanks.map((b) => b.blank + "ms").join(", "));
+check(blanks.every((b) => b.draws === 1), "and still draws exactly once",
+  blanks.map((b) => b.draws).join(", "));
+
+console.log(failed ? "\nremount: FAILED" : "\n10/10 passed");
 await browser.close(); server.close();
 process.exit(failed ? 1 : 0);
