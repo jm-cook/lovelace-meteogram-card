@@ -104,6 +104,28 @@ check(reattach.duringHold === 0, "neither re-attach draw runs during the hold");
 check(reattach.total === 1, "and the two requests coalesce into one draw, not two",
   `${reattach.total} draw(s)`);
 
-console.log(failed ? "\nreconnect: FAILED" : "\n10/10 passed");
+// A deferred draw must not outlive the element. Recorded: a hold started at 13:45:08,
+// the card was replaced at 13:45:11, and the draw fired at 13:45:14 on the removed
+// element, measuring 0x0 and logging "tiny  too small" after its replacement had drawn.
+const orphan = await page.evaluate(async () => {
+  const c = document.querySelector("meteogram-card");
+  const host = c.parentElement;
+  c._reconnectHoldUntil = 0;
+  const before = c.constructor._recentDraws.length;
+  c._scheduleDrawMeteogram("test-pending");     // a draw is now queued
+  const queued = c._drawTimer !== null;
+  c.remove();                                   // replaced, as a rebuild does
+  const cleared = c._drawTimer === null;
+  await new Promise((r) => setTimeout(r, 800));
+  const added = c.constructor._recentDraws.slice(before);
+  host.appendChild(c);                          // put it back for the tests that follow
+  return { queued, cleared, added };
+});
+check(orphan.queued, "a draw can be pending when the card is removed");
+check(orphan.cleared, "removal cancels it");
+check(!orphan.added.some((l) => l.includes("tiny")),
+  "so no orphaned draw reports a 0x0 container", orphan.added.join(" | ") || "nothing logged");
+
+console.log(failed ? "\nreconnect: FAILED" : "\n13/13 passed");
 await browser.close(); server.close();
 process.exit(failed ? 1 : 0);

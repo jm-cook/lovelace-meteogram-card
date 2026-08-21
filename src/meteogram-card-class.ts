@@ -1226,6 +1226,25 @@ export class MeteogramCard extends LitElement {
   // Clean up all event listeners
   disconnectedCallback() {
     MeteogramCard._live.delete(this);
+
+    // A card that has left the DOM has nothing to draw into.
+    //
+    // The pending draw used to outlive the element. Recorded 2026-08-21: a re-attach
+    // started the six-second hold at 13:45:08, Home Assistant replaced the card at
+    // 13:45:11, and the deferred draw fired at 13:45:14 on the element that had been
+    // removed — measuring its container at 0x0 and logging "tiny  too small  0×0" three
+    // seconds after its replacement had already drawn.
+    //
+    // The zero-size guard caught it, so nothing was drawn and nothing broke, but the
+    // line is misleading in a log read by someone diagnosing a sizing fault, and a timer
+    // holding a reference to a discarded card is worth not having either. The draw is
+    // cancelled here instead. Re-attachment schedules a fresh one, so nothing is lost.
+    if (this._drawTimer !== null) {
+      clearTimeout(this._drawTimer);
+      this._drawTimer = null;
+      this._drawWantedSince = 0;
+    }
+
     this._teardownResizeObserver(); // <-- Implemented teardown for resize observer
     this._teardownVisibilityObserver();
     this._teardownMutationObserver();
