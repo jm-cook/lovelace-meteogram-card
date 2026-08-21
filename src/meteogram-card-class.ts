@@ -292,6 +292,8 @@ export class MeteogramCard extends LitElement {
   private _reconnectHoldUntil = 0;
   /** Set once the element has been in the DOM, so a re-attach can be told from a mount. */
   private _hasBeenConnected = false;
+  /** Set on re-attachment, so the draw that restores the chart does not animate. */
+  private _reattachDraw = false;
 
   /** Consecutive equal measurements before a first draw is allowed to proceed. */
   private static readonly _STABLE_FRAMES = 2;
@@ -1254,15 +1256,28 @@ export class MeteogramCard extends LitElement {
     // _hasDrawnOnce to false puts re-attachment back on the first-draw deadline, which
     // is measured from the first request and absorbs the whole burst.
     //
-    // Second, the reconnect hold could not fire. The websocket dropped and recovered
-    // while the panel was detached, so hass never reached this card and the
-    // false->true edge went unseen. A re-attach is itself the evidence: it means the
-    // tab was hidden long enough to be suspended, which is long enough for the socket
-    // to have gone and come back. Hold on that too.
+    // Second, the draw that survived was animating, which is what made the sequence
+    // look like churn. It is marked instead, so it draws straight in.
+    //
+    // Holding it back was tried and was worse. The hold exists to avoid spending a draw
+    // on an element about to be discarded, and that is a good trade only while the card
+    // still has something on screen to spend it against. Re-attachment is not that
+    // case: Lit re-renders on the way back in, which replaces the chart div, so the svg
+    // is already gone — measured at zero nodes from the moment of detachment. Holding
+    // therefore bought nothing and cost the full six seconds as blank card, every time.
+    //
+    // Going in or out of edit mode re-parents the card through hui-card-options, which
+    // is a re-attach with no rebuild behind it, so the hold always ran to its deadline:
+    //
+    //   14:16:24  held  re-attached — waiting to see if the card is rebuilt
+    //   14:16:30  drew  first load  917x860 -> 917x516  rebuilt
+    //
+    // Six seconds, three times over, for a card that could have drawn in twenty-five
+    // milliseconds. The hold stays where it was right — a reconnect, where the element
+    // keeps its chart and waiting is free.
     if (this._hasBeenConnected) {
       this._hasDrawnOnce = false;
-      this._reconnectHoldUntil = Date.now() + MeteogramCard._RECONNECT_HOLD_MS;
-      this._note("held", "re-attached \u2014 waiting to see if the card is rebuilt", true);
+      this._reattachDraw = true;
     }
     this._hasBeenConnected = true;
     
@@ -2619,7 +2634,11 @@ export class MeteogramCard extends LitElement {
     // list is itself the evidence that the element is new and its history went with the
     // old one.
     const firstDraw = this._lastDrawnKey === "";
-    this._remountDraw = firstDraw && MeteogramCard._pageHasDrawn;
+    // A re-attached card is putting back a chart that was on screen a moment ago, so
+    // there is nothing for an animation to show — the same reason a new element's first
+    // draw does not animate.
+    this._remountDraw =
+      (firstDraw && MeteogramCard._pageHasDrawn) || this._reattachDraw;
     this._note(
       "drew",
       `${firstDraw ? "new element" : MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
@@ -2694,6 +2713,7 @@ export class MeteogramCard extends LitElement {
           this._firstPaintMs = Date.now() - this._createdAt;
         }
         this._lastDrawnKey = drawKey;
+        this._reattachDraw = false;
         MeteogramCard._pageHasDrawn = true;
         this._alignAttributionIcon();
 

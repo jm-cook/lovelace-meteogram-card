@@ -83,26 +83,32 @@ const reattach = await page.evaluate(async () => {
   await new Promise((r) => setTimeout(r, 50));
   host.appendChild(c);                       // and back again — same element
   await c.updateComplete;
-  const held = c._reconnectHoldUntil - Date.now();
+  const holding = c._reconnectHoldUntil > Date.now();
+  const marked = c._reattachDraw;          // set on re-attach; suppresses the animation
+  const t0 = performance.now();
   // Both of the requests a re-attach produces, spaced beyond the 60ms coalesce window.
   c._scheduleDrawMeteogram("loadD3AndDraw");
   await new Promise((r) => setTimeout(r, 120));
   c._scheduleDrawMeteogram("_onResize-significant");
   await new Promise((r) => setTimeout(r, 900));
-  const during = c.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
-  await new Promise((r) => setTimeout(r, 6200));
+  const msToDraw = Math.round(performance.now() - t0);
   const after = c.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
-  return { held, duringHold: during - before, total: after - before,
-           note: c.constructor._recentDraws.filter((l) => l.includes("re-attached")).pop() ?? "" };
+  return { holding, total: after - before, msToDraw, drewFast: after - before >= 1,
+           marked, suppressed: c._remountDraw === true };
 });
 
-check(reattach.held > 4000, "a re-attach starts a hold of its own",
-  `${Math.round(reattach.held)}ms`);
-check(reattach.note.includes("re-attached"), "and says so in the log",
-  reattach.note.slice(11));
-check(reattach.duringHold === 0, "neither re-attach draw runs during the hold");
+// Re-attachment must NOT hold. Lit re-renders on the way back in and replaces the chart
+// div, so the svg is already gone — the card is blank from the moment of detachment, and
+// waiting only extends that. Holding cost the full six seconds every time edit mode
+// re-parented the card through hui-card-options.
+check(reattach.holding === false,
+  "a re-attach does not hold, because the card is already blank");
+check(reattach.drewFast, "it draws promptly instead", `${reattach.msToDraw}ms`);
 check(reattach.total === 1, "and the two requests coalesce into one draw, not two",
   `${reattach.total} draw(s)`);
+check(reattach.marked && reattach.suppressed,
+  "and the restoring draw does not animate — there is nothing to show moving",
+  `marked ${reattach.marked}, suppressed during the draw ${reattach.suppressed}`);
 
 // A deferred draw must not outlive the element. Recorded: a hold started at 13:45:08,
 // the card was replaced at 13:45:11, and the draw fired at 13:45:14 on the removed
