@@ -27,3 +27,7 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 
+# Written by tools/stamp-version.mjs on every build. Not committed: a local build stamps
+# the commit it came from, so a tracked copy would show a diff after every build and its
+# content would be wrong for anyone else's checkout.
+src/build-version.generated.ts

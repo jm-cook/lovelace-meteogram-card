@@ -6,8 +6,8 @@
   "main": "dist/meteogram-card.js",
   "scripts": {
     "build": "node tools/stamp-version.mjs && rollup -c --bundleConfigAsCjs",
-    "build:dev": "cross-env ROLLUP_WATCH=true rollup -c --bundleConfigAsCjs",
-    "watch": "rollup -c --watch --bundleConfigAsCjs",
+    "build:dev": "node tools/stamp-version.mjs && cross-env ROLLUP_WATCH=true rollup -c --bundleConfigAsCjs",
+    "watch": "node tools/stamp-version.mjs && rollup -c --watch --bundleConfigAsCjs",
     "lint": "eslint src",
     "start": "npm run build && serve",
     "lint:fix": "eslint src --fix",
