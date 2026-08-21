@@ -89,3 +89,42 @@ an animated update from a rebuild.
 - Generated ids (gradients) differ per render; `compare.mjs` normalises them.
 - `WeatherAPI` will not fetch twice inside 60s, which is why `dev.html` drops the
   instance each step.
+
+## Not done: handing the SVG to the replacement element
+
+Parked 2026-08-21. Pick this up if the blank on a rebuild starts to grate; there is no
+correctness problem to fix here, only about 200 ms of blank card.
+
+**The situation.** Home Assistant replaces a card element without the page reloading —
+`hui-view` compares view configs by reference, so any re-emitted config rebuilds every
+card in the view, and its reconnect handler re-emits one. Observed three elements in
+eighty minutes on a page that never reloaded. A replacement mounts empty, waits out
+`_firstDrawSettleMs`, draws, and reports `rebuilt`. Measured end to end: ~200 ms of
+nothing, of which ~20 ms is the drawing.
+
+Two things already reduce it and are worth knowing before adding more:
+
+- The opening animation is suppressed on a remount (`_remountDraw`), so the blank is no
+  longer followed by a full animated build of a forecast that did not change.
+- A redraw is held for 2.5 s after `hass.connected` goes false→true, so the outgoing
+  element does not spend a draw it will not live to show.
+
+**The idea.** Cache the last rendered `<svg>` at module level, keyed on the render
+signature *and* the drawn size. A new element adopts it during `firstUpdated`, before
+its own first draw. The geometry then matches, so `reusable` is true and that first draw
+comes out `reused` rather than `rebuilt` — an update against elements that already
+exist, which is also the path that can animate. The handover becomes seamless instead of
+a blank.
+
+**What to be careful about.**
+
+- Key it on the full render signature, not just the size. A card whose config differs
+  would otherwise flash the other card's chart before correcting itself.
+- Two meteogram cards on one page share the module scope. Either key per signature and
+  accept a miss, or hold a small map.
+- The adopted svg is one draw stale by definition. That is fine — the real draw follows
+  within ~200 ms — but it must never be *left* stale, so adoption has to be followed by
+  a scheduled draw unconditionally, not one gated on the draw key.
+- `_chartResized` keys off the same `reusable` flag. Adopting an svg makes a first draw
+  look like an update, so check what that does to the animation decision before
+  assuming it is free.
