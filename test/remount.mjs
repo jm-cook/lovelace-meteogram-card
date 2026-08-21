@@ -88,6 +88,49 @@ check(draws.length === 1 && draws[0].includes("new element"),
   draws.join(" | ") || "none");
 check(errors.length === 0, "no page errors", errors.join("; "));
 
-console.log(failed ? "\nremount: FAILED" : "\n5/5 passed");
+// A first draw must not be postponed by the requests that arrive behind it.
+//
+// Mounting produces a burst — the load path, the visibility observer, the load path
+// again, the resize observer's opening callback — and coalescing by resetting the timer
+// pushed the first paint a further settle away on each one. Measured at 293ms to start
+// drawing, of which 21ms was drawing. The deadline now runs from the first request, so
+// the burst is still absorbed but the wait cannot accumulate.
+const paced = await page.evaluate(async () => {
+  const old = document.querySelector("meteogram-card");
+  const cfg = {
+    latitude: 58.4314, longitude: 8.8255, display_mode: "full", meteogram_hours: "48",
+    show_wind: true, show_sun: true, show_pressure: true, show_precipitation: true,
+    show_cloud_cover: true, show_weather_icons: true, animate: true,
+  };
+  const hass = old.hass; const host = old.parentElement;
+  old.remove();
+  const el = document.createElement("meteogram-card");
+  if (hass) el.hass = hass;
+  el.setConfig(cfg);
+  host.appendChild(el);
+  // Keep asking, well past the settle, the way a slow mount does.
+  const nag = setInterval(() => el._scheduleDrawMeteogram("test-nag"), 20);
+  await new Promise((res) => {
+    const started = performance.now();
+    const tick = () => {
+      const svg = el.shadowRoot?.querySelector("#chart svg");
+      if (svg && svg.querySelectorAll("*").length > 50) res();
+      else if (performance.now() - started > 20000) res();
+      else requestAnimationFrame(tick);
+    };
+    tick();
+  });
+  clearInterval(nag);
+  return { blank: el._firstPaintMs, draws: el._recentDraws.filter((l) => l.includes("  drew  ")).length };
+});
+// The deadline is _firstDrawSettleMs from the first request plus the draw itself, so
+// about 190ms; the old reset-on-every-request policy ran to its _drawMaxWaitMs ceiling
+// instead, measured at 416ms under this same nagging. 300ms separates them with room
+// on both sides, and is not tight enough to be a speed test.
+check(paced.blank !== null && paced.blank < 300,
+  "a steady stream of requests cannot postpone the first paint", `blank ${paced.blank}ms`);
+check(paced.draws === 1, "and it still coalesces to a single draw", `${paced.draws} draws`);
+
+console.log(failed ? "\nremount: FAILED" : "\n7/7 passed");
 await browser.close(); server.close();
 process.exit(failed ? 1 : 0);

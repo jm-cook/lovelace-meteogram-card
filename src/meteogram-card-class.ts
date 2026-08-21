@@ -582,7 +582,29 @@ export class MeteogramCard extends LitElement {
 
     if (force) this._forceNextDraw = true;
     if (!this._drawWantedSince) this._drawWantedSince = now;
-    if (this._drawTimer !== null) clearTimeout(this._drawTimer);
+
+    // Before the first draw the deadline is fixed, not restarted.
+    //
+    // Coalescing by resetting the timer is right for a burst of *changes*: the last one
+    // is the one worth drawing, and each new request postponing the draw is the point.
+    // Mounting is not that. Four requests arrive on the way up — the load path, the
+    // visibility observer, the load path again, and the resize observer's opening
+    // callback — spread over about 110ms, and each reset pushed the first paint a
+    // further settle into the future. Measured: 293ms to start drawing, of which 21ms
+    // was drawing. The card was blank for a quarter of a second having decided nothing.
+    //
+    // A deadline from the *first* request absorbs the same burst, because they all land
+    // inside one settle window, but bounds the wait instead of letting it accumulate.
+    // Afterwards the reset behaviour returns, where it earns its keep.
+    const firstDrawPending = !this._hasDrawnOnce && this._drawTimer !== null;
+    if (this._drawTimer !== null && !firstDrawPending) clearTimeout(this._drawTimer);
+    if (firstDrawPending) {
+      // The pending timer already covers this request. Record the force flag and go.
+      this._debugLog(
+        `[${CARD_NAME}] _scheduleDrawMeteogram: first draw already pending, not deferring it`
+      );
+      return;
+    }
 
     const waited = now - this._drawWantedSince;
     const settle = this._hasDrawnOnce ? this._drawCoalesceMs : this._firstDrawSettleMs;
