@@ -301,6 +301,10 @@ export class MeteogramCard extends LitElement {
   _remountDraw = false;
   /** Whether anything on this page has drawn yet. Static: it dates the page, not the card. */
   private static _pageHasDrawn = false;
+  /** When this element came into existence, for the diagnostics header. */
+  private _createdAt = Date.now();
+  /** How long this element showed nothing before its first chart appeared. */
+  private _firstPaintMs: number | null = null;
   /**
    * The last few draws, for the diagnostics panel.
    *
@@ -348,6 +352,19 @@ export class MeteogramCard extends LitElement {
     const n = Number(ratio);
     return n > 0 ? `${n}` : "16/9";
   }
+  /** A clock time and an age together: "16:05:33 (6m ago)".
+   *
+   * The age alone is relative to whenever Copy was pressed, which makes it useless for
+   * lining up against the redraw list — and the redraw list is stamped with clock times.
+   * Both, so the two halves of the report can be read against each other.
+   */
+  private _stamp(then: Date): string {
+    const at = then.toLocaleTimeString(this.getHaLocale(), {
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+    return `${at} (${MeteogramCard._since(then)} ago)`;
+  }
+
   /** Rough age of a timestamp, for a diagnostics line: "3s", "12m", "4h". */
   private static _since(then: Date): string {
     const secs = Math.max(0, Math.round((Date.now() - then.getTime()) / 1000));
@@ -892,8 +909,19 @@ export class MeteogramCard extends LitElement {
     // everything, which is nothing to do with this card; and if the page is old, the
     // element was replaced underneath a page that kept running, which is. Without this
     // the two are indistinguishable from a paste, and they lead opposite ways.
-    const pageAge = MeteogramCard._since(METEOGRAM_CARD_STARTUP_TIME);
-    const tail = [ha, screen, `page loaded ${pageAge} ago`].filter(Boolean).join(" \u00B7 ");
+    const pageAge = this._stamp(METEOGRAM_CARD_STARTUP_TIME);
+    // The element's own age and how long it showed nothing before its chart arrived.
+    //
+    // Asked for directly: "next time I perceive a blank, I want to be able to see it".
+    // A blank is a duration, and nothing in the panel measured one — the redraw list
+    // gives the moment a draw happened but not how long the card had been empty waiting
+    // for it, which is the whole of what is perceived.
+    const cardAge =
+      `card created ${this._stamp(new Date(this._createdAt))}` +
+      (this._firstPaintMs !== null ? `, blank ${this._firstPaintMs}ms` : ", not yet drawn");
+    const tail = [ha, screen, `page loaded ${pageAge}`, cardAge]
+      .filter(Boolean)
+      .join(" \u00B7 ");
     return (
       `<div style='margin-top:8px;color:var(--secondary-text-color);font-size:0.9em;'>` +
       `<b>Setup:</b> ${bits.join(" \u00B7 ")}` +
@@ -980,6 +1008,24 @@ export class MeteogramCard extends LitElement {
     //
     // It cannot recurse: a render only schedules a draw when the render signature has
     // changed, and nothing here changes it.
+    if (this.diagnostics) this.requestUpdate();
+  }
+
+  /**
+   * Add a detail to the newest entry of `kind`, if it is still the newest entry.
+   *
+   * A draw is logged when it starts, because a draw that never finishes is exactly the
+   * kind that needs recording — but some of what is worth knowing is only decided part
+   * way through. Amending is safe here because a draw in progress blocks any other, so
+   * nothing can slip in between; and the guard means that if that ever stops being true
+   * the detail is dropped rather than attached to the wrong line.
+   */
+  private _amendLastNote(kind: string, extra: string): void {
+    const i = this._recentDraws.length - 1;
+    if (i < 0) return;
+    const marker = `  ${kind.padEnd(4)}  `;
+    if (!this._recentDraws[i].includes(marker)) return;
+    this._recentDraws[i] = `${this._recentDraws[i]}  ${extra}`;
     if (this.diagnostics) this.requestUpdate();
   }
 
@@ -2397,6 +2443,13 @@ export class MeteogramCard extends LitElement {
         // --- Track last rendered chart size for final resize logic ---
         this._lastRenderedWidth = availableWidth;
         this._lastRenderedHeight = availableHeight;
+        if (this._firstPaintMs === null) {
+          // Measured at completion rather than when the draw was scheduled, because the
+          // gap being reported is the one the eye sees: the card shows nothing from the
+          // moment the element exists until the chart is actually in the DOM, and the
+          // settle delay and the forecast fetch both fall inside it.
+          this._firstPaintMs = Date.now() - this._createdAt;
+        }
         this._lastDrawnKey = drawKey;
         MeteogramCard._pageHasDrawn = true;
         this._alignAttributionIcon();
@@ -2427,6 +2480,14 @@ export class MeteogramCard extends LitElement {
         // observe: a forecast changes hourly and opening the editor rebuilds the card,
         // so first paint is the only trigger anyone can reach on demand.
         this._chartResized = !existing.empty() && !reusable;
+        // Whether the chart the eye was looking at survived this draw.
+        //
+        // A rebuild replaces every element in one frame — no animation is possible and
+        // the change is abrupt — where a reuse transitions the existing shapes. That is
+        // the difference between a draw that is perceived and one that is not, and it
+        // was nowhere in the log: someone reporting a flash could only say it looked
+        // like the chart "did something", with no way to tell which kind of draw it was.
+        this._amendLastNote("drew", reusable ? "reused" : "rebuilt");
         if (reusable) {
           // Not cleared. Every drawer owns a named layer and clears only its own, so
           // the groups survive the redraw — which is the whole point: an element that
