@@ -1986,7 +1986,15 @@ export class MeteogramCard extends LitElement {
     // Here rather than firstUpdated: the signature is the cache key, and Lit runs
     // firstUpdated before this assignment, so a lookup there would be filed under an
     // empty signature and never match.
-    if (this._lastDrawnKey === "") this._adoptChartIfAvailable();
+    //
+    // Not restricted to the first draw. Home Assistant detaches the dashboard panel
+    // after a few minutes hidden and re-appends the same elements on return; Lit
+    // re-renders on the way back in and replaces the chart div, so a card that has been
+    // drawing for an hour comes back just as empty as a brand-new one. Gating adoption
+    // on "has never drawn" left that case blank for the whole of its redraw — the
+    // "first load" line that precedes the rebuild in a wake-up log. The real condition
+    // is that there is nothing on screen, which _adoptChartIfAvailable already checks.
+    this._adoptChartIfAvailable();
 
     // hass is deliberately excluded: it updates constantly and would redraw the chart on
     // every state change in the house.
@@ -2629,7 +2637,15 @@ export class MeteogramCard extends LitElement {
     if (
       !this._forceNextDraw &&
       drawKey === this._lastDrawnKey &&
-      chartDiv.querySelector("svg")
+      chartDiv.querySelector("svg") &&
+      // An inherited chart does not count as one that has been drawn.
+      //
+      // The clause above asks "is there something on screen", as a guard against
+      // skipping a draw that would leave the card empty. A handed-over chart satisfies
+      // it while being only a serialised copy — no d3 data bound to it — so skipping
+      // here left the element holding a placeholder it could never update, and no real
+      // draw ever ran. Adopting has to be a reason to draw, not a reason not to.
+      !this._adoptedSvg
     ) {
       this._note("same", `nothing changed  ${availableWidth}\u00D7${availableHeight}`, true);
       this._debugLog(

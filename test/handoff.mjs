@@ -135,7 +135,49 @@ check(twins.drew, "and goes on to draw its own");
 check(twins.stillThere > 50, "without disturbing the card it inherited from",
   `${twins.stillThere} nodes`);
 
-// ── 4. the cache is bounded ──────────────────────────────────────────────────
+// ── 4. re-attachment is covered too, in sections layout ──────────────────────
+//
+// Home Assistant detaches the dashboard panel after a few minutes hidden and re-appends
+// the same elements. Lit re-renders on the way back in and replaces the chart div, so a
+// card that has been drawing for an hour comes back as empty as a new one — the "first
+// load" draw that precedes the rebuild in a wake-up log. Sections layout because that
+// path takes the drawn size straight from the container, with no aspect ratio applied.
+const reattach = await page.evaluate(async () => {
+  const c = document.querySelector("meteogram-card");
+  c.setConfig({ ...(c._config ?? {}), latitude: 58.4314, longitude: 8.8255,
+                layout_mode: "sections", display_mode: "core" });
+  c._forceNextDraw = true;
+  c._scheduleDrawMeteogram("seed-sections", true);
+  await new Promise((res) => {
+    const t0 = performance.now();
+    const tick = () => (performance.now() - t0 > 1200 ? res() : requestAnimationFrame(tick));
+    tick();
+  });
+  const host = c.parentElement;
+  c._firstPaintMs = null;
+  c.remove();                                  // the suspend detaches it
+  await new Promise((r) => setTimeout(r, 60));
+  host.appendChild(c);                         // and the SAME element comes back
+  await c.updateComplete;
+  const frames = [];
+  await new Promise((res) => {
+    const t0 = performance.now();
+    const tick = () => {
+      const cd = c.shadowRoot?.querySelector("#chart");
+      frames.push(cd ? cd.querySelectorAll("svg *").length : 0);
+      if (c._firstPaintMs !== null || performance.now() - t0 > 15000) res();
+      else requestAnimationFrame(tick);
+    };
+    tick();
+  });
+  return { first: frames[0], everEmpty: frames.some((n) => n === 0), drew: c._firstPaintMs !== null };
+});
+check(reattach.first > 50, "a re-attached card shows its chart again immediately",
+  `${reattach.first} nodes on the first frame`);
+check(!reattach.everEmpty, "and is never empty while redrawing");
+check(reattach.drew, "and does redraw rather than keeping the placeholder");
+
+// ── 5. the cache is bounded ──────────────────────────────────────────────────
 const bounded = await page.evaluate(() => {
   const C = customElements.get("meteogram-card");
   for (let i = 0; i < 40; i++) C._rememberChart(`sig-${i}`, "<svg></svg>", 10, 10);
@@ -144,6 +186,6 @@ const bounded = await page.evaluate(() => {
 check(bounded <= 8, "the cache does not grow without limit", `${bounded} entries`);
 check(errors.length === 0, "no page errors", errors.join("; "));
 
-console.log(failed ? "\nhandoff: FAILED" : "\n8/8 passed");
+console.log(failed ? "\nhandoff: FAILED" : "\n11/11 passed");
 await browser.close(); server.close();
 process.exit(failed ? 1 : 0);
