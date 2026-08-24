@@ -1872,6 +1872,28 @@ export class MeteogramCard extends LitElement {
   }
 
   // Life cycle hooks
+  /**
+   * The size the chart is drawn at inside a container of the given size.
+   *
+   * Extracted because the handover placeholder has to match what the draw will produce,
+   * and a second copy of this arithmetic drifted immediately: the placeholder was given
+   * the container's size instead, so in a panel — where the container is far taller than
+   * the 16:9 chart — it was stretched to full height for the moment it was on screen,
+   * and the card appeared to resize itself before settling.
+   */
+  private _drawnSize(availW: number, availH: number): { w: number; h: number } {
+    if (this.aspectRatio && this.layoutMode !== "sections") {
+      const [aw, ah] = String(this.aspectRatio).split(":").map(Number);
+      if (aw > 0 && ah > 0) {
+        let w = availW;
+        let h = Math.round(w * (ah / aw));
+        if (h > availH) { h = availH; w = Math.round(h * (aw / ah)); }
+        return { w, h };
+      }
+    }
+    return { w: availW, h: availH };
+  }
+
   /** Show the predecessor's chart while this element gets ready to draw its own. */
   private _adoptChartIfAvailable(): void {
     if (this._adoptedSvg) return;
@@ -1893,10 +1915,16 @@ export class MeteogramCard extends LitElement {
     // would shrink the container back and trigger a second draw. It would manufacture
     // the very redraw it exists to hide.
     node.style.position = "absolute";
-    node.style.inset = "0";
+    node.style.top = "0";
+    node.style.left = "0";
     node.style.pointerEvents = "none";
-    node.setAttribute("width", String(w));
-    node.setAttribute("height", String(h));
+    // Sized to what the draw will produce, not to the container. A real chart renders at
+    // its own width and height even though #chart is a stretch flex container — measured
+    // 880x495 inside an 880x957 box — so a placeholder filling the container would be
+    // visibly taller than the chart replacing it.
+    const drawn = this._drawnSize(w, h);
+    node.setAttribute("width", String(drawn.w));
+    node.setAttribute("height", String(drawn.h));
     this._adoptedSvg = true;
     this._handoverNode = node;
     this._debugLog(`[${CARD_NAME}] adopted previous chart (drawn ${held.w}x${held.h})`);
@@ -2674,13 +2702,8 @@ export class MeteogramCard extends LitElement {
       // Parse aspect ratio string, e.g. "16:9"
       const [w, h] = this.aspectRatio.split(":").map(Number);
       if (w > 0 && h > 0) {
-        width = availableWidth;
-        height = Math.round(width * (h / w));
-        // Optionally, limit height to availableHeight
-        if (height > availableHeight) {
-          height = availableHeight;
-          width = Math.round(height * (w / h));
-        }
+        // One definition, shared with the handover placeholder. See _drawnSize.
+        ({ w: width, h: height } = this._drawnSize(availableWidth, availableHeight));
       } else {
         // Measured from the container, not from our own output.
         //

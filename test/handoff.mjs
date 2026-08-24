@@ -177,7 +177,51 @@ check(reattach.first > 50, "a re-attached card shows its chart again immediately
 check(!reattach.everEmpty, "and is never empty while redrawing");
 check(reattach.drew, "and does redraw rather than keeping the placeholder");
 
-// ── 5. the cache is bounded ──────────────────────────────────────────────────
+// ── 5. the placeholder is the size of the chart, not of the container ────────
+//
+// In a panel the container is far taller than the 16:9 chart — 880x957 against 880x495 —
+// and a real svg renders at its own size despite #chart being a stretch flex container.
+// A placeholder sized to the container is visibly taller than the chart that replaces
+// it, which reads as the card resizing itself on wake.
+const geometry = await page.evaluate(async () => {
+  const c = document.querySelector("meteogram-card");
+  const host = c.parentElement;
+  host.style.cssText = "width:912px;height:973px;position:relative";
+  c.setConfig({ ...(c._config ?? {}), latitude: 58.4314, longitude: 8.8255,
+                layout_mode: "panel", display_mode: "core", aspect_ratio: "16:9" });
+  c._forceNextDraw = true;
+  c._scheduleDrawMeteogram("geometry-seed", true);
+  await new Promise((res) => setTimeout(res, 1500));
+
+  c._firstPaintMs = null;
+  c.remove();
+  await new Promise((r) => setTimeout(r, 50));
+  host.appendChild(c);
+  await c.updateComplete;
+  const ph = c.shadowRoot.querySelector("#chart svg");
+  const phBox = ph ? ph.getBoundingClientRect() : null;
+  const placeholder = phBox ? `${Math.round(phBox.width)}x${Math.round(phBox.height)}` : "none";
+  const wrap = c.shadowRoot.querySelector("#chart").parentElement;
+  const container = `${wrap.clientWidth}x${wrap.clientHeight}`;
+  await new Promise((res) => {
+    const t0 = performance.now();
+    const tick = () => {
+      if (c._firstPaintMs !== null || performance.now() - t0 > 15000) res();
+      else requestAnimationFrame(tick);
+    };
+    tick();
+  });
+  const rb = c.shadowRoot.querySelector("#chart svg").getBoundingClientRect();
+  return { placeholder, real: `${Math.round(rb.width)}x${Math.round(rb.height)}`, container };
+});
+check(geometry.placeholder === geometry.real,
+  "the placeholder occupies exactly the box the real chart will",
+  `placeholder ${geometry.placeholder}, chart ${geometry.real}`);
+check(geometry.placeholder !== geometry.container,
+  "and is not simply stretched to the container",
+  `container ${geometry.container}`);
+
+// ── 6. the cache is bounded ──────────────────────────────────────────────────
 const bounded = await page.evaluate(() => {
   const C = customElements.get("meteogram-card");
   for (let i = 0; i < 40; i++) C._rememberChart(`sig-${i}`, "<svg></svg>", 10, 10);
@@ -186,6 +230,6 @@ const bounded = await page.evaluate(() => {
 check(bounded <= 8, "the cache does not grow without limit", `${bounded} entries`);
 check(errors.length === 0, "no page errors", errors.join("; "));
 
-console.log(failed ? "\nhandoff: FAILED" : "\n11/11 passed");
+console.log(failed ? "\nhandoff: FAILED" : "\n13/13 passed");
 await browser.close(); server.close();
 process.exit(failed ? 1 : 0);
