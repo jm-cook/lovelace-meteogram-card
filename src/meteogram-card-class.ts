@@ -173,6 +173,8 @@ export class MeteogramCard extends LitElement {
     "full";
   @property({ type: String }) aspectRatio: string = "16:9"; // NEW: aspect ratio config, default 16:9
   @property({ type: Number }) altitude?: number; // Optional altitude for WeatherAPI
+  /** Whether `altitude` was inherited from Home Assistant rather than configured. */
+  private _altitudeFromHome = false;
   @property({ type: String }) layoutMode:
     | "sections"
     | "panel"
@@ -786,6 +788,7 @@ export class MeteogramCard extends LitElement {
     this.title = config.title ?? "";
     if (config.latitude !== undefined) this.latitude = configLat;
     if (config.longitude !== undefined) this.longitude = configLon;
+    this._altitudeFromHome = false;
     if (Number.isFinite(config.altitude)) {
       this.altitude = config.altitude;
     } else {
@@ -953,7 +956,14 @@ export class MeteogramCard extends LitElement {
       strip(this._setupHtml()),
       this.entityId && this.entityId !== "none"
         ? `Source: entity ${this.entityId}`
-        : `Source: met.no direct ${this.latitude}, ${this.longitude}`,
+        : `Source: met.no direct ${this.latitude}, ${this.longitude}` +
+          // Altitude is part of the met.no request and therefore part of the cache key,
+          // so two cards on one dashboard that differ only in altitude quietly run out
+          // of two different caches with two different expiry times. That is how the
+          // missing altitude was found, and the source line said nothing about it.
+          (this.altitude === undefined
+            ? " (no altitude)"
+            : ` at ${this.altitude}m${this._altitudeFromHome ? " (from HA)" : ""}`),
       this._missingForecastKeys?.length
         ? `Not provided: ${this._missingForecastKeys.join(", ")}`
         : "Not provided: nothing",
@@ -2114,6 +2124,26 @@ export class MeteogramCard extends LitElement {
         const haLon = parseFloat(Number(hassConfig.longitude).toFixed(4));
         this.latitude = haLat;
         this.longitude = haLon;
+        // The elevation comes with the coordinates, and only with them.
+        //
+        // met.no asks for an altitude and, without one, resolves the point against a
+        // coarse global elevation model — which in anything but flat country can be out
+        // by enough to shift the temperature curve. Home Assistant already holds the
+        // figure the owner entered for their own home, so a card that has fallen back to
+        // the home coordinates should use the home elevation too rather than leaving
+        // met.no to guess at a location it has already been told.
+        //
+        // Only when the coordinates were inherited. A card pointed at explicit
+        // latitude/longitude is describing somewhere else, and the home's elevation
+        // would then be a confident wrong answer for it.
+        //
+        // Only when nothing was configured: an explicit altitude in the card config
+        // always wins. Number.isFinite rather than a truthiness test, because sea level
+        // is a real elevation and 0 is a legitimate value.
+        if (this.altitude === undefined && Number.isFinite(hassConfig.elevation)) {
+          this.altitude = Math.round(Number(hassConfig.elevation));
+          this._altitudeFromHome = true;
+        }
         // Initialize WeatherAPI instance if not already set or if lat/lon changed
         if (
           !this._weatherApiInstance ||
@@ -2129,7 +2159,8 @@ export class MeteogramCard extends LitElement {
           );
         }
         this._debugLog(
-          `[${CARD_NAME}] Using HA location: ${this.latitude}, ${this.longitude}`
+          `[${CARD_NAME}] Using HA location: ${this.latitude}, ${this.longitude}` +
+            (this._altitudeFromHome ? ` at ${this.altitude}m (from HA)` : "")
         );
         return;
       }

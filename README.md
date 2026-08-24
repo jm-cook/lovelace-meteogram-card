@@ -143,7 +143,7 @@ Below are the main configuration options for the Meteogram Card:
 - `aspect_ratio` only applies in `panel` or `grid` layout modes.
 - `diagnostics` enables a status panel for troubleshooting API/data issues.
 - `display_mode` is the preferred way to set the card's display style. Use `"focussed"` for a minimal chart-only view.
-- `altitude` is optional and can be set to improve forecast accuracy for locations at significant elevation. If not set, the Home Assistant default altitude is used (if available).
+- `altitude` is optional and can be set to improve forecast accuracy for locations at significant elevation. If you have not set `latitude`/`longitude` either, the card uses your Home Assistant home location *and* its elevation. Set it yourself whenever you point the card at explicit coordinates: met.no recommends supplying an altitude, and without one it resolves the point against a coarse global elevation model.
 
 ### Option Notes
 - `show_precipitation` replaces the deprecated `show_rain` option. For backward compatibility, `show_rain` is still supported but will be ignored if `show_precipitation` is set.
@@ -155,7 +155,7 @@ Below are the main configuration options for the Meteogram Card:
 - `aspect_ratio` only applies in `panel` or `grid` layout modes.
 - `diagnostics` enables a status panel for troubleshooting API/data issues.
 - `display_mode` is the preferred way to set the card's display style. Use `"focussed"` for a minimal chart-only view.
-- `altitude` is optional and can be set to improve forecast accuracy for locations at significant elevation. If not set, the Home Assistant default altitude is used (if available).
+- `altitude` is optional and can be set to improve forecast accuracy for locations at significant elevation. If you have not set `latitude`/`longitude` either, the card uses your Home Assistant home location *and* its elevation. Set it yourself whenever you point the card at explicit coordinates: met.no recommends supplying an altitude, and without one it resolves the point against a coarse global elevation model.
 
 ### Layout Mode (`layout_mode`)
 
