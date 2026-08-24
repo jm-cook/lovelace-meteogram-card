@@ -2730,13 +2730,6 @@ export class MeteogramCard extends LitElement {
             (this._weatherApiInstance as any)?._lastFetchTime ?? this.apiExpiresAt ?? 0;
           drawKey = `${this._renderSignature}|${availableWidth}x${availableHeight}|${stamp}`;
         }
-        if (this._firstPaintMs === null) {
-          // Measured at completion rather than when the draw was scheduled, because the
-          // gap being reported is the one the eye sees: the card shows nothing from the
-          // moment the element exists until the chart is actually in the DOM, and the
-          // settle delay and the forecast fetch both fall inside it.
-          this._firstPaintMs = Date.now() - this._createdAt;
-        }
         this._lastDrawnKey = drawKey;
         this._reattachDraw = false;
         MeteogramCard._pageHasDrawn = true;
@@ -2939,6 +2932,16 @@ export class MeteogramCard extends LitElement {
         }
       })
       .finally(() => {
+        // How long the card showed nothing, recorded where the chart actually exists.
+        //
+        // This used to be taken beside _lastDrawnKey, which is set before a single
+        // drawer has run — so it reported the moment drawing *began* while claiming to
+        // report the moment something appeared. It read 3ms against a real gap of about
+        // 23ms, which is the wrong direction for a number whose only job is to tell
+        // someone whether a blink they think they saw was real.
+        if (this._firstPaintMs === null) {
+          this._firstPaintMs = Date.now() - this._createdAt;
+        }
         this._chartRenderInProgress = false;
         // --- RESET weatherDataPromise after chart draw completes ---
         this.weatherDataPromise = null;
