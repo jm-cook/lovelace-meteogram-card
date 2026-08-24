@@ -103,6 +103,57 @@ that means something. Candidates, none costing chart space:
 **Open question:** is this a header element, an in-plot annotation, or a conditional
 warning? They imply quite different work.
 
+### Wind — a public-facing option, not a replacement
+
+**Both notations ship. Whatever is done here is configurable.**
+
+The reason to move away from barbs was never that they are bad — they are a professional
+station-model notation, they encode speed to five knots in the space of a glyph, and they
+are the most compact thing available. The reason is that they are aimed at meteorologists
+and this card is aimed at a household.
+
+But at least one user flies gliders and plans trips with them, and that is not an edge
+case to be designed away. Barbs read in **knots**, which is why: `meteogram-chart.ts`
+converts to knots and draws pennants at 50, feathers at 10 and half-feathers at 5. That is
+aviation and marine units, deliberately. Nothing about the barb rendering should be
+"improved" — it is correct as it stands and its correctness is the point.
+
+So the wind band gets a style setting rather than a rewrite. `show_wind` stays as the
+on/off; a new key selects the notation.
+
+**The hazard, and it is a real one.** The two conventions point in opposite directions:
+
+| notation | the glyph points |
+|---|---|
+| barbs (today) | towards where the wind comes **from** |
+| Met Office arrows | towards where the wind is **going** |
+
+Verified against the Met Office's own guide: *"The arrow shows the direction that the wind
+is blowing. The letter shows the direction the wind is blowing from."* The card currently
+does `rotate(dir)` straight from met.no's `wind_from_direction`, which is the barb
+convention.
+
+Two modes in one card, drawing the same wind 180° apart, with nothing on screen to say
+which is which. Mitigations worth taking together rather than choosing between:
+
+- Carry the compass letter beside the arrow, as the Met Office does. It is almost
+  certainly why they do it.
+- Say so in the tooltip.
+- Be loud about it in the release note, and louder if the default changes.
+
+**Open — what the default should be.** Arrows serve the larger audience, but changing the
+default silently rotates every existing card's wind glyphs by half a turn. Leaving barbs
+as the default means most users never see the friendlier option. This wants deciding
+deliberately, not inheriting.
+
+**Also open — how far the "technical offering" goes.** If barbs are staying for people
+doing real planning with them, the question is whether that is all they get, or whether
+the technical mode should also carry what such a user actually needs: gust explicitly
+labelled, units in knots, and the numbers rather than the glyph. Worth asking the pilot.
+
+A forecast card is not a flight-planning instrument, and the documentation should not
+imply otherwise however it is being used.
+
 ### Wind — chevrons and numbers, in the UK Met Office style
 
 Replace the meteorological barbs with a row of direction chevrons above a numeric speed,
