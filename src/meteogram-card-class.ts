@@ -294,6 +294,33 @@ export class MeteogramCard extends LitElement {
   private _hasBeenConnected = false;
   /** Set on re-attachment, so the draw that restores the chart does not animate. */
   private _reattachDraw = false;
+  /** True while this element is showing a chart inherited from its predecessor. */
+  private _adoptedSvg = false;
+  /** That inherited chart, held on screen until the replacement has finished drawing. */
+  private _handoverNode: SVGElement | null = null;
+
+  /**
+   * The last chart each configuration drew, so a replacement element can show it at once.
+   *
+   * Keyed on the render signature, which carries the location and every display option —
+   * so two cards showing different places can never be handed each other's chart. Two
+   * configured identically do share an entry, which is harmless: the chart they would
+   * each draw is the same one. Module scope makes it per page, which is the right scope:
+   * a fresh page load has nothing to hand over and correctly starts empty.
+   */
+  private static _chartCache = new Map<string, { markup: string; w: number; h: number }>();
+  private static readonly _CHART_CACHE_MAX = 8;
+
+  private static _rememberChart(sig: string, markup: string, w: number, h: number): void {
+    const c = MeteogramCard._chartCache;
+    c.delete(sig);                                  // re-insert so it counts as newest
+    c.set(sig, { markup, w, h });
+    while (c.size > MeteogramCard._CHART_CACHE_MAX) {
+      const oldest = c.keys().next().value;
+      if (oldest === undefined) break;
+      c.delete(oldest);
+    }
+  }
 
   /** Consecutive equal measurements before a first draw is allowed to proceed. */
   private static readonly _STABLE_FRAMES = 2;
@@ -1373,6 +1400,8 @@ export class MeteogramCard extends LitElement {
       cancelAnimationFrame(this._sizeWatch);
       this._sizeWatch = null;
     }
+    this._handoverNode = null;
+    this._adoptedSvg = false;
 
     this._teardownResizeObserver(); // <-- Implemented teardown for resize observer
     this._teardownVisibilityObserver();
@@ -1843,6 +1872,36 @@ export class MeteogramCard extends LitElement {
   }
 
   // Life cycle hooks
+  /** Show the predecessor's chart while this element gets ready to draw its own. */
+  private _adoptChartIfAvailable(): void {
+    if (this._adoptedSvg) return;
+    const chartDiv = this.shadowRoot?.querySelector("#chart") as HTMLElement | null;
+    const parent = chartDiv?.parentElement;
+    if (!chartDiv || !parent || chartDiv.querySelector("svg")) return;
+    const w = parent.clientWidth;
+    const h = parent.clientHeight;
+    if (w < MIN_DRAWABLE_WIDTH || h < MIN_DRAWABLE_HEIGHT) return;
+
+    const held = MeteogramCard._chartCache.get(this._renderSignature);
+    if (!held) return;
+    chartDiv.innerHTML = held.markup;
+    const node = chartDiv.querySelector("svg") as SVGElement | null;
+    if (!node) return;
+    // Out of flow from the outset. As an ordinary flex child it would contribute to the
+    // container's size, and the container is what the draw measures — so the placeholder
+    // would size the card, the draw would use that size, and removing the placeholder
+    // would shrink the container back and trigger a second draw. It would manufacture
+    // the very redraw it exists to hide.
+    node.style.position = "absolute";
+    node.style.inset = "0";
+    node.style.pointerEvents = "none";
+    node.setAttribute("width", String(w));
+    node.setAttribute("height", String(h));
+    this._adoptedSvg = true;
+    this._handoverNode = node;
+    this._debugLog(`[${CARD_NAME}] adopted previous chart (drawn ${held.w}x${held.h})`);
+  }
+
   protected firstUpdated(_: PropertyValues) {
     // Ensure styles are present in the shadow root and light DOM (host) for all environments
     const cssText =
@@ -1923,6 +1982,11 @@ export class MeteogramCard extends LitElement {
     ]);
     const configChanged = signature !== this._renderSignature;
     this._renderSignature = signature;
+
+    // Here rather than firstUpdated: the signature is the cache key, and Lit runs
+    // firstUpdated before this assignment, so a lookup there would be filed under an
+    // empty signature and never match.
+    if (this._lastDrawnKey === "") this._adoptChartIfAvailable();
 
     // hass is deliberately excluded: it updates constantly and would redraw the chart on
     // every state change in the house.
@@ -2308,21 +2372,35 @@ export class MeteogramCard extends LitElement {
     return this.weatherDataPromise;
   }
 
-  // Keep the cleanupChart method as is
+  /**
+   * Tear down this element's own chart, without touching an inherited placeholder.
+   *
+   * The exception matters more than it looks. A handed-over chart arrives through
+   * innerHTML rather than d3, so `this.svg` is null while it is on screen — and
+   * `_handleVisibilityChange` reads a null `svg` as "there is no chart here", cleans up,
+   * and schedules a redraw. The redraw is right; the cleanup threw away the very thing
+   * put there to cover it, which is what emptied the card two frames after adopting.
+   *
+   * The placeholder is dropped in the draw's own finally(), once there is a real chart
+   * to replace it with. Nothing else should remove it.
+   */
   cleanupChart(): void {
     try {
-      // Check if we have an active D3 selection
       if (this.svg && typeof this.svg.remove === "function") {
-        // Use D3's remove method to clean up properly
         this.svg.remove();
         this.svg = null;
       }
-
-      // Also clear any chart content directly from the DOM
       if (this.shadowRoot) {
         const chartDiv = this.shadowRoot.querySelector("#chart");
         if (chartDiv) {
-          chartDiv.innerHTML = "";
+          const keep = this._handoverNode;
+          if (keep && keep.parentNode === chartDiv) {
+            for (const child of Array.from(chartDiv.childNodes)) {
+              if (child !== keep) chartDiv.removeChild(child);
+            }
+          } else {
+            chartDiv.innerHTML = "";
+          }
         }
       }
     } catch (error) {
@@ -2747,6 +2825,7 @@ export class MeteogramCard extends LitElement {
         const existing = d3.select(chartDiv).select<SVGSVGElement>("svg");
         const preserve = useAspectRatio ? "xMidYMid meet" : "none";
         const reusable =
+          !this._adoptedSvg &&
           !existing.empty() &&
           existing.attr("width") === String(width) &&
           existing.attr("height") === String(height) &&
@@ -2760,7 +2839,11 @@ export class MeteogramCard extends LitElement {
         // both being "a fresh svg", which made the animation almost impossible to
         // observe: a forecast changes hourly and opening the editor rebuilds the card,
         // so first paint is the only trigger anyone can reach on demand.
-        this._chartResized = !existing.empty() && !reusable;
+        // An adopted chart is a placeholder, not a resize: replacing it is expected and
+        // must not be reported as the card having changed size.
+        this._chartResized = !existing.empty() && !reusable && !this._adoptedSvg;
+        const wasAdopted = this._adoptedSvg;
+        this._adoptedSvg = false;
         // Whether the chart the eye was looking at survived this draw.
         //
         // A rebuild replaces every element in one frame — no animation is possible and
@@ -2775,10 +2858,15 @@ export class MeteogramCard extends LitElement {
           // outlives a draw is an element that can be transitioned into its new shape.
           this.svg = existing;
         } else {
-          // Replace the old chart here, one statement before the new one exists, so the
-          // card is never left empty across an await.
-          if (this.svg && typeof this.svg.remove === "function") this.svg.remove();
-          chartDiv.innerHTML = "";
+          if (wasAdopted && this._handoverNode) {
+            // Keep the handover on screen; the replacement is drawn hidden beside it and
+            // the two are swapped in finally(), once the last drawer has run.
+          } else {
+            // Replace the old chart here, one statement before the new one exists, so the
+            // card is never left empty across an await.
+            if (this.svg && typeof this.svg.remove === "function") this.svg.remove();
+            chartDiv.innerHTML = "";
+          }
           this.svg = d3
             .select(chartDiv)
             .append("svg")
@@ -2786,6 +2874,9 @@ export class MeteogramCard extends LitElement {
             .attr("height", height)
             .attr("viewBox", `0 0 ${width} ${height}`)
             .attr("preserveAspectRatio", preserve); // Fill container, no aspect ratio
+          // visibility, not display: the drawers measure text, and a box with no layout
+          // reports every dimension as zero.
+          if (wasAdopted && this._handoverNode) this.svg.style("visibility", "hidden");
         }
 
         const targetHours = this.parseHoursConfig(this.meteogramHours);
@@ -2932,6 +3023,28 @@ export class MeteogramCard extends LitElement {
         }
       })
       .finally(() => {
+        // Show the replacement and drop the handover, in that order, so no frame exists
+        // with neither of them visible.
+        if (this._handoverNode) {
+          try {
+            this.svg?.style("visibility", null);
+            this._handoverNode.remove();
+          } catch {
+            /* the swap is cosmetic; a failure here must not sink the draw */
+          }
+          this._handoverNode = null;
+        }
+        // Hand this chart on to whatever element replaces this one.
+        try {
+          const node = (chartDiv as HTMLElement).querySelector("svg");
+          const w = Number(node?.getAttribute("width"));
+          const h = Number(node?.getAttribute("height"));
+          if (node && w > 0 && h > 0 && !this.meteogramError) {
+            MeteogramCard._rememberChart(this._renderSignature, node.outerHTML, w, h);
+          }
+        } catch {
+          /* nothing to hand over is not a failure */
+        }
         // How long the card showed nothing, recorded where the chart actually exists.
         //
         // This used to be taken beside _lastDrawnKey, which is set before a single

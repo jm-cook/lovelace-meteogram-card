@@ -114,11 +114,17 @@ const paced = await page.evaluate(async () => {
   // Keep asking, well past the settle, the way a slow mount does.
   const before = el.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
   const nag = setInterval(() => el._scheduleDrawMeteogram("test-nag"), 20);
+  // Wait for a *completed* draw, not merely for an svg to exist.
+  //
+  // "an svg with some nodes in it" used to be a fair proxy for "the chart is drawn". It
+  // is not any more: a replacement element inherits its predecessor's chart immediately,
+  // which is the whole point, so the proxy is satisfied within a frame and the test read
+  // its measurements before the real draw had started. _firstPaintMs is set in the
+  // draw's own finally(), so it means what the proxy used to mean.
   await new Promise((res) => {
     const started = performance.now();
     const tick = () => {
-      const svg = el.shadowRoot?.querySelector("#chart svg");
-      if (svg && svg.querySelectorAll("*").length > 50) res();
+      if (el._firstPaintMs !== null) res();
       else if (performance.now() - started > 20000) res();
       else requestAnimationFrame(tick);
     };
@@ -157,8 +163,7 @@ for (let i = 0; i < 3; i++) {
     await new Promise((res) => {
       const t0 = performance.now();
       const tick = () => {
-        const svg = el.shadowRoot?.querySelector("#chart svg");
-        if (svg && svg.querySelectorAll("*").length > 50) res();
+        if (el._firstPaintMs !== null) res();   // a finished draw, not just an svg
         else if (performance.now() - t0 > 20000) res();
         else requestAnimationFrame(tick);
       };

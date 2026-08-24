@@ -116,34 +116,17 @@ comes out `reused` rather than `rebuilt` — an update against elements that alr
 exist, which is also the path that can animate. The handover becomes seamless instead of
 a blank.
 
-**Attempted 2026-08-21 and parked again**, in `git stash` as "wip: svg handoff". Three
-things were established, and a fourth was not:
+**Done 2026-08-24.** The unexplained clear turned out to have nothing to do with the
+handoff: the IntersectionObserver fires as the element becomes visible, calls
+`_handleVisibilityChange`, and that reads a null `this.svg` as "there is no chart here"
+and calls `cleanupChart()`. An inherited chart arrives through `innerHTML` rather than
+d3, so `this.svg` genuinely is null while it is on screen — the placeholder was being
+swept away by a pre-existing cleanup path two frames after being adopted. `cleanupChart`
+now leaves the handover node alone; only the draw's own `finally()` removes it.
 
-1. *Keying on the render signature alone is right.* Keying on signature **and** drawn
-   size never matched once: the container at adoption is not the size the previous
-   element drew at, because it is measured before layout has settled — 846x444 against a
-   chart drawn at 846x404, every attempt. Scale the placeholder to the container instead
-   and let the real draw correct it.
-2. *The cache must be written in `finally()`*, not beside `_lastDrawnKey`. That runs
-   before the svg is built, so the first attempt cached nothing at all.
-3. *The placeholder must be out of flow from the moment it is adopted.* As an ordinary
-   flex child it sizes the container, the draw measures that, and removing the
-   placeholder shrinks the container back — so the handover manufactures the very second
-   draw it exists to prevent. `position:absolute; inset:0` at adoption time, not when the
-   draw later notices it.
-4. *Unresolved:* the adopted chart is visible for the first ~12ms and then the chart div
-   is emptied at ~14ms, before the replacement has drawn (~50ms). The div itself is not
-   replaced — its identity is stable across the whole sequence — so something is clearing
-   its children with `_adoptedSvg` already false. Three `_renderChart` calls are involved,
-   the second entering with the flag set and the third without. That third call is the
-   next thing to understand; instrument the flag at the `innerHTML = ""` site rather than
-   at entry.
-
-Keeping the placeholder alive until the *drawing* finishes — rather than until the new
-`<svg>` element exists — is necessary and was implemented: hold the old node out of flow,
-draw the replacement beside it under `visibility:hidden` (not `display:none`, or text
-measurement returns zero), and swap in `finally()`. That part is sound; it is item 4 that
-stops the whole thing working.
+Found by trapping the chart div's `innerHTML` setter and reading the synchronous stack.
+A MutationObserver was not enough — its callback runs detached from the caller, so the
+stack showed only the observer. Worth remembering for the next one of these.
 
 **What to be careful about.**
 

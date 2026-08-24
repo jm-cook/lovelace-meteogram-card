@@ -12,7 +12,7 @@
     "start": "npm run build && serve",
     "lint:fix": "eslint src --fix",
     "snapshot": "node test/snapshot.mjs",
-    "test:browser": "node test/sun-tap.mjs && node test/redraw.mjs && node test/join.mjs && node test/panel-growth.mjs && node test/panel-ratchet.mjs && node test/remount.mjs && node test/reconnect.mjs",
+    "test:browser": "node test/sun-tap.mjs && node test/redraw.mjs && node test/join.mjs && node test/panel-growth.mjs && node test/panel-ratchet.mjs && node test/remount.mjs && node test/reconnect.mjs && node test/handoff.mjs",
     "snapshot:capture": "node test/snapshot.mjs --capture",
     "test": "vitest run",
     "test:watch": "vitest"
