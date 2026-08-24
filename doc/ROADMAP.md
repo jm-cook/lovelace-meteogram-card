@@ -389,6 +389,65 @@ Whether the cloud band is redundant once a header illustration shows conditions.
 be judged until Phase 3 exists. Keep the data either way — the band is cheap and some
 users read it directly.
 
+## Phase 7 — A readout at a point · [#31](https://github.com/DTekNO/lovelace-meteogram-card/issues/31)
+
+Requested: click or hover a position and see the forecast for that hour, the way
+ApexCharts and the HA history card do. The reporter's own case is the strongest one —
+they were reading the wind and realised the barbs have to be decoded, with no way to ask
+the card what it actually meant.
+
+**This is not a side feature. It is the missing half of the clean look.** Everything above
+proposes removing value references: the grid goes, the temperature axis goes, the pressure
+axis goes, and in-place labels carry what is left. That trades a reference anyone can read
+at any point for a few labelled points — which is the right trade for glanceability, and
+leaves "what exactly is it at 3pm tomorrow" unanswerable. A readout answers it on demand
+without putting anything back on the chart. The two features argue for each other:
+subtraction is easier to justify when the detail is a tap away, and the readout is worth
+more once the axes are gone.
+
+So it should not wait for the clean look. Built first, it de-risks it.
+
+### What already exists
+
+More than it appears. The sun strip is a worked example of this exact interaction: a
+tap target per segment, a panel that positions itself, dismissal on a tap anywhere else,
+namespaced so it cannot clobber another handler, and `test/sun-tap.mjs` driving it in a
+real browser. A forecast readout is the same shape of thing over the whole plot rather
+than one band, and it should reuse that machinery rather than grow a second copy.
+
+### What has to be decided
+
+- **Hover and tap are not the same feature.** This card usually lives on a wall tablet,
+  where hover does not exist — the sun strip's times were `<title>` only and were
+  therefore unreachable on the device the card most often runs on. Whatever is built has
+  to work by tap, with hover as the desktop convenience. It cannot be a `<title>`.
+- **One panel or one per series.** The request offers both readings: every attribute at
+  that time, or a single box showing all of them. A single box is likely right — it is
+  one hit target rather than six overlapping ones, and it answers "what is this hour
+  like" rather than "what is this pixel".
+- **What the panel says when a field is missing.** Most entities publish neither
+  pressure nor a precipitation range, and met.no publishes the range only inside the
+  Nordic area. A readout makes absence visible in a way the chart never did — a chart
+  simply omits a curve, but a labelled panel with a blank row is conspicuous.
+- **Whether the panel survives a redraw.** The chart animates hourly and the forecast
+  advances underneath it. A panel pinned to an hour must either travel with that hour —
+  it is keyed on `d.t` like everything else — or dismiss itself. Silently retargeting to
+  whatever now occupies that x position would be the worst of the three.
+
+### The resolution problem, for the fourth time
+
+met.no is hourly for the first days and six-hourly after, and the x scale is by index. A
+tap two-thirds of the way along the plot does not land on an hour; it lands in a
+six-hour interval, and the honest answer there is a range or a coarser label, not a
+confident single hour. Nearest-point snapping would return an exact-looking time that is
+up to three hours out.
+
+This is the fourth design decision the resolution change has driven, after in-place
+labelling, the wind band and the pressure window. It is now a property of the data that
+every feature has to accommodate, and it is the first thing to check in any new one.
+
+---
+
 ---
 
 ## Order
@@ -403,6 +462,11 @@ users read it directly.
 4. **Phases 2/3 — header.** Largest, touches the layout model, and the pressure trend
    probably wants to live in it — so it may pull earlier once pressure is decided.
 5. **Phase 6 — cloud cover.** Decide after the header exists.
+
+**Phase 7 — the readout** sits outside that sequence and could come first. It is
+independent of everything above, it is the one item requested by a user rather than
+chosen from inside, and it strengthens the argument for the clean look rather than
+depending on it. The sun strip already carries most of the machinery.
 
 ## Constraints that apply to all of it
 
