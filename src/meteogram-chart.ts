@@ -1453,23 +1453,42 @@ export class MeteogramChart {
             // Ensure no area fill, let CSS handle stroke
             (sel: any) => sel.attr("fill", "none")).datum(pressure);
 
-        // Draw right-side pressure axis
-        const pressureDomain = yPressure.domain();
-        const minPressure = Math.ceil(pressureDomain[0] / 10) * 10; // Round to nearest 10
-        const maxPressure = Math.floor(pressureDomain[1] / 10) * 10; // Round to nearest 10
-        const pressureTicks = [];
-        for (let p = minPressure; p <= maxPressure; p += 10) { // Increment by 10 instead of 1
-            pressureTicks.push(p);
-        }
-        chart.append("g")
-            .attr("class", "pressure-axis")
-            .attr("transform", `translate(${this.card._chartWidth}, 0)`)
-            .call(d3.axisRight(yPressure)
-                .tickValues(pressureTicks)
-                .tickFormat(d3.format('d') as any));
+        // Right-side pressure axis — only where there is room for one.
+        //
+        // The compact modes reserve 40px on the right, which is one weather icon: the
+        // last icon is centred on the final hour, so half of it overhangs the plot and
+        // the other half of the margin keeps it off the card edge. The axis was drawn
+        // into that same strip — d3.axisRight sits at the plot edge and its four-digit
+        // labels reach 32px past it, against the icon's 20px — so the two overlapped,
+        // and the last icon was rendered on top of the tick numbers.
+        //
+        // Widening the margin cannot fix that. It moves the plot edge left and takes the
+        // icon and the labels with it, still both measured from the same edge. Either
+        // the icons stop overhanging, which is the thing the 40px exists to allow, or
+        // the axis goes. In core and focussed the axis goes: the caption was already
+        // suppressed in both, so it was half-absent as it stood, and what those modes
+        // keep — the shape of the curve — is the part that carries meaning. The value it
+        // is read against is not something a household reader has the context to use.
+        //
+        // Full mode is unchanged: it reserves 70px, enough for the labels and the
+        // caption beyond the icon, and it is the mode for people who want the numbers.
+        const showPressureAxis =
+            !this.card.focussed && this.card.displayMode !== "core";
+        if (showPressureAxis) {
+            const pressureDomain = yPressure.domain();
+            const minPressure = Math.ceil(pressureDomain[0] / 10) * 10; // Round to nearest 10
+            const maxPressure = Math.floor(pressureDomain[1] / 10) * 10; // Round to nearest 10
+            const pressureTicks = [];
+            for (let p = minPressure; p <= maxPressure; p += 10) { // Increment by 10 instead of 1
+                pressureTicks.push(p);
+            }
+            chart.append("g")
+                .attr("class", "pressure-axis")
+                .attr("transform", `translate(${this.card._chartWidth}, 0)`)
+                .call(d3.axisRight(yPressure)
+                    .tickValues(pressureTicks)
+                    .tickFormat(d3.format('d') as any));
 
-        // Always draw axis label (if not in focussed mode)
-        if (!this.card.focussed && this.card.displayMode !== "core") {
             chart.append("text")
                 .attr("class", "axis-label")
                 .attr("text-anchor", "middle")
