@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2026.8.3] - 2026.08.24
 
 ### Added
-- **Diagnostics** - A "Copy diagnostics" button** in the status panel, when `diagnostics: true`.The information panel reports the card's setup, lists recent redraw sand which build it is running. This is useful if you encounter a problem and need to communicate rich information to the author.
+- **Diagnostics** - A "Copy diagnostics" button in the status panel, when `diagnostics: true`. The information panel reports the card's setup, lists recent redraws and which build it is running. This is useful if you encounter a problem and need to communicate rich information to the author.
 
 ### Changed
 - **A small change of size no longer redraws the chart.** Opening the dashboard editor takes about ten pixels of width and a hundred of height from a card — around one and a half percent — and redrawing for that replaces every element in one frame, which reads as a jump to correct a difference too small to see. Changes within four percent of the size the chart was last drawn at are absorbed by scaling what is already on screen.
