@@ -2856,6 +2856,9 @@ export class MeteogramCard extends LitElement {
         `${MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
           `${availableWidth}\u00D7${availableHeight} \u2192 ${width}\u00D7${height}`
       );
+      // Scaling stretches the svg, so the label the icon is measured against has moved
+      // even though nothing was redrawn.
+      this._alignAttributionIcon();
       this._amendLastNote("drew", "scaled");
       this._debugLog(
         `[${CARD_NAME}] _renderChart: scaled the existing chart to ${width}x${height} ` +
@@ -2977,7 +2980,6 @@ export class MeteogramCard extends LitElement {
         this._lastDrawnKey = drawKey;
         this._reattachDraw = false;
         MeteogramCard._pageHasDrawn = true;
-        this._alignAttributionIcon();
 
         // Stage 1 of animating updates: the <svg> element itself survives a redraw.
         //
@@ -3229,6 +3231,15 @@ export class MeteogramCard extends LitElement {
         // report the moment something appeared. It read 3ms against a real gap of about
         // 23ms, which is the wrong direction for a number whose only job is to tell
         // someone whether a blink they think they saw was real.
+        // After the drawers, because it measures one of their outputs.
+        //
+        // It used to run beside _lastDrawnKey, some eight hundred lines before
+        // drawDateLabels — so it measured the *previous* draw's label, or nothing at all
+        // on a first draw, and fell back to a fixed 24px from the top. Wrong by a little
+        // whenever the layout shifted, and wrong by a lot on a narrow card, where the
+        // icon ended up level with the middle of the temperature axis rather than with
+        // the date it is supposed to sit beside.
+        this._alignAttributionIcon();
         if (this._firstPaintMs === null) {
           this._firstPaintMs = Date.now() - this._createdAt;
         }
