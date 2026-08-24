@@ -11,9 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Diagnostics** - A "Copy diagnostics" button** in the status panel, when `diagnostics: true`.The information panel reports the card's setup, lists recent redraw sand which build it is running. This is useful if you encounter a problem and need to communicate rich information to the author.
 
 ### Changed
+- **A small change of size no longer redraws the chart.** Opening the dashboard editor takes about ten pixels of width and a hundred of height from a card — around one and a half percent — and redrawing for that replaces every element in one frame, which reads as a jump to correct a difference too small to see. Changes within four percent of the size the chart was last drawn at are absorbed by scaling what is already on screen.
 - **The information panel no longer calls optional forecast fields "missing".** It says they are not provided by your source, and no longer prints them in error red. Most weather sources supply only some of the optional fields — met.no publishes the precipitation range only inside the Nordic area, for instance — so seeing a few listed is the normal case, not a fault.
 
 ### Fixed
+- **The information icon stays level with the date labels** instead of drifting as the card is resized.
+- **Turning off the pressure curve now widens the chart**, rather than leaving the space its scale used.
+- **A card using your Home Assistant location now uses your Home Assistant elevation too**, which is what the documentation has always described. met.no recommends supplying an altitude; without one it falls back to a coarse global elevation model.
+- **Editing a dashboard no longer leaves the card redrawing itself afterwards.** Every trip in and out of edit mode left another set of event listeners behind, which also kept the discarded card in memory.
 - **A card that Home Assistant rebuilds no longer flashes empty.** 
 - **The card appears about five times faster.** 
 - **Returning to a backgrounded tab no longer shows two redraws in a row.** 
