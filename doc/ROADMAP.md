@@ -86,7 +86,42 @@ Candidate: write the values on the curve and drop the axis.
   very different ranges the curve shape is misleading without one — a flat-looking day
   might span ten degrees.
 
-### Pressure — remove the curve, keep the signal
+### Pressure — a trend strip, not a curve
+
+Measured against the recorded forecast, which settles why the curve reads as noise:
+
+- It spans **21.1 hPa** (998.3 to 1019.4) across the file. An hour's change is typically
+  0.3 hPa — about 1.4% of the plot height. Invisible by construction.
+- The absolute value is not information a household reader can use. 1008 against 1009
+  means nothing without a barometer's worth of context.
+- Only **21 of 85** hours reach the conventional 1.6 hPa/3h threshold for a
+  "rising/falling" call. Three quarters of the time the honest answer is *steady*, which
+  a curve cannot say and a label can.
+
+**The proposal: a thin trend strip, in the same vocabulary as the sun strip.** Spans of
+rising / steady / falling rather than a line, so it answers "is it coming or going" and
+does not pretend to be readable to a value. Everything already exists to draw it — the
+sun strip is the same shape of thing, and `layout.ts` already knows how to reserve a band.
+
+**One thing that has to be right, and was not obvious.** The window used to compute the
+trend must scale with the forecast's own resolution. met.no is hourly for the first days
+and 6-hourly after; a fixed 6-hour window spans several samples early and exactly one
+sample late, so late in the forecast it flips between just-over and just-under the
+threshold on every step. Measured: a fixed window gives **31 runs** and looks like
+confetti, of which most of the tail is an artefact of sampling rather than weather.
+
+Scaling the window to at least four samples and at least six hours gives **14 runs**,
+dominated by long spans — 23h falling, 15h falling, 24h rising, 54h rising, 42h steady.
+That reads.
+
+This is the third place the resolution change has driven a design decision, after the
+in-place labelling and the wind band. It is not a detail of Phase 5; it is a property of
+the data that everything else has to accommodate.
+
+Worth keeping `show_pressure` so the curve remains available for anyone who wants it,
+on the same reasoning as the wind barbs.
+
+### Pressure — the original note
 
 The pressure trace goes. It is a second y axis, a second curve, and a second legend for
 something most users do not read, and it is a large share of the clutter for a small
