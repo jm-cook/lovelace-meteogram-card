@@ -375,6 +375,17 @@ export class MeteogramCard extends LitElement {
   /** How long this element showed nothing before its first chart appeared. */
   private _firstPaintMs: number | null = null;
   /**
+   * When a handed-over chart went up, as an age of this element — or null if none did.
+   *
+   * "blank" was measuring element creation to first completed draw, which stopped being
+   * the same thing as an empty card once a replacement could inherit its predecessor's
+   * chart. A card reporting `blank 46ms` beside a log full of `rebuilt (held)` was not
+   * blank for 46ms; it was blank until the placeholder went up and showing a chart for
+   * the rest. Splitting the two makes "was anything visibly missing" answerable from a
+   * pasted report, rather than from whether someone happened to be watching.
+   */
+  private _heldFromMs: number | null = null;
+  /**
    * The last few draws, for the diagnostics panel.
    *
    * A card that grows without limit is diagnosed from a handful of numbers — the
@@ -1051,7 +1062,15 @@ export class MeteogramCard extends LitElement {
     // for it, which is the whole of what is perceived.
     const cardAge =
       `card created ${this._stamp(new Date(this._createdAt))}` +
-      (this._firstPaintMs !== null ? `, blank ${this._firstPaintMs}ms` : ", not yet drawn");
+      (this._firstPaintMs === null
+        ? ", not yet drawn"
+        : this._heldFromMs === null
+          ? `, blank ${this._firstPaintMs}ms`
+          // Two numbers because they answer different questions: the first is how long
+          // the card showed nothing, the second how long it showed the outgoing chart
+          // before its own replaced it. Only the first is a defect.
+          : `, blank ${this._heldFromMs}ms then held ` +
+            `${Math.max(0, this._firstPaintMs - this._heldFromMs)}ms`);
     const tail = [ha, screen, `page loaded ${pageAge}`, cardAge]
       .filter(Boolean)
       .join(" \u00B7 ");
@@ -1937,6 +1956,9 @@ export class MeteogramCard extends LitElement {
     node.setAttribute("height", String(drawn.h));
     this._adoptedSvg = true;
     this._handoverNode = node;
+    if (this._heldFromMs === null) {
+      this._heldFromMs = Date.now() - this._createdAt;
+    }
     this._debugLog(`[${CARD_NAME}] adopted previous chart (drawn ${held.w}x${held.h})`);
   }
 

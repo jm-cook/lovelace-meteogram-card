@@ -79,6 +79,27 @@ check(seamless.adopted, "a replacement shows the previous chart on its first fra
 check(!seamless.everEmpty, "and is never empty while drawing its own",
   seamless.frames.join(","));
 
+// ── 1b. and the report says so, without needing anyone to have been watching ──
+// "blank" used to mean element-creation to first completed draw, which stopped being
+// the same thing as an empty card once a replacement could inherit a chart. A card
+// reporting `blank 46ms` beside a log of `rebuilt (held)` was showing the outgoing
+// chart for nearly all of it. The two are now reported separately, so a pasted
+// diagnostic answers "was anything visibly missing" on its own.
+const held = await page.evaluate(() => {
+  const el = document.querySelector("meteogram-card");
+  el.diagnostics = true;          // the setup line carries the timings only when on
+  return { heldFrom: el._heldFromMs, firstPaint: el._firstPaintMs,
+    line: el._setupHtml().replace(/<[^>]+>/g, " ") };
+});
+check(held.heldFrom !== null, "the handover moment is recorded",
+  `heldFrom ${held.heldFrom}ms`);
+check(held.heldFrom <= held.firstPaint,
+  "the chart went up no later than the draw completed",
+  `${held.heldFrom} <= ${held.firstPaint}`);
+check(/blank \d+ms then held \d+ms/.test(held.line),
+  "the setup line splits blank from held",
+  (held.line.match(/blank[^\u00B7]*/) ?? ["not found"])[0].trim());
+
 // ── 2. a differently configured card is not handed the wrong chart ───────────
 const other = await page.evaluate(async (CFG) => {
   const first = document.querySelector("meteogram-card");
