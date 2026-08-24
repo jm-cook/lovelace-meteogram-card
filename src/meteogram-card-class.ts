@@ -58,6 +58,12 @@ export type MeteogramStyleConfig = Record<string, string> & {
 const MIN_DRAWABLE_WIDTH = 120;
 const MIN_DRAWABLE_HEIGHT = 40;
 
+// How far the chart may be scaled from the size it was actually drawn at before a real
+// redraw is required. Four percent covers what the dashboard editor's chrome costs a card
+// — measured at 1.5% of width and 1.6% of height in a panel — while staying well inside
+// the range where scaled type is indistinguishable from type set at the target size.
+const MAX_SCALE_ONLY_DRIFT = 0.04;
+
 @customElement("meteogram-card")
 export class MeteogramCard extends LitElement {
   private _chartRenderer: MeteogramChart | null = null;
@@ -342,6 +348,12 @@ export class MeteogramCard extends LitElement {
   private _hasDrawnOnce = false;
   /** Config signature and size the chart currently on screen was drawn from. */
   private _lastDrawnKey = "";
+  /**
+   * The draw key without its size, so a redraw can tell "only the size changed" from
+   * "the forecast or a setting changed". Only the first is eligible to be scaled rather
+   * than redrawn; see the scale shortcut in _renderChart.
+   */
+  private _lastDrawnDataKey = "";
   /** True while redrawing after a size change — see _renderChart. */
   _chartResized = false;
   /** True while this element draws for the first time on a page that has already drawn.
@@ -1345,23 +1357,20 @@ export class MeteogramCard extends LitElement {
       this._setupVisibilityObserver();
       this._setupMutationObserver();
 
-      // Also handle browser tab visibility changes
-      document.addEventListener(
-        "visibilitychange",
-        this._onVisibilityChange.bind(this)
-      );
+      // No .bind() on any of these three. They are arrow-function class fields, so the
+      // reference is already stable and per-element — and bind() returns a NEW function
+      // every call, so the pair "add bind(x)" / "remove bind(x)" adds one object and then
+      // asks to remove a different one that was never registered. Home Assistant detaches
+      // and re-attaches the same element on every edit-mode round trip, so each trip left
+      // two more live listeners behind: measured 1 before, 11 after five trips, and all
+      // eleven still firing after the card had been removed from the document.
+      document.addEventListener("visibilitychange", this._onVisibilityChange);
 
       // Handle page/panel navigation events
-      window.addEventListener(
-        "location-changed",
-        this._onLocationChanged.bind(this)
-      );
+      window.addEventListener("location-changed", this._onLocationChanged);
 
       // Handle orientation changes (screen rotation)
-      window.addEventListener(
-        "orientationchange",
-        this._onOrientationChange.bind(this)
-      );
+      window.addEventListener("orientationchange", this._onOrientationChange);
 
       // Handle re-entry into DOM after being removed temporarily
       if (this.isConnected) {
@@ -1411,18 +1420,9 @@ export class MeteogramCard extends LitElement {
       this._weatherEntityApiInstance = null;
     }
 
-    document.removeEventListener(
-      "visibilitychange",
-      this._onVisibilityChange.bind(this)
-    );
-    window.removeEventListener(
-      "location-changed",
-      this._onLocationChanged.bind(this)
-    );
-    window.removeEventListener(
-      "orientationchange",
-      this._onOrientationChange.bind(this)
-    );
+    document.removeEventListener("visibilitychange", this._onVisibilityChange);
+    window.removeEventListener("location-changed", this._onLocationChanged);
+    window.removeEventListener("orientationchange", this._onOrientationChange);
     document.removeEventListener("click", this._onDocumentClick, true);
 
     this.cleanupChart();
@@ -2682,6 +2682,7 @@ export class MeteogramCard extends LitElement {
       this._chartRenderInProgress = false;
       return;
     }
+    const wasForced = this._forceNextDraw;
     this._forceNextDraw = false;
 
     if (availableWidth < MIN_DRAWABLE_WIDTH || availableHeight < MIN_DRAWABLE_HEIGHT) {
@@ -2740,6 +2741,61 @@ export class MeteogramCard extends LitElement {
         ? availableWidth : (chartDiv as HTMLElement).offsetWidth;
       height = availableHeight > 0
         ? availableHeight : (chartDiv as HTMLElement).offsetHeight;
+    }
+
+    // A small size change is scaled, not redrawn.
+    //
+    // Entering the dashboard editor wraps the card in hui-card-options, which costs it
+    // about ten pixels of width and a hundred of height. In a panel that measured
+    // 675x952 -> 665x839 of container, so the chart went 675x380 -> 665x374: 1.5% narrower
+    // and 1.6% shorter. Rebuilding for that replaces every element in the chart in a
+    // single frame, which is visible as a pop — a redraw's worth of disruption to correct
+    // a difference too small to see.
+    //
+    // The svg is written with a viewBox equal to the size it was drawn at, so the browser
+    // will do this for nothing: change width and height, leave the viewBox alone, and the
+    // existing chart scales. One attribute pair, no DOM replacement, no animation.
+    //
+    // The viewBox is also why no new state is needed to bound the drift. It records the
+    // last size actually rendered, so measuring the tolerance against it — rather than
+    // against the last scaled size — means repeated small changes can never accumulate:
+    // every one of them is judged against the same true render, and anything beyond the
+    // tolerance falls through to a real draw. Returning to the drawn size, which is what
+    // leaving the editor does, lands back on the viewBox exactly and is pixel-perfect
+    // again.
+    //
+    // Deliberately not applied when the chart is an adopted placeholder (it carries no
+    // bound data and must be replaced by a real draw), when the draw was forced, or when
+    // anything other than the size has changed.
+    const scaleOnly = (() => {
+      if (wasForced || this._adoptedSvg) return false;
+      const dataKey = `${this._renderSignature}|${dataStamp}`;
+      if (dataKey !== this._lastDrawnDataKey) return false;
+      const node = chartDiv.querySelector("svg") as SVGSVGElement | null;
+      if (!node) return false;
+      const box = (node.getAttribute("viewBox") ?? "").split(/\s+/).map(Number);
+      if (box.length !== 4 || !(box[2] > 0) || !(box[3] > 0)) return false;
+      const dw = Math.abs(width - box[2]) / box[2];
+      const dh = Math.abs(height - box[3]) / box[3];
+      if (dw > MAX_SCALE_ONLY_DRIFT || dh > MAX_SCALE_ONLY_DRIFT) return false;
+      node.setAttribute("width", String(width));
+      node.setAttribute("height", String(height));
+      return true;
+    })();
+    if (scaleOnly) {
+      this._lastDrawnKey = drawKey;
+      this._note(
+        "drew",
+        `${MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
+          `${availableWidth}\u00D7${availableHeight} \u2192 ${width}\u00D7${height}`
+      );
+      this._amendLastNote("drew", "scaled");
+      this._debugLog(
+        `[${CARD_NAME}] _renderChart: scaled the existing chart to ${width}x${height} ` +
+          `instead of redrawing it.`
+      );
+      this._chartRenderInProgress = false;
+      return;
     }
 
     // Same numbers as the debug line below, kept for the diagnostics panel so they can
@@ -2846,6 +2902,10 @@ export class MeteogramCard extends LitElement {
           const stamp =
             (this._weatherApiInstance as any)?._lastFetchTime ?? this.apiExpiresAt ?? 0;
           drawKey = `${this._renderSignature}|${availableWidth}x${availableHeight}|${stamp}`;
+          // The same post-fetch stamp, for the same reason. Built from the stale one the
+          // top of this method computed, the size-independent key never matched on the
+          // draw after a fetch, and the scale shortcut could not fire at all.
+          this._lastDrawnDataKey = `${this._renderSignature}|${stamp}`;
         }
         this._lastDrawnKey = drawKey;
         this._reattachDraw = false;
@@ -2890,7 +2950,18 @@ export class MeteogramCard extends LitElement {
         // the difference between a draw that is perceived and one that is not, and it
         // was nowhere in the log: someone reporting a flash could only say it looked
         // like the chart "did something", with no way to tell which kind of draw it was.
-        this._amendLastNote("drew", reusable ? "reused" : "rebuilt");
+        //
+        // "held" is the third case and the one that matters most in a blink report: the
+        // chart was rebuilt, but a placeholder stood in its place while that happened, so
+        // nothing was ever blank. Without it the two cases that look completely different
+        // to the eye — a rebuild behind a held chart and a rebuild from an empty div —
+        // both print "rebuilt", and a log showing an edit-mode round trip gives no way to
+        // tell whether the handoff fired. It was in _debugLog only, which is the console,
+        // which is exactly where a diagnostics report cannot reach.
+        this._amendLastNote(
+          "drew",
+          reusable ? "reused" : wasAdopted ? "rebuilt (held)" : "rebuilt"
+        );
         if (reusable) {
           // Not cleared. Every drawer owns a named layer and clears only its own, so
           // the groups survive the redraw — which is the whole point: an element that
