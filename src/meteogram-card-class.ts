@@ -1160,12 +1160,20 @@ export class MeteogramCard extends LitElement {
       if (w < MIN_DRAWABLE_WIDTH || h < MIN_DRAWABLE_HEIGHT) return "";
       return `${this._renderSignature}|${w}x${h}`;
     };
+    let firstLook = true;
     const tick = () => {
       this._sizeWatch = null;
       if (!this.isConnected) return;          // removed while waiting; nothing to draw into
       const now = measure();
-      if (now && now === last) stable++;
+      // A plausible synchronous measurement is evidence, not a first data point: layout
+      // has run and this is what it produced. Waiting for a second frame to agree only
+      // guards against a size that changes immediately afterwards, and the draw key
+      // already covers that — it carries the measured size, so a genuine change redraws
+      // and an identical one is skipped as "nothing changed".
+      if (firstLook && now) stable = MeteogramCard._STABLE_FRAMES;
+      else if (now && now === last) stable++;
       else stable = now ? 1 : 0;
+      firstLook = false;
       last = now;
       if (stable >= MeteogramCard._STABLE_FRAMES || Date.now() >= deadline) {
         this._debugLog(
@@ -1177,7 +1185,19 @@ export class MeteogramCard extends LitElement {
       }
       this._sizeWatch = requestAnimationFrame(tick);
     };
-    this._sizeWatch = requestAnimationFrame(tick);
+    // Measure now, not on the next frame.
+    //
+    // Reading clientWidth forces the browser to compute layout, so the answer here is
+    // the truth at this instant rather than a guess about it — and it is available:
+    // probed across a rebuild, the container reports its final size 0.6ms after the
+    // first render and holds it unchanged for the next five hundred milliseconds.
+    //
+    // Starting the loop on a frame instead cost the whole wait. Under the load of a
+    // rebuild the frames are far apart, and two of them put the first draw 28ms out on
+    // a 60ms blank — more than the drawing itself took. If the first synchronous
+    // measurement is already plausible there is nothing left to wait for; if it is not,
+    // the frame loop below runs exactly as it did.
+    tick();
   }
 
   private _layer(parent: any, name: string, clear: boolean = true): any {
@@ -2434,9 +2454,14 @@ export class MeteogramCard extends LitElement {
     // it, so every redraw flashed blank. It is replaced at the moment the new one is
     // built instead, further down.
 
-    // Ensure we have a clean update cycle before accessing the DOM again
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
+    // No sleep here.
+    //
+    // This was ten milliseconds of "ensure we have a clean update cycle before accessing
+    // the DOM again", but `await this.updateComplete` two lines above is that guarantee,
+    // and the branch immediately below is the real safety net: if the chart div is
+    // missing it re-renders, awaits, waits fifty milliseconds and looks again. The sleep
+    // covered nothing the retry does not, and it was paid on every draw — ten of the
+    // thirty-five milliseconds before a rebuilt card showed anything.
     const chartDiv = this.shadowRoot?.querySelector("#chart");
     if (!chartDiv) {
       console.error("Chart container not found in DOM");
