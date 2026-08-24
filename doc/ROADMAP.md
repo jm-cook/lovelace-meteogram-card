@@ -121,6 +121,89 @@ the data that everything else has to accommodate.
 Worth keeping `show_pressure` so the curve remains available for anyone who wants it,
 on the same reasoning as the wind barbs.
 
+#### The standard vocabulary — and why it cannot be used as written
+
+There *is* a defined scale, confirmed against the Met Office's own tables. It belongs to
+the synoptic station report, so it is a trailing three-hour measure of an observed
+barometer:
+
+| Term | Change in the preceding three hours |
+|---|---|
+| rising / falling **slowly** | 0.1 – 1.5 hPa |
+| rising / falling | 1.6 – 3.5 hPa |
+| rising / falling **quickly** | 3.6 – 6.0 hPa |
+| rising / falling **very rapidly** | more than 6.0 hPa |
+| rising / falling **more slowly** | still moving the same way, at a progressively slower rate |
+| **now** rising / falling | was falling (rising) or steady, but at observation time definitely turned |
+
+The published table is worth reading carefully: its *very rapidly* row carries the
+description of the **reversal** case, not a magnitude, so the two bottom rows appear to
+have merged somewhere in reproduction. Either reading rules the term out for us — see the
+decision below.
+
+The Shipping Forecast does not use this. Its synopsis describes a *system* — position,
+central pressure, and movement in knots (*slowly* under 15, *steadily* 15–25, *rather
+quickly* 25–35, *rapidly* 35–45, *very rapidly* over 45) — plus **deepening** and
+**filling** for the low itself. None of it transfers to pressure at one point.
+
+**Applied to the recorded forecast the station scale collapses.** The largest three-hour
+change anywhere in the hourly region is **1.4 hPa**, so every hour lands in the lowest
+band: 48 h *falling slowly*, 6 h *rising slowly*, 1 h *steady*. The thresholds are
+calibrated for a barometer reading, where 0.1 hPa is real; a forecast is smoothed, so its
+three-hour deltas are systematically smaller and the scale never leaves its floor.
+
+Nor can *rapidly* ever fire on a two-day view: the steepest sustained rate in the whole
+ten-day file is **5.4 hPa/day**, against a WMO "rapidly" of 16 hPa/day.
+
+**Conclusion — borrow the words, recalibrate the numbers.** *Falling slowly* is what a
+reader recognises, but 0.1 hPa is not the threshold that makes it true of a forecast.
+And the two useful terms here are the ones that are not numeric: *more slowly* and *now
+rising* describe the turn, which is the thing a household reader actually wants.
+
+#### Two measures, two jobs
+
+They should not compete for the same slot:
+
+- **A three-hour tendency, standard scale, as a *now* reading** — one glyph plus a word,
+  in the header or the tooltip. This is where the official vocabulary is honest, because
+  it is being used for what it was defined for.
+- **A long centred window for the strip.** The barometer analogy holds: what matters is
+  which side of the needle you are on, and with forecast data ahead of us the strip can
+  commit to a direction until it actually changes, rather than re-deciding hourly.
+
+The graded-depth treatment (colour depth tracking rate, rather than named bands) came out
+of this: it shows *more slowly* as a fade without needing a threshold to cross.
+
+#### Decided: three bands, a steady, and a taper
+
+- **Three magnitude bands plus steady**, in the standard's own words — *steady*, *rising /
+  falling slowly*, *rising / falling*, *rising / falling quickly*.
+- **Thresholds recalibrated to 0.8 / 2.5 / 4.0 hPa per day** over the centred two-day
+  window. On the recorded forecast that gives 28 hours steady, then 63, 101 and 45 — all
+  four populated, where the published thresholds put 100% of it in one band.
+- **`very rapidly` is dropped.** As a magnitude it is 6 hPa/3h — 48 per day, against a
+  forecast maximum of 5.4, so it could never fire. As the table's own description has it,
+  it is a reversal rather than a rate and belongs with *now rising*, not on an intensity
+  ladder. Either way it earns no colour.
+- **The published bands stay unaltered for the header's *now* reading.** Only the strip's
+  thresholds move. A three-hour tendency at one moment is exactly what the scale was
+  defined to measure, so it should say *falling slowly* when a barometer would.
+- **`more slowly` is a modifier, not a band.** It applies on top of the other three — you
+  can be falling quickly more slowly — so giving it a colour would steal hours from the
+  bands and the strip would stop meaning intensity. It is drawn as a lightening of
+  whichever band is already there.
+- **Drawing rules, both learned the hard way.** Draw each band run as one solid rect, not
+  as translucent hour-cells over a base — an overlay leaks the base through every
+  antialiased seam and the strip comes out looking hatched. And enforce a **four-hour
+  minimum run**: a band that holds for a single hour is a rounding artefact, and at strip
+  width it draws as a sliver that reads as a rendering fault.
+- **The ramp inverts between themes.** On light, deeper colour is the stronger band; on
+  dark, deeper disappears into the ground, so stronger has to mean brighter.
+- **The taper must be measured against the run, not the previous hour.** Comparing
+  neighbours makes it flicker on and off hour by hour, which is the same confetti the long
+  window was chosen to avoid. Taken as a fade from each run's peak toward its end it is
+  monotone: the deep fall through d1 pales as it bottoms out, the long climb fades from d6.
+
 ### Pressure — the original note
 
 The pressure trace goes. It is a second y axis, a second curve, and a second legend for
