@@ -58,6 +58,20 @@ export type MeteogramStyleConfig = Record<string, string> & {
 const MIN_DRAWABLE_WIDTH = 120;
 const MIN_DRAWABLE_HEIGHT = 40;
 
+// What has to fit to the right of the plot. Measured from the render rather than
+// reasoned about, because the three cases differ by more than they look.
+//
+// A weather icon is 40px wide and the last one is centred on the final hour, so half of
+// it — 20px — hangs past the plot edge. That happens in every mode and is deliberate:
+// the icons are allowed to overhang. Hour labels reach nothing, being inset.
+const RIGHT_ICON_OVERHANG = 24;
+// The pressure axis starts at the plot edge and its four-digit labels reach 31.7px.
+// Kept at 40 rather than trimmed to the measurement: the width depends on the theme's
+// font, and 8px of slack is what absorbs a larger one.
+const RIGHT_PRESSURE_AXIS = 40;
+// Plus the rotated caption, which reaches 63px and is drawn in full mode only.
+const RIGHT_PRESSURE_CAPTION = 70;
+
 // How far the chart may be scaled from the size it was actually drawn at before a real
 // redraw is required. Four percent covers what the dashboard editor's chrome costs a card
 // — measured at 1.5% of width and 1.6% of height in a panel — while staying well inside
@@ -3533,31 +3547,46 @@ export class MeteogramCard extends LitElement {
     // In focussed mode, remove top margin for legends
 
     // Adjust margins based on focussed mode, pressure axis, and displayMode
+    // The right margin follows what is actually drawn there, not the display mode.
+    //
+    // It used to be a constant per mode, and the two were only accidentally related:
+    // core and focussed reserved 40 whether or not a pressure axis existed, so switching
+    // show_pressure off in those modes gave nothing back — the space looked empty but
+    // was never the axis's to return. Full reserved 40 without the axis and 70 with it,
+    // which was right by coincidence of having the case split at all.
+    //
+    // Deciding it from the content makes the no-axis saving apply everywhere: 40px for
+    // an overhang that measures 20.
+    //
+    // The caption condition mirrors drawPressureAxis exactly. Two copies of one rule is
+    // how the margin and the drawing drifted apart in the first place, so if a third
+    // reader appears it should become a shared predicate rather than a third copy.
+    const pressureCaption =
+      pressureAvailable && !this.focussed && this.displayMode !== "core";
+    const rightMargin = pressureCaption
+      ? RIGHT_PRESSURE_CAPTION
+      : pressureAvailable
+        ? RIGHT_PRESSURE_AXIS
+        : RIGHT_ICON_OVERHANG;
+
     if (this.displayMode === "core") {
       this._margin = {
         top: 50,
-        right: 40,
+        right: rightMargin,
         bottom: hourLabelBand + 10,
         left: 40,
       };
     } else if (this.focussed) {
       this._margin = {
         top: 10,
-        right: 40,
+        right: rightMargin,
         bottom: hourLabelBand + 10,
         left: 40,
-      };
-    } else if (!pressureAvailable) {
-      this._margin = {
-        top: 70,
-        right: 40,
-        bottom: hourLabelBand + 10,
-        left: 70,
       };
     } else {
       this._margin = {
         top: 70,
-        right: 70,
+        right: rightMargin,
         bottom: hourLabelBand + 10,
         left: 70,
       };
