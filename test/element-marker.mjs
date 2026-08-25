@@ -107,7 +107,7 @@ const tally = await page.evaluate(() => {
   const c = document.querySelector("meteogram-card");
   c.diagnostics = true;
   const line = c._setupHtml().replace(/<[^>]+>/g, " ");
-  const m = /draws since load: ([^\u00B7]*?)\s+In:/.exec(line + " In:");
+  const m = /draws on this page since load: ([^\u00B7]*?)\s+In:/.exec(line + " In:");
   return {
     text: m ? m[1].trim() : null,
     raw: Object.fromEntries(c.constructor._drawTally),

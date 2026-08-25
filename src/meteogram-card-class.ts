@@ -1156,7 +1156,12 @@ export class MeteogramCard extends LitElement {
       .join(", ");
     const tail = [
       ha, screen, `page loaded ${pageAge}`, cardAge,
-      tally ? `draws since load: ${tally}` : null,
+      // "on this page", because it is: the tally is static, like the list below it, so
+      // with two cards on a dashboard each panel reports both. That is the useful
+      // scope — the question is what is redrawing, not which element did it, and the
+      // element numbers on the lines answer the latter — but the label has to say so or
+      // the numbers read as this card's alone.
+      tally ? `draws on this page since load: ${tally}` : null,
     ]
       .filter(Boolean)
       .join(" \u00B7 ");
