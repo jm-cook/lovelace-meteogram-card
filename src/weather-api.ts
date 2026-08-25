@@ -122,6 +122,68 @@ export class WeatherAPI {
         return this._forecastData;
     }
 
+
+    /**
+     * How long this response stays valid, measured as a duration rather than a moment.
+     *
+     * The cache's whole protection is `Date.now() < this._expiresAt`, and storing the
+     * Expires header's absolute time made that comparison depend on the client's clock
+     * being right. It often is not. This card's usual home is a wall panel, and a
+     * Raspberry Pi running a browser full-screen has no battery-backed clock: it boots at
+     * whatever time it last knew and stays there until NTP catches up. A device an hour
+     * fast fails the expiry check on every single draw and refetches every time — and
+     * that is precisely the polling the cache exists to prevent, arriving through the one
+     * fault nobody would look for.
+     *
+     * met.no sends `Date` with `Expires`, both from its own clock, so the difference
+     * between them is a pure duration that no client clock can distort. Adding it to the
+     * local `Date.now()` puts the deadline in the same frame of reference as the
+     * comparison that will read it, whatever the frame happens to be.
+     *
+     * Bounded at both ends, because the header is not ours to trust: a value already
+     * past would otherwise expire the entry the moment it was written, and an absurd one
+     * would pin stale weather on screen for as long as it pleased.
+     *
+     * Neither does it need met.no's clock to be *right* — only self-consistent. Both
+     * headers come from one response and one clock, so a server an hour out shifts both
+     * together and the difference is unchanged.
+     *
+     * And no, `Age` must not be subtracted as well, which looks like an omission until
+     * you measure it. met.no's edge rewrites `Date` per response while `Expires` stays
+     * fixed, so the difference already shrinks by exactly the age. Three responses two
+     * seconds apart on 2026-08-25: date 13:50:37/:39/:41 against a constant expires of
+     * 14:21:05, giving 30m28s, 30m26s, 30m24s. It is the remaining lifetime, not the
+     * original one. Taking `Age` off as well would discount it twice, and a response
+     * served late in its window — which is exactly the case that prompted this — would
+     * be treated as already dead.
+     *
+     * What this cannot fix is a clock that moves *after* a deadline is stored — a written
+     * entry is an absolute local time and always will be. A correction forward simply
+     * expires it early and costs one fetch; a correction backward leaves it valid longer
+     * than intended, bounded by the six-hour ceiling.
+     */
+    private static readonly MIN_VALIDITY_MS = 60 * 1000;
+    private static readonly MAX_VALIDITY_MS = 6 * 60 * 60 * 1000;
+    private static readonly DEFAULT_VALIDITY_MS = 30 * 60 * 1000;
+
+    private static _expiryFrom(expires: Date | null, dateHeader: string | null): number {
+        const served = dateHeader ? new Date(dateHeader) : null;
+        const servedMs = served && !isNaN(served.getTime()) ? served.getTime() : null;
+        // Both from met.no's clock, so their difference is independent of ours. Without
+        // Date there is nothing to measure against and the published cadence is the
+        // honest default — better than trusting a subtraction against our own clock,
+        // which is the thing in doubt.
+        const raw = expires && servedMs !== null
+            ? expires.getTime() - servedMs
+            : WeatherAPI.DEFAULT_VALIDITY_MS;
+        const ttl = Math.min(
+            WeatherAPI.MAX_VALIDITY_MS,
+            Math.max(WeatherAPI.MIN_VALIDITY_MS,
+                     Number.isFinite(raw) ? raw : WeatherAPI.DEFAULT_VALIDITY_MS)
+        );
+        return Date.now() + ttl;
+    }
+
     get expiresAt(): number | null {
         return this._expiresAt;
     }
@@ -419,6 +481,9 @@ export class WeatherAPI {
             this.lastStatusCode = response.status;
 
             const expiresHeader = response.headers.get("Expires");
+            // Read alongside Expires so the cache can be timed by a duration rather than
+            // by an absolute moment. See _validityMs.
+            const dateHeader = response.headers.get("Date");
             // --- SPOOF: Always set expires to now + 3 minutes for testing ---
             // const spoofedExpires = new Date(Date.now() + 1 * 60 * 1000);
             // let expires: Date | null = spoofedExpires;
@@ -474,7 +539,7 @@ export class WeatherAPI {
             WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT++;
             // Parse and store forecast data
             this.assignMeteogramDataFromRaw(jsonData);
-            this._expiresAt = expires ? expires.getTime() : null;
+            this._expiresAt = WeatherAPI._expiryFrom(expires, dateHeader);
             this.saveCacheToStorage();
         } catch (error: unknown) {
             this.lastError = error;

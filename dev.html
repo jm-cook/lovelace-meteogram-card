@@ -131,15 +131,29 @@
 
     let current = structuredClone(FIXTURE);
 
-    // Serve the card's met.no request from memory, already expired so the next forced
-    // redraw fetches again rather than reusing the cached forecast.
+    // Serve the card's met.no request from memory.
+    //
+    // The expiry is sent as met.no sends it — a Date alongside an Expires — because the
+    // card times its cache by the difference between them rather than by the absolute
+    // Expires, so that a client with a wrong clock cannot expire it instantly. A stub
+    // that omits Date falls back to the published half-hour cadence, which would leave
+    // this harness reusing one forecast for the whole session.
+    //
+    // Even so, headers alone cannot make a step refetch: the card floors any window at a
+    // minute, and steps here are seconds apart. step() clears the stored cache instead,
+    // which says what the harness actually wants without depending on how an expiry is
+    // derived.
     const realFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
         const url = typeof input === "string" ? input : input?.url ?? "";
         if (url.includes("met.no")) {
             return new Response(JSON.stringify(current), {
                 status: 200,
-                headers: { "content-type": "application/json", expires: new Date(Date.now() - 1000).toUTCString() },
+                headers: {
+                    "content-type": "application/json",
+                    date: new Date().toUTCString(),
+                    expires: new Date(Date.now() + 30 * 60 * 1000).toUTCString(),
+                },
             });
         }
         return realFetch(input, init);
@@ -178,6 +192,9 @@
         // the instance gives the next draw a fresh one with no fetch history, so the
         // new data actually reaches the chart.
         card._weatherApiInstance = null;
+        // A fresh instance loads the stored forecast before it considers fetching, so
+        // the cache has to go too or the step's new data never reaches the chart.
+        localStorage.removeItem("metno-weather-cache");
         // Private, deliberately: the card's own redraw path, forced. Reachable here
         // because the card sits in this page's light DOM rather than inside Home
         // Assistant's shadow tree.

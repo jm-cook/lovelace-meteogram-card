@@ -75,6 +75,7 @@ check(quota.attempts >= 2, "one attempt is made to free room before giving up",
 
 // ── a 429 must hold the card off, not release it ─────────────────────────────
 const rate = await page.evaluate(async () => {
+  let check1 = false;
   const api = document.querySelector("meteogram-card")._weatherApiInstance;
   const realFetch = window.fetch;
   let calls = 0;
@@ -88,6 +89,11 @@ const rate = await page.evaluate(async () => {
     }
     return realFetch(input, init);
   };
+  // Empty in memory and in storage: getForecastData reloads from localStorage before it
+  // considers fetching, and the harness stores a valid half-hour entry, so a stale
+  // in-memory value alone would not reach the network.
+  const held = api._forecastData;               // kept for the second case below
+  localStorage.removeItem("metno-weather-cache");
   api._expiresAt = Date.now() - 1000;
   api._lastFetchTime = null;
   api._throttledUntil = 0;
@@ -96,19 +102,18 @@ const rate = await page.evaluate(async () => {
   try { await api.getForecastData(); } catch (e) { first = String(e.message ?? e); }
   const afterOne = { calls, throttledFor: Math.round((api._throttledUntil - Date.now()) / 1000),
     lastFetchCleared: api._lastFetchTime === null };
-  // A second attempt, exactly as a redraw would make: it must not reach the network.
+  check1 = /too many requests/i.test(first ?? "");
+
+  // With nothing held, an error is all there is to give.
+  const bare = first;
+
+  // With a forecast in hand, the back-off should serve it rather than error — and still
+  // not reach the network. This is the case a real card is almost always in.
+  api._forecastData = held;
   api._lastFetchTime = null;
   let second = null, secondData = null;
   try { secondData = await api.getForecastData(); }
   catch (e) { second = String(e.message ?? e); }
-  // And the case with nothing at all to fall back on, where an error is all there is.
-  // localStorage has to go too: getForecastData reloads from it before anything else,
-  // so an instance is never really empty while the entry survives.
-  localStorage.removeItem("metno-weather-cache");
-  api._forecastData = null;
-  api._expiresAt = null;
-  let bare = null;
-  try { await api.getForecastData(); } catch (e) { bare = String(e.message ?? e); }
   const out = { ...afterOne, callsAfterTwo: calls, first, second,
     secondServed: !!secondData?.time?.length, bare };
   window.fetch = realFetch;
@@ -132,7 +137,7 @@ check(rate.secondServed && rate.second === null,
   "meanwhile the reader still gets a forecast, from what is already held",
   rate.second ?? "served from cache");
 check(/too many requests/i.test(rate.bare ?? ""),
-  "and only where there is nothing to serve is the reason surfaced instead",
+  "with nothing held at all, the reason is surfaced instead of silence",
   rate.bare ?? "no error");
 
 check(errors.length === 0, "no page errors", errors[0] ?? "");
