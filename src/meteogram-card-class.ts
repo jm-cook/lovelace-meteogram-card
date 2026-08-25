@@ -58,6 +58,32 @@ export type MeteogramStyleConfig = Record<string, string> & {
 const MIN_DRAWABLE_WIDTH = 120;
 const MIN_DRAWABLE_HEIGHT = 40;
 
+// Floor on the wait before a scheduled forecast refresh.
+//
+// Defensive, not a fix for anything observed — worth saying plainly, because the
+// investigation that produced it went wrong twice.
+//
+// The refresh is armed for a minute after the forecast expires, and re-armed by every
+// draw. Without a floor an expiry already in the past gives a delay of zero: the timer
+// fires at once, forces a redraw, and that draw arms another zero-delay timer on its way
+// out. It would stop only when a fetch moved apiExpiresAt forward. A self-re-arming
+// timer that can compute a zero delay is worth closing off on its own merits.
+//
+// What it does *not* explain: three forecast-refresh draws landing in one second in a
+// reported log. That was the reason this was looked at, the spin was offered as the
+// mechanism, and the evidence does not support it — a foregrounded idle card made no
+// refresh draws and no met.no requests over 100 seconds. Those three draws remain
+// unexplained.
+//
+// Nor is met.no's Expires header ever in the past, which was the other wrong turn.
+// Measured directly: expires sits about 31 minutes ahead of date. The past expiry that
+// prompted all this is dev.html stubbing the header to Date.now() - 1000 on purpose, so
+// that a forced redraw in the harness refetches instead of reusing the fixture.
+//
+// A minute is far below the half-hour cadence a real forecast gives, so a healthy card
+// never reaches this floor.
+const MIN_REFRESH_DELAY_MS = 60000;
+
 // What has to fit to the right of the plot. Measured from the render rather than
 // reasoned about, because the three cases differ by more than they look.
 //
@@ -3132,7 +3158,13 @@ export class MeteogramCard extends LitElement {
         // --- SCHEDULE REFRESH 60s AFTER expiresAt ---
         if (this.apiExpiresAt) {
           const now = Date.now();
-          const delay = Math.max(this.apiExpiresAt + 60000 - now, 0);
+          // Floored, not clamped to zero: see MIN_REFRESH_DELAY_MS. A forecast that
+          // has already expired must still wait before the next attempt, or the
+          // re-arming below turns into a spin.
+          const delay = Math.max(
+            this.apiExpiresAt + 60000 - now,
+            MIN_REFRESH_DELAY_MS
+          );
           if (this._weatherRefreshTimeout)
             clearTimeout(this._weatherRefreshTimeout);
           this._debugLog(
