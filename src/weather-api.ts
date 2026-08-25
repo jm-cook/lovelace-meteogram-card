@@ -37,6 +37,15 @@ export class WeatherAPI {
     private _expiresAt: number | null = null;
     private _fetchPromise: Promise<void> | null = null;
     private _lastFetchTime: number | null = null; // Track last fetch timestamp
+    /**
+     * Set when met.no answers 429, and deliberately not cleared by the failure path.
+     *
+     * `_lastFetchTime` is reset on any fetch failure so a dropped connection can be
+     * retried promptly. A 429 is the opposite situation — the server is asking for less
+     * traffic — so the back-off it asks for is kept separately, where that reset cannot
+     * reach it.
+     */
+    private _throttledUntil = 0;
     private debug: boolean;
 
     constructor(lat: number, lon: number, altitude?: number, debug: boolean = false) {
@@ -65,6 +74,18 @@ export class WeatherAPI {
         // If cache is valid, return it
         if (this._forecastData && this._expiresAt && Date.now() < this._expiresAt) {
             return this._forecastData;
+        }
+        // Serve what we have rather than knock on a door that has just been closed.
+        if (Date.now() < this._throttledUntil) {
+            this._debugLog(
+                `[weather-api] backing off after 429 for `
+                + `${Math.round((this._throttledUntil - Date.now()) / 1000)}s`
+            );
+            if (this._forecastData) return this._forecastData;
+            throw new Error(
+                `Weather API throttling: too many requests. Waiting until `
+                + `${new Date(this._throttledUntil).toLocaleTimeString()} before retrying.`
+            );
         }
         // Only one fetch at a time, and throttle to 1 per 60 seconds
         const now = Date.now();
@@ -235,7 +256,33 @@ export class WeatherAPI {
             expiresAt: this._expiresAt,
             data: this._forecastData
         };
-        localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+        // Storing is best-effort, and must never be reported as a fetch failure.
+        //
+        // setItem throws QuotaExceededError when the origin's storage is full, and a
+        // ten-day forecast is a large object on an origin shared with everything else
+        // Home Assistant keeps there. This call sits inside the fetch's try block, so the
+        // throw used to be caught as if the *fetch* had failed — which clears
+        // _lastFetchTime and so the 60-second throttle, while leaving nothing cached. The
+        // next draw then fetched again, and again: a full disk turned into a polling
+        // loop, which is the one behaviour the cache exists to prevent.
+        //
+        // Dropping the write instead is the right failure: the forecast is already in
+        // memory and serves this session normally, and only the sharing with other tabs
+        // is lost until room appears.
+        try {
+            localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+        } catch (e) {
+            console.warn(
+                `[WeatherAPI] Could not store the forecast (storage full?); `
+                + `continuing with it in memory only:`, e
+            );
+            // One attempt to make room. Entries for other locations, and anything more
+            // than a day past its expiry, are worth less than the forecast in hand.
+            try {
+                WeatherAPI.cleanupOldCacheEntries();
+                localStorage.setItem('metno-weather-cache', JSON.stringify(cacheObj));
+            } catch { /* still no room: in-memory only, which is not an error */ }
+        }
     }
 
     // Load forecast data from localStorage
@@ -333,6 +380,12 @@ export class WeatherAPI {
             // Already fetched recently, skip
             return;
         }
+        // Checked here too: getForecastData is not the only way in, and a back-off that
+        // one caller honours and another does not is no back-off at all.
+        if (now < this._throttledUntil) {
+            this._debugLog(`[weather-api] fetch suppressed: backing off after 429`);
+            return;
+        }
         this._lastFetchTime = now;
 
         const lat = this.lat;
@@ -383,6 +436,27 @@ export class WeatherAPI {
             }
 
             if (this.lastStatusCode === 429) {
+                // Being told to slow down is the one case where the throttle must hold.
+                //
+                // The catch below clears _lastFetchTime so a failed fetch can be retried
+                // sooner, which is right for a dropped connection and exactly wrong here:
+                // met.no returns 429 when a client is already polling too hard, and the
+                // response was to delete our own rate limit so the next attempt went
+                // straight through. Rate limiting answered by removing rate limiting is
+                // how a soft throttle becomes a ban.
+                //
+                // met.no says when to come back in the Expires header, and that was read
+                // only to put a time in the message. It is now honoured: hold off until
+                // then, bounded so a malformed or absent header cannot hold the card off
+                // for ever or let it straight back in.
+                const MIN_BACKOFF_MS = 60 * 1000;
+                const MAX_BACKOFF_MS = 60 * 60 * 1000;
+                const asked = expires ? expires.getTime() - Date.now() : MIN_BACKOFF_MS;
+                const backoff = Math.min(
+                    MAX_BACKOFF_MS,
+                    Math.max(MIN_BACKOFF_MS, Number.isFinite(asked) ? asked : MIN_BACKOFF_MS)
+                );
+                this._throttledUntil = Date.now() + backoff;
                 const nextTry = expires ? expires.toLocaleTimeString() : "later";
                 throw new Error(`Weather API throttling: Too many requests. Please wait until ${nextTry} before retrying.`);
             }
