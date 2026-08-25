@@ -941,6 +941,43 @@ export class MeteogramCard extends LitElement {
    * console by querySelector.
    */
   private static _live = new Set<MeteogramCard>();
+  /**
+   * Which card element wrote each log entry.
+   *
+   * `_recentDraws` is static — one list for the page, shared by every card on it and
+   * surviving the replacement of any of them. That is deliberate and worth keeping: a
+   * rebuild would otherwise wipe the history of what happened before it. But it means a
+   * run of identical lines is ambiguous in a way nothing on the line resolves. Three
+   * `forecast refresh` draws inside one second, reported 2026-08-25, could be one
+   * element drawing three times or three live elements drawing once each, and those
+   * have completely different causes.
+   *
+   * Numbered per page and written on every line, which costs three characters and no
+   * buffer slots. The ancestry line cannot do this job: it is per-element state, so an
+   * element that has drawn before stays silent, which is exactly the case in question.
+   *
+   * The numbers climbing is itself worth seeing — it is how often Home Assistant is
+   * replacing the card, which no other part of the panel reports.
+   */
+  private static _elementSeq = 0;
+  private readonly _elementNo = ++MeteogramCard._elementSeq;
+
+  /**
+   * How many draws each trigger has caused since the page loaded.
+   *
+   * The redraw list holds twenty entries. Over the eighteen hours of a wall panel's day
+   * that is a keyhole, and the entries worth having are the unusual ones — which are
+   * also the first evicted, because everything routine arrives after them. Three
+   * `forecast refresh` draws inside one second were reported on 2026-08-25 and were gone
+   * from the buffer within the hour, so the question "did that happen again" had no
+   * answer at all.
+   *
+   * Widening the buffer does not fix that; a keyhole twice the size is still a keyhole.
+   * A tally does: it is bounded by the number of triggers, it cannot be evicted, and it
+   * answers the question the list cannot — what has been redrawing this card, and how
+   * often. It would have answered the 1086-entries question in one line too.
+   */
+  private static _drawTally = new Map<string, number>();
 
   /**
    * A stable <g> for one drawer, cleared and handed back.
@@ -1111,7 +1148,16 @@ export class MeteogramCard extends LitElement {
           // before its own replaced it. Only the first is a defect.
           : `, blank ${this._heldFromMs}ms then held ` +
             `${Math.max(0, this._firstPaintMs - this._heldFromMs)}ms`);
-    const tail = [ha, screen, `page loaded ${pageAge}`, cardAge]
+    // Ordered by count: what is redrawing this card most is the first question anyone
+    // asks of it, and the answer should not have to be counted by eye off the list.
+    const tally = [...MeteogramCard._drawTally.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, n]) => `${k} ${n}`)
+      .join(", ");
+    const tail = [
+      ha, screen, `page loaded ${pageAge}`, cardAge,
+      tally ? `draws since load: ${tally}` : null,
+    ]
       .filter(Boolean)
       .join(" \u00B7 ");
     return (
@@ -1180,7 +1226,13 @@ export class MeteogramCard extends LitElement {
     const at = new Date().toLocaleTimeString(this.getHaLocale(), {
       hour: "2-digit", minute: "2-digit", second: "2-digit",
     });
-    const entry = `${at}  ${kind.padEnd(4)}  ${line}`;
+    // Inline rather than a line of its own. A separate marker would be clearer to read
+    // but it spends a slot in a buffer that is already the scarce thing here — the
+    // entries worth having are the unusual ones, and they are the first to be evicted by
+    // anything routine. It also silently broke test/remount.mjs, which counts draws by
+    // differencing the buffer before and after: extra entries evicted older `drew` lines
+    // inside the measurement window, so a draw that happened was not counted.
+    const entry = `${at} #${this._elementNo}  ${kind.padEnd(4)}  ${line}`;
     const last = MeteogramCard._recentDraws[MeteogramCard._recentDraws.length - 1];
     if (replaceLast && last && last.includes(`  ${kind.padEnd(4)}  `)) {
       MeteogramCard._recentDraws[MeteogramCard._recentDraws.length - 1] = entry;
@@ -2933,9 +2985,16 @@ export class MeteogramCard extends LitElement {
     // draw does not animate.
     this._remountDraw =
       (firstDraw && MeteogramCard._pageHasDrawn) || this._reattachDraw;
+    const trigger = firstDraw
+      ? "new element"
+      : MeteogramCard._triggerLabel(this._lastDrawCaller);
+    MeteogramCard._drawTally.set(
+      trigger,
+      (MeteogramCard._drawTally.get(trigger) ?? 0) + 1
+    );
     this._note(
       "drew",
-      `${firstDraw ? "new element" : MeteogramCard._triggerLabel(this._lastDrawCaller)}  ` +
+      `${trigger}  ` +
         `${availableWidth}\u00D7${availableHeight} \u2192 ${width}\u00D7${height}`
     );
 

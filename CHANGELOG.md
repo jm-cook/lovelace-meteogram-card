@@ -5,6 +5,14 @@ All notable changes to the Meteogram Card will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **The redraw log says which card element wrote each line, and the panel counts draws by what triggered them.** The log is shared by every card on the page and survives any of them being replaced, which is deliberate — a rebuild would otherwise erase the history of what came before it — but it meant a run of identical lines could not be attributed. Each line now carries the element's number, so one card redrawing repeatedly is distinguishable from several cards each redrawing once, and the numbers climbing shows how often Home Assistant is replacing the card. The panel also reports a running count of draws per trigger since the page loaded. Twenty log entries cover very little of a wall panel's day and the unusual ones are the first to be evicted; a count cannot be evicted, and answers what is redrawing a card without anyone having to catch it in the act.
+
+### Fixed
+- **A forecast whose expiry has already passed can no longer schedule an immediate refresh.** The refresh timer is armed a minute after the forecast expires and re-armed by every draw, so an expiry in the past computed a delay of zero — firing at once, forcing a redraw, and arming another zero-delay timer. Defensive: no card has been observed doing this, and a healthy forecast gives about half an hour.
+
 ## [2026.8.3] - 2026.08.24
 
 ### Added
