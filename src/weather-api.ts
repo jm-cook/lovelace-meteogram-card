@@ -142,11 +142,21 @@ export class WeatherAPI {
      *
      * Bounded at both ends, because the header is not ours to trust: a value already
      * past would otherwise expire the entry the moment it was written, and an absurd one
-     * would pin stale weather on screen for as long as it pleased.
+     * would pin stale weather on screen for as long as it pleased. Both bounds sit
+     * comfortably around the real cadence — six hours is generous against a model that
+     * runs hourly, and a minute is the right answer to "the next run is already due",
+     * which is what a response served at the very end of its window is saying.
      *
      * Neither does it need met.no's clock to be *right* — only self-consistent. Both
      * headers come from one response and one clock, so a server an hour out shifts both
      * together and the difference is unchanged.
+     *
+     * `Expires` here is not a cache hint but a publication time: it is when met.no
+     * expects the next forecast to be ready. That is why it holds still while `Date`
+     * moves — it names a scheduled event, not a rolling lifetime — and why the duration
+     * is the right thing to store rather than a convenience. A moment on met.no's clock
+     * cannot be expressed on a device whose clock is three hours out; the wait until it
+     * can.
      *
      * And no, `Age` must not be subtracted as well, which looks like an omission until
      * you measure it. met.no's edge rewrites `Date` per response while `Expires` stays
