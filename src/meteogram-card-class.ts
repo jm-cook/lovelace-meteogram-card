@@ -334,10 +334,32 @@ export class MeteogramCard extends LitElement {
   // arriving late on a card that survived, where the chart on screen is already correct.
   // A rebuild cancels the wait for free, because the element stops existing.
   private static readonly _RECONNECT_HOLD_MS = 6000;
+  /**
+   * How long a re-attached card waits before drawing, when it has a chart to show.
+   *
+   * Home Assistant re-attaches the live element and then replaces it about a second
+   * later, repeatedly — observed three times in half an hour on a panel dashboard, at
+   * 09:55, 10:03 and 10:21. Each cycle the re-attached element built a complete chart
+   * and was discarded a second after finishing it, so half of every draw the card made
+   * was thrown away.
+   *
+   * Shorter than the reconnect hold because the gap is measured rather than guessed: the
+   * replacement arrives about a second later, every time. The cost of overshooting is
+   * different here too — a card that survives the hold sits on its predecessor's chart
+   * until it draws, and if the forecast moved in between, that is a stale chart on
+   * screen. Six seconds of that is worse than two and a half.
+   */
+  private static readonly _REATTACH_HOLD_MS = 2500;
   /** `hass.connected` as last seen, so the false\u2192true edge can be noticed. */
   private _lastConnected: boolean | undefined = undefined;
-  /** While in the future, redraws are deferred to it. */
-  private _reconnectHoldUntil = 0;
+  /**
+   * While in the future, redraws are deferred to it.
+   *
+   * Set by two things, for one reason: the element may be about to be discarded, and a
+   * redraw spent on it is work nobody will see. A websocket reconnect is one warning; a
+   * re-attachment is the other, and turns out to be the common one.
+   */
+  private _holdDrawsUntil = 0;
   /** Set once the element has been in the DOM, so a re-attach can be told from a mount. */
   private _hasBeenConnected = false;
   /** Set on re-attachment, so the draw that restores the chart does not animate. */
@@ -757,7 +779,7 @@ export class MeteogramCard extends LitElement {
     // if it does not. A forced draw still goes first: those come from a setting the
     // user just changed, and making them wait would be worse than a wasted redraw.
     if (!force) {
-      delay = Math.max(delay, this._reconnectHoldUntil - now);
+      delay = Math.max(delay, this._holdDrawsUntil - now);
     }
 
     const first = !this._hasDrawnOnce;
@@ -772,7 +794,7 @@ export class MeteogramCard extends LitElement {
       // timer only has to carry the reconnect hold. Dropping it to zero outright was
       // wrong: a re-attach makes the next draw a first draw, which is exactly when the
       // hold matters most, and the card drew straight through it.
-    }, first ? Math.max(0, this._reconnectHoldUntil - now) : delay);
+    }, first ? Math.max(0, this._holdDrawsUntil - now) : delay);
   }
 
   // Status panel properties
@@ -1735,7 +1757,7 @@ export class MeteogramCard extends LitElement {
     const now = this.hass?.connected;
     if (now === undefined) return;
     if (this._lastConnected === false && now === true) {
-      this._reconnectHoldUntil = Date.now() + MeteogramCard._RECONNECT_HOLD_MS;
+      this._holdDrawsUntil = Date.now() + MeteogramCard._RECONNECT_HOLD_MS;
       this._note("held", "reconnected \u2014 waiting to see if the card is rebuilt", true);
       this._debugLog(
         `[${CARD_NAME}] websocket reconnected; holding redraws for `
@@ -2055,6 +2077,26 @@ export class MeteogramCard extends LitElement {
     this._handoverNode = node;
     if (this._heldFromMs === null) {
       this._heldFromMs = Date.now() - this._createdAt;
+    }
+    // A re-attached element usually has moments to live, so hold its draw — but only
+    // now, with a chart on screen to hold behind.
+    //
+    // Re-attachment used to draw immediately on purpose. That was decided when a
+    // re-attach meant an empty card, where waiting only lengthened the blank: it added
+    // six seconds to every trip in and out of the dashboard editor. The handover landed
+    // afterwards and removed the blank, and the decision was never revisited. Every one
+    // of the wasted draws is logged `rebuilt (held)`, which is the evidence that there
+    // was something on screen throughout.
+    //
+    // Gated on adoption having succeeded, which is the whole safety of it. With nothing
+    // inherited there is nothing to wait behind, and holding would restore exactly the
+    // blank that made this a bad idea the first time.
+    if (this._reattachDraw) {
+      this._holdDrawsUntil = Math.max(
+        this._holdDrawsUntil,
+        Date.now() + MeteogramCard._REATTACH_HOLD_MS
+      );
+      this._note("held", "re-attached \u2014 waiting to see if the card is replaced", true);
     }
     this._debugLog(`[${CARD_NAME}] adopted previous chart (drawn ${held.w}x${held.h})`);
   }

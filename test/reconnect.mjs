@@ -47,7 +47,7 @@ const r = await page.evaluate(async () => {
   await setHass(false);                       // socket dropped
   const t0 = performance.now();
   await setHass(true);                        // reconnected — the hold starts here
-  const held = c._reconnectHoldUntil - Date.now();
+  const held = c._holdDrawsUntil - Date.now();
   const before = c.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
   c._scheduleDrawMeteogram("test-after-reconnect");
   await new Promise((res) => setTimeout(res, 900));
@@ -77,13 +77,13 @@ check(errors.length === 0, "no page errors", errors.join("; "));
 const reattach = await page.evaluate(async () => {
   const c = document.querySelector("meteogram-card");
   const host = c.parentElement;
-  c._reconnectHoldUntil = 0;                 // start from a clean slate
+  c._holdDrawsUntil = 0;                 // start from a clean slate
   const before = c.constructor._recentDraws.filter((l) => l.includes("  drew  ")).length;
   c.remove();                                // detached, as the suspend does
   await new Promise((r) => setTimeout(r, 50));
   host.appendChild(c);                       // and back again — same element
   await c.updateComplete;
-  const holding = c._reconnectHoldUntil > Date.now();
+  const holding = c._holdDrawsUntil > Date.now();
   const marked = c._reattachDraw;          // set on re-attach; suppresses the animation
   const t0 = performance.now();
   // Both of the requests a re-attach produces, spaced beyond the 60ms coalesce window.
@@ -97,18 +97,30 @@ const reattach = await page.evaluate(async () => {
            marked, suppressed: c._remountDraw === true };
 });
 
-// Re-attachment must NOT hold. Lit re-renders on the way back in and replaces the chart
-// div, so the svg is already gone — the card is blank from the moment of detachment, and
-// waiting only extends that. Holding cost the full six seconds every time edit mode
-// re-parented the card through hui-card-options.
-check(reattach.holding === false,
-  "a re-attach does not hold, because the card is already blank");
-check(reattach.drewFast, "it draws promptly instead", `${reattach.msToDraw}ms`);
-check(reattach.total === 1, "and the two requests coalesce into one draw, not two",
-  `${reattach.total} draw(s)`);
-check(reattach.marked && reattach.suppressed,
-  "and the restoring draw does not animate — there is nothing to show moving",
-  `marked ${reattach.marked}, suppressed during the draw ${reattach.suppressed}`);
+// Re-attachment holds — but only since the handover, and only behind an inherited chart.
+//
+// This block used to assert the opposite, and the reason it gave was true when it was
+// written: Lit re-renders on the way back in and replaces the chart div, so the svg was
+// gone and waiting only extended a blank card. Holding cost the full six seconds every
+// time edit mode re-parented the card through hui-card-options.
+//
+// The chart handover removed that premise. A re-attached element now inherits its
+// predecessor's chart before it draws, so there is something on screen for a hold to
+// wait behind, and the wasted draw is worth avoiding: Home Assistant re-attaches the
+// live element and replaces it about a second later, over and over — three times in half
+// an hour on a panel dashboard, with the re-attached element building a complete chart
+// each time and being discarded a second after finishing it.
+//
+// The gate is what keeps the old failure from returning: no inherited chart, no hold.
+// That case is covered in test/reattach-hold.mjs, which drives it directly.
+check(reattach.holding === true,
+  "a re-attach holds, now that it has an inherited chart to hold behind");
+check(!reattach.drewFast,
+  "so it does not spend a draw on an element that is probably about to be replaced",
+  `${reattach.total} draw(s) within ${reattach.msToDraw}ms`);
+check(reattach.marked,
+  "and the restoring draw is still marked not to animate, whenever it comes",
+  `marked ${reattach.marked}`);
 
 // A deferred draw must not outlive the element. Recorded: a hold started at 13:45:08,
 // the card was replaced at 13:45:11, and the draw fired at 13:45:14 on the removed
@@ -116,7 +128,7 @@ check(reattach.marked && reattach.suppressed,
 const orphan = await page.evaluate(async () => {
   const c = document.querySelector("meteogram-card");
   const host = c.parentElement;
-  c._reconnectHoldUntil = 0;
+  c._holdDrawsUntil = 0;
   const before = c.constructor._recentDraws.length;
   c._scheduleDrawMeteogram("test-pending");     // a draw is now queued
   const queued = c._drawTimer !== null;
@@ -132,6 +144,6 @@ check(orphan.cleared, "removal cancels it");
 check(!orphan.added.some((l) => l.includes("tiny")),
   "so no orphaned draw reports a 0x0 container", orphan.added.join(" | ") || "nothing logged");
 
-console.log(failed ? "\nreconnect: FAILED" : "\n13/13 passed");
+console.log(failed ? "\nreconnect: FAILED" : "\n12/12 passed");
 await browser.close(); server.close();
 process.exit(failed ? 1 : 0);
