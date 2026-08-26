@@ -26,7 +26,7 @@ import {
   convertDistance,
 } from "./conversions";
 import { meteogramCardStyles } from "./meteogram-card-styles";
-import { MeteogramChart } from "./meteogram-chart";
+import { MeteogramChart, ANIMATION_MS } from "./meteogram-chart";
 import { isDaylightAt } from "./solar";
 import { chartLayout } from "./layout";
 import { WEATHER_ICONS } from "./weather-icons.generated";
@@ -380,6 +380,9 @@ export class MeteogramCard extends LitElement {
    */
   private static _chartCache = new Map<string, { markup: string; w: number; h: number }>();
   private static readonly _CHART_CACHE_MAX = 8;
+
+  /** Pending settled-snapshot capture, so a new draw can cancel the last one. */
+  private _settleSnapshot: ReturnType<typeof setTimeout> | null = null;
 
   private static _rememberChart(sig: string, markup: string, w: number, h: number): void {
     const c = MeteogramCard._chartCache;
@@ -3352,16 +3355,36 @@ export class MeteogramCard extends LitElement {
           this._handoverNode = null;
         }
         // Hand this chart on to whatever element replaces this one.
-        try {
-          const node = (chartDiv as HTMLElement).querySelector("svg");
-          const w = Number(node?.getAttribute("width"));
-          const h = Number(node?.getAttribute("height"));
-          if (node && w > 0 && h > 0 && !this.meteogramError) {
-            MeteogramCard._rememberChart(this._renderSignature, node.outerHTML, w, h);
+        //
+        // Taken twice, because at this moment the chart is not yet what it will look
+        // like. Bars enter at height 0 and grow into place over ANIMATION_MS, so
+        // serialising here stores every entering bar flat, while labels — set directly,
+        // with no transition — store at full opacity. The handover then paints rain
+        // figures with no rain under them, which is what a panel view shows for the
+        // length of the re-attach hold after a tab switch.
+        //
+        // The immediate capture stays, so something exists to hand over during the
+        // animation; the deferred one overwrites it once the transitions have ended.
+        // Only the first draw of a page animates, so in practice this corrects exactly
+        // one entry — but that is the entry every later re-attach inherits.
+        const capture = () => {
+          try {
+            const node = (chartDiv as HTMLElement).querySelector("svg");
+            const w = Number(node?.getAttribute("width"));
+            const h = Number(node?.getAttribute("height"));
+            if (node && w > 0 && h > 0 && !this.meteogramError) {
+              MeteogramCard._rememberChart(this._renderSignature, node.outerHTML, w, h);
+            }
+          } catch {
+            /* nothing to hand over is not a failure */
           }
-        } catch {
-          /* nothing to hand over is not a failure */
-        }
+        };
+        capture();
+        if (this._settleSnapshot) clearTimeout(this._settleSnapshot);
+        this._settleSnapshot = setTimeout(() => {
+          this._settleSnapshot = null;
+          capture();
+        }, ANIMATION_MS + 60);
         // How long the card showed nothing, recorded where the chart actually exists.
         //
         // This used to be taken beside _lastDrawnKey, which is set before a single

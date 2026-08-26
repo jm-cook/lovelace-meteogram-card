@@ -45,6 +45,15 @@ if (typeof window !== "undefined") {
   window.mapHaConditionToMetnoSymbol = mapHaConditionToMetnoSymbol;
 }
 
+/**
+ * How long an animated change takes, in milliseconds.
+ *
+ * Exported because the card has to know it. Bars enter at height 0 and only reach their
+ * real height when this transition ends, so a snapshot of the chart taken any earlier
+ * serialises them flat — see the deferred capture in meteogram-card-class.
+ */
+export const ANIMATION_MS = 450;
+
 export class MeteogramChart {
     /**
      * Draw weather icons at each time step
@@ -181,7 +190,7 @@ export class MeteogramChart {
      * hours read directly beneath the day they belong to.
      */
     /** How long an animated change takes. */
-    private static readonly ANIM_MS = 450;
+    private static readonly ANIM_MS = ANIMATION_MS;
 
     /**
      * Whether this draw should move things or just place them.
@@ -1143,7 +1152,7 @@ export class MeteogramChart {
         chart.selectAll(".rain-label, .rain-max-label").remove();
 
         const animate = this.animating;
-        const DUR = 450;
+        const DUR = ANIMATION_MS;
         /** Height of a bar, with the 2px floor that keeps a trace of rain visible. */
         const barHeight = (v: number) => {
             const h = this.card._chartHeight - yPrecip(v);
