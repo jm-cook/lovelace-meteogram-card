@@ -114,6 +114,8 @@ check(near(normal, 31), "an ordinary response is good for the window met.no gave
 // Headers three hours "behind" now is indistinguishable from our clock being three hours
 // ahead of met.no's. Under the old code the stored deadline was 2.5 hours in the past, so
 // the cache check failed on every draw and every draw fetched.
+// Three hours is far larger than any plausible Age, so the skew check rejects our clock
+// and the measured window stands — long rather than short, which is the safe direction.
 const fast = await validityFor(-180, -180 + 31);
 check(near(fast, 31),
   "a clock three hours fast does not expire the cache the moment it is written",
@@ -138,6 +140,17 @@ check(near(backwards, 1, 0.6),
 const noStamp = await validityFor(0, 31, true);
 check(near(noStamp, 30), "without a served stamp the published cadence is the default",
   `${noStamp} min`);
+
+// ── what remains of the window, not the whole of it ──────────────────────────
+// The stamp is when the *origin* generated the forecast; met.no's Varnish may have held
+// the response for minutes before it reached us. Observed live:
+//   Last-Modified 12:10:01   Date 12:15:53   Expires 12:40:51   Age 351
+// so 24m58s remained of a 30m50s window. Age says so exactly and is not CORS-safelisted,
+// but `now - Last-Modified` should equal it — which makes our own clock self-checking,
+// and usable when it agrees.
+const aged = await validityFor(-6, -6 + 31);
+check(near(aged, 25), "a response already six minutes old is good for what is left of it",
+  `${aged} min, not 31`);
 
 // ── Date still works where it can be read ────────────────────────────────────
 // Same-origin, or if met.no ever exposes it. Kept as the second choice rather than

@@ -3560,11 +3560,16 @@ export class MeteogramCard extends LitElement {
             >${MeteogramCard._localTime(this.apiExpiresAt)}${status}</span
           >`;
         }
+        // "none this session" rather than "not available", because the empty case is the
+        // good one and the old wording read as a fault. `_lastFetchTime` is set only by a
+        // real network fetch and is deliberately not restored from localStorage, so an
+        // empty value means the cache served everything since this page loaded — which is
+        // exactly what the cache is for.
         lastFetchInfo = this._statusLastFetch
           ? this._statusLastFetch.includes("T")
             ? MeteogramCard._localTime(this._statusLastFetch)
             : this._statusLastFetch
-          : "not available";
+          : "none this session (served from cache)";
 
         debugInfo = `<div style='margin-top:8px;color:#ff9800;font-size:0.85em;line-height:1.4;'>
           <b>🌤️ ${apiDiag.apiType}:</b> ${

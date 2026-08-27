@@ -179,21 +179,37 @@ export class WeatherAPI {
     private static _expiryFrom(expires: Date | null, servedHeader: string | null): number {
         const served = servedHeader ? new Date(servedHeader) : null;
         const servedMs = served && !isNaN(served.getTime()) ? served.getTime() : null;
-        // Both from met.no's clock, so their difference is independent of ours. Without a
-        // served stamp there is nothing to measure against and the published cadence is
-        // the honest default — better than trusting a subtraction against our own clock,
-        // which is the thing in doubt. See the call site for why the stamp is
-        // Last-Modified rather than Date.
-        //
-        // One known bias, and it errs the safe way. Last-Modified is when the origin
-        // generated the forecast, while the response may have sat in met.no's Varnish for
-        // a while (there is an Age header, but it is not CORS-safelisted either). So this
-        // measures the *full* validity window rather than the part of it that remains,
-        // and can hold data a little past its expiry. That direction means fetching less
-        // often, which is the side to be wrong on when the risk being managed is a ban.
-        const raw = expires && servedMs !== null
+        // Expires minus the served stamp: both met.no's clock, so their difference is a
+        // duration ours cannot distort. This is the *full* window the forecast was
+        // published for, and it is the fallback rather than the answer.
+        const measured = expires && servedMs !== null
             ? expires.getTime() - servedMs
-            : WeatherAPI.DEFAULT_VALIDITY_MS;
+            : null;
+
+        // The full window is not what remains of it. Last-Modified is when the origin
+        // generated the forecast, and the response may have sat in met.no's Varnish
+        // first — observed at Age 351, nearly six minutes of a thirty-one minute window
+        // already spent before it reached us. Age would say so exactly and is not
+        // CORS-safelisted, so it cannot be read either.
+        //
+        // What can be read is our own clock, and the stamp makes it self-checking.
+        // `now - servedMs` should be roughly the Age: a small positive number, certainly
+        // no larger than the window itself. When it is, our clock agrees with met.no's
+        // closely enough to subtract against, and `Expires - now` is the honest remaining
+        // validity. When it is negative or larger than the whole window, our clock is the
+        // thing in doubt — which is the case this design was built for, a wall-panel Pi
+        // with no battery-backed clock booting hours out — and the measured window stands
+        // instead. That errs long, which means fetching less often, which is the side to
+        // be wrong on when the risk being managed is a ban.
+        const skew = servedMs !== null ? Date.now() - servedMs : null;
+        const clockAgrees = measured !== null && skew !== null
+            && skew >= 0 && skew <= measured;
+
+        const raw = clockAgrees && expires
+            ? expires.getTime() - Date.now()
+            : measured !== null
+                ? measured
+                : WeatherAPI.DEFAULT_VALIDITY_MS;
         const ttl = Math.min(
             WeatherAPI.MAX_VALIDITY_MS,
             Math.max(WeatherAPI.MIN_VALIDITY_MS,
