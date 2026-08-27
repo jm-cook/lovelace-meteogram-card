@@ -8,9 +8,17 @@
 // time — the exact polling the cache exists to prevent, arriving through a fault nobody
 // would think to look for.
 //
-// met.no sends Date with Expires, both from its own clock, so their difference is a
-// duration no client clock can distort. It does not need met.no's clock to be right,
+// met.no sends a served stamp with Expires, both from its own clock, so their difference
+// is a duration no client clock can distort. It does not need met.no's clock to be right,
 // only self-consistent.
+//
+// The stamp is Last-Modified, not Date, and that distinction cost this test its point for
+// a while. met.no returns no Access-Control-Expose-Headers, so a browser hands JavaScript
+// only the CORS-safelisted response headers — Date is not one of them, Last-Modified is.
+// Every real cross-origin fetch therefore saw no Date and fell back to the 30-minute
+// default, while this file went on passing: a Response built in JS is same-origin, so its
+// headers are all readable and the restriction that mattered was never exercised. The
+// cross-origin case at the foot of this file is the one that would have caught it.
 import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -30,6 +38,26 @@ const server = await new Promise((ok) => {
   });
   sv.listen(0, "127.0.0.1", () => ok(sv));
 });
+// A second origin, configured exactly as met.no is: permissive CORS, and no
+// Access-Control-Expose-Headers. Nothing but a real cross-origin fetch can show which
+// headers a browser will actually hand to JavaScript — a Response built in the page is
+// same-origin and lets everything through, which is how this went unnoticed.
+const crossServer = await new Promise((ok) => {
+  const sv = createServer((_q, res) => {
+    res.writeHead(200, {
+      "content-type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET",
+      "last-modified": new Date().toUTCString(),
+      "expires": new Date(Date.now() + 31 * 60000).toUTCString(),
+      // Deliberately no access-control-expose-headers, and Date is set by Node itself.
+    });
+    res.end("{}");
+  });
+  sv.listen(0, "127.0.0.1", () => ok(sv));
+});
+const CROSS_ORIGIN = `http://127.0.0.1:${crossServer.address().port}`;
+
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
 const errors = []; page.on("pageerror", (e) => errors.push(String(e)));
@@ -47,8 +75,9 @@ await page.waitForFunction(() => {
 
 // Serve one response with headers of our choosing, and report the validity the card
 // derived from it, in minutes from now.
-const validityFor = (dateOffsetMin, expiresOffsetMin, omitDate = false) =>
-  page.evaluate(async ([dOff, eOff, omit]) => {
+const validityFor = (dateOffsetMin, expiresOffsetMin, omitDate = false,
+                    stamp = "last-modified") =>
+  page.evaluate(async ([dOff, eOff, omit, stampName]) => {
     const api = document.querySelector("meteogram-card")._weatherApiInstance;
     const realFetch = window.fetch;
     // The fixture is a captured response: { capturedAt, body }, where body is the raw
@@ -60,7 +89,7 @@ const validityFor = (dateOffsetMin, expiresOffsetMin, omitDate = false) =>
       if (url.includes("met.no")) {
         const headers = { "content-type": "application/json",
           expires: new Date(Date.now() + eOff * 60000).toUTCString() };
-        if (!omit) headers.date = new Date(Date.now() + dOff * 60000).toUTCString();
+        if (!omit) headers[stampName] = new Date(Date.now() + dOff * 60000).toUTCString();
         return new Response(JSON.stringify(body), { status: 200, headers });
       }
       return realFetch(input, init);
@@ -72,7 +101,7 @@ const validityFor = (dateOffsetMin, expiresOffsetMin, omitDate = false) =>
     const mins = (api._expiresAt - Date.now()) / 60000;
     window.fetch = realFetch;
     return Math.round(mins * 10) / 10;
-  }, [dateOffsetMin, expiresOffsetMin, omitDate]);
+  }, [dateOffsetMin, expiresOffsetMin, omitDate, stamp]);
 
 const near = (v, want, tol = 1.5) => Math.abs(v - want) <= tol;
 
@@ -106,11 +135,38 @@ check(near(backwards, 1, 0.6),
   `${backwards} min, floor 1`);
 
 // ── nothing to measure against ───────────────────────────────────────────────
-const noDate = await validityFor(0, 31, true);
-check(near(noDate, 30), "without a Date header the published cadence is the default",
-  `${noDate} min`);
+const noStamp = await validityFor(0, 31, true);
+check(near(noStamp, 30), "without a served stamp the published cadence is the default",
+  `${noStamp} min`);
+
+// ── Date still works where it can be read ────────────────────────────────────
+// Same-origin, or if met.no ever exposes it. Kept as the second choice rather than
+// dropped, because there is nothing wrong with Date except that a browser hides it.
+const viaDate = await validityFor(0, 31, false, "date");
+check(near(viaDate, 31), "Date is still honoured where a browser lets it through",
+  `${viaDate} min`);
+
+// ── the case a stubbed Response cannot reach ─────────────────────────────────
+// A real cross-origin fetch, from a second origin that sends both stamps and no
+// Access-Control-Expose-Headers — exactly met.no's configuration. Last-Modified must
+// survive the trip and Date must not, which is the whole reason the stamp changed.
+const visible = await page.evaluate(async (origin) => {
+  const r = await fetch(`${origin}/headers-probe`);
+  return {
+    lastModified: r.headers.get("Last-Modified"),
+    date: r.headers.get("Date"),
+    expires: r.headers.get("Expires"),
+  };
+}, CROSS_ORIGIN);
+check(visible.lastModified !== null,
+  "cross-origin, Last-Modified reaches JavaScript", String(visible.lastModified));
+check(visible.expires !== null,
+  "cross-origin, Expires reaches JavaScript", String(visible.expires));
+check(visible.date === null,
+  "cross-origin, Date does not — which is why it cannot be the stamp",
+  `got ${JSON.stringify(visible.date)}`);
 
 check(errors.length === 0, "no page errors", errors[0] ?? "");
-await browser.close(); server.close();
+await browser.close(); server.close(); crossServer.close();
 console.log(failed ? "cache-expiry: FAILED" : "cache-expiry: ok");
 process.exit(failed ? 1 : 0);

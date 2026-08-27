@@ -176,13 +176,21 @@ export class WeatherAPI {
     private static readonly MAX_VALIDITY_MS = 6 * 60 * 60 * 1000;
     private static readonly DEFAULT_VALIDITY_MS = 30 * 60 * 1000;
 
-    private static _expiryFrom(expires: Date | null, dateHeader: string | null): number {
-        const served = dateHeader ? new Date(dateHeader) : null;
+    private static _expiryFrom(expires: Date | null, servedHeader: string | null): number {
+        const served = servedHeader ? new Date(servedHeader) : null;
         const servedMs = served && !isNaN(served.getTime()) ? served.getTime() : null;
-        // Both from met.no's clock, so their difference is independent of ours. Without
-        // Date there is nothing to measure against and the published cadence is the
-        // honest default — better than trusting a subtraction against our own clock,
-        // which is the thing in doubt.
+        // Both from met.no's clock, so their difference is independent of ours. Without a
+        // served stamp there is nothing to measure against and the published cadence is
+        // the honest default — better than trusting a subtraction against our own clock,
+        // which is the thing in doubt. See the call site for why the stamp is
+        // Last-Modified rather than Date.
+        //
+        // One known bias, and it errs the safe way. Last-Modified is when the origin
+        // generated the forecast, while the response may have sat in met.no's Varnish for
+        // a while (there is an Age header, but it is not CORS-safelisted either). So this
+        // measures the *full* validity window rather than the part of it that remains,
+        // and can hold data a little past its expiry. That direction means fetching less
+        // often, which is the side to be wrong on when the risk being managed is a ban.
         const raw = expires && servedMs !== null
             ? expires.getTime() - servedMs
             : WeatherAPI.DEFAULT_VALIDITY_MS;
@@ -492,8 +500,27 @@ export class WeatherAPI {
 
             const expiresHeader = response.headers.get("Expires");
             // Read alongside Expires so the cache can be timed by a duration rather than
-            // by an absolute moment. See _validityMs.
-            const dateHeader = response.headers.get("Date");
+            // by an absolute moment. See _expiryFrom.
+            //
+            // Last-Modified rather than Date, and the difference is the whole thing.
+            // met.no returns no Access-Control-Expose-Headers, so a browser hands
+            // JavaScript only the CORS-safelisted response headers: Cache-Control,
+            // Content-Language, Content-Length, Content-Type, Expires, Last-Modified,
+            // Pragma. Date is not among them, so `headers.get("Date")` was null on every
+            // cross-origin fetch and the expiry silently fell back to the 30-minute
+            // default every time — the measured branch was dead code.
+            //
+            // Last-Modified is safelisted and, on this endpoint, identical to Date:
+            //   date:          Thu, 27 Aug 2026 12:09:03 GMT
+            //   last-modified: Thu, 27 Aug 2026 12:09:03 GMT
+            //   expires:       Thu, 27 Aug 2026 12:40:58 GMT
+            // so the property that mattered is preserved — both stamps come from met.no's
+            // clock, and their difference is independent of ours.
+            //
+            // Date is still read as a second choice, for a same-origin proxy or if met.no
+            // ever exposes it.
+            const servedHeader = response.headers.get("Last-Modified")
+                ?? response.headers.get("Date");
             // --- SPOOF: Always set expires to now + 3 minutes for testing ---
             // const spoofedExpires = new Date(Date.now() + 1 * 60 * 1000);
             // let expires: Date | null = spoofedExpires;
@@ -549,7 +576,7 @@ export class WeatherAPI {
             WeatherAPI.METEOGRAM_CARD_API_SUCCESS_COUNT++;
             // Parse and store forecast data
             this.assignMeteogramDataFromRaw(jsonData);
-            this._expiresAt = WeatherAPI._expiryFrom(expires, dateHeader);
+            this._expiresAt = WeatherAPI._expiryFrom(expires, servedHeader);
             this.saveCacheToStorage();
         } catch (error: unknown) {
             this.lastError = error;
